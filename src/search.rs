@@ -1,0 +1,1010 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::time;
+
+use eval::*;
+use hash::*;
+use movegen::*;
+use movepick::*;
+use position::*;
+use tt::*;
+
+type Ply = i16;
+pub type Depth = i16;
+pub type History = [[[i32; 64]; 64]; 2];
+
+pub const INC_PLY: Depth = 64;
+pub const MAX_PLY: Ply = 128 - 1;
+
+pub struct Search {
+    details: Vec<IrreversibleDetails>,
+    stack: Vec<Rc<RefCell<PlyDetails>>>,
+    history: Rc<RefCell<History>>,
+    pub position: Position,
+    eval: Eval,
+    started_at: time::Instant,
+    pub stop_condition: StopCondition,
+    pub hasher: Hasher,
+    stats: Statistics,
+    pub tt: Rc<RefCell<TT>>,
+    pv: Vec<Vec<Option<Move>>>,
+    max_ply_searched: Ply,
+    past_position: Vec<Vec<Hash>>,
+    pub made_moves: Vec<Move>,
+    searching_for_white: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum StopCondition {
+    Infinite,
+    TimePerMove {
+        millis: u64,
+    },
+    Depth(Depth),
+    Nodes(u64),
+    Variable {
+        wtime: u64,
+        btime: u64,
+        winc: Option<u64>,
+        binc: Option<u64>,
+        movestogo: Option<u64>,
+    },
+}
+
+#[derive(Copy, Clone)]
+struct Statistics {
+    nodes: u64,
+    beta_cutoff: [usize; MAX_PLY as usize],
+    beta_cutoff_on_first_move: [usize; MAX_PLY as usize],
+}
+
+impl Default for Statistics {
+    fn default() -> Self {
+        Statistics {
+            nodes: 0,
+            beta_cutoff: [0; MAX_PLY as usize],
+            beta_cutoff_on_first_move: [0; MAX_PLY as usize],
+        }
+    }
+}
+
+impl Statistics {
+    fn reset(&mut self) {
+        self.nodes = 0;
+        self.beta_cutoff = [0; MAX_PLY as usize];
+        self.beta_cutoff_on_first_move = [0; MAX_PLY as usize];
+    }
+
+    fn beta_cutoff(&mut self, ply: Ply, move_number: usize) {
+        if move_number == 0 {
+            self.beta_cutoff_on_first_move[ply as usize] += 1;
+        }
+        self.beta_cutoff[ply as usize] += 1;
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct PlyDetails {
+    current_move: Option<Move>,
+    pub killers_moves: [Option<Move>; 2],
+}
+
+impl Search {
+    pub fn new(position: Position) -> Self {
+        let mut pv = Vec::with_capacity(MAX_PLY as usize);
+        let mut stack = Vec::with_capacity(MAX_PLY as usize);
+        for i in 0..MAX_PLY as usize {
+            pv.push(vec![None; MAX_PLY as usize - i + 1]);
+            stack.push(Rc::new(RefCell::new(PlyDetails::default())));
+        }
+
+        Search {
+            details: Vec::with_capacity(16),
+            history: Rc::new(RefCell::new([[[0; 64]; 64]; 2])),
+            stack,
+            position,
+            eval: Eval::from(position),
+            started_at: time::Instant::now(),
+            stop_condition: StopCondition::Infinite,
+            hasher: Hasher::new(),
+            tt: Rc::new(RefCell::new(TT::new(20))),
+            stats: Statistics::default(),
+            pv,
+            max_ply_searched: 0,
+            past_position: vec![Vec::new()],
+            made_moves: Vec::new(),
+            searching_for_white: true,
+        }
+    }
+
+    pub fn root(&mut self) -> Move {
+        self.searching_for_white = self.position.white_to_move;
+        self.started_at = time::Instant::now();
+        self.stats.reset();
+        self.pv
+            .iter_mut()
+            .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
+
+        let mut moves = MoveGenerator::from(self.position).all_moves();
+
+        if let Some(ttentry) = self.tt
+            .borrow_mut()
+            .get(self.made_moves.len(), self.hasher.get_hash())
+        {
+            let mut swap_with = 0;
+            let ttmove = ttentry.best_move.expand(self.position);
+            for (i, &mov) in moves.iter().enumerate() {
+                if Some(mov) == ttmove {
+                    swap_with = i;
+                    break;
+                }
+            }
+
+            moves.swap(0, swap_with);
+        }
+
+        'deepening: for d in 1i16.. {
+            if !self.start_another_iteration(d) {
+                break;
+            }
+            let depth = d * INC_PLY;
+
+            self.max_ply_searched = 0;
+            let mut increased_alpha = false;
+            let mut alpha = -Score::max_value();
+            let beta = Score::max_value();
+            let mut best_move_index = 0;
+
+            let mut num_moves = 0;
+            'try_moves: for (i, &mov) in moves.iter().enumerate() {
+                self.internal_make_move(mov, 0);
+                if !self.position.move_was_legal(mov) {
+                    self.internal_unmake_move(mov);
+                    continue;
+                }
+
+                num_moves += 1;
+
+                let mut new_depth = depth - INC_PLY;
+                if self.position.in_check() {
+                    new_depth += INC_PLY;
+                }
+
+                let value;
+                if !increased_alpha {
+                    value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
+                } else {
+                    let value_zw = self.search_zw(1, -alpha, new_depth).map(|v| -v);
+                    if value_zw.is_some() && value_zw.unwrap() > alpha {
+                        value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
+                    } else {
+                        value = value_zw;
+                    }
+                }
+
+                self.internal_unmake_move(mov);
+
+                match value {
+                    None => {
+                        if increased_alpha {
+                            break 'try_moves;
+                        } else {
+                            break 'deepening;
+                        }
+                    }
+                    Some(value) => {
+                        if value > alpha {
+                            increased_alpha = true;
+                            alpha = value;
+                            best_move_index = i;
+                            self.add_pv_move(mov, 0);
+
+                            if depth > 5 * INC_PLY {
+                                self.uci_info(depth, alpha);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let best_move = moves[best_move_index];
+            moves.insert(0, best_move);
+            moves.remove(best_move_index + 1);
+            self.uci_info(depth, alpha);
+
+            if num_moves == 1 {
+                return moves[0];
+            }
+        }
+
+        moves[0]
+    }
+
+    pub fn search_pv(
+        &mut self,
+        ply: Ply,
+        alpha: Score,
+        beta: Score,
+        depth: Depth,
+    ) -> Option<Score> {
+        if self.should_stop() {
+            return None;
+        }
+
+        if self.is_draw(ply) {
+            return Some(0);
+        }
+
+        if ply == MAX_PLY {
+            return Some(self.eval.score(self.position));
+        }
+
+        if MATE_SCORE - ply < alpha {
+            return Some(alpha);
+        }
+
+        if -MATE_SCORE + ply > beta {
+            return Some(beta);
+        }
+
+        self.stats.nodes += 1;
+        self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
+
+        let moves = MovePicker::new(
+            self.made_moves.len(),
+            MoveGenerator::from(self.position),
+            self.tt.clone(),
+            self.hasher.get_hash(),
+            self.stack[ply as usize].clone(),
+            self.history.clone(),
+        );
+        let in_check = self.position.in_check();
+        if self.position.halfmove == 100 {
+            if in_check {
+                for (_, mov) in moves {
+                    self.internal_make_move(mov, ply);
+                    if self.position.move_was_legal(mov) {
+                        self.internal_unmake_move(mov);
+                        return Some(0);
+                    }
+                    self.internal_unmake_move(mov);
+                }
+
+                return Some(-MATE_SCORE + ply);
+            } else {
+                return Some(0);
+            }
+        }
+
+        if depth < INC_PLY {
+            self.stats.nodes -= 1;
+            return self.qsearch(ply, alpha, beta, depth);
+        }
+
+        if depth >= 4 * INC_PLY && !moves.has_tt_move() {
+            self.search_pv(ply, alpha, beta, depth - 2 * INC_PLY);
+        }
+
+        let mut alpha = alpha;
+        let mut increased_alpha = false;
+
+        let mut best_move = None;
+        let mut best_score = -Score::max_value();
+
+        let mut num_moves = 0;
+        for (i, (_mtype, mov)) in moves.enumerate() {
+            self.internal_make_move(mov, ply);
+            if !self.position.move_was_legal(mov) {
+                self.internal_unmake_move(mov);
+                continue;
+            }
+
+            num_moves += 1;
+
+            let mut extension = 0;
+            let check = self.position.in_check();
+            if check {
+                extension += INC_PLY;
+            }
+
+            let mut new_depth = depth - INC_PLY + extension;
+
+            let mut value;
+            if !increased_alpha {
+                value = self.search_pv(ply + 1, -beta, -alpha, new_depth)
+                    .map(|v| -v);
+            } else {
+                value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
+                if value.is_some() {
+                    if value.unwrap() > alpha {
+                        value = self.search_pv(ply + 1, -beta, -alpha, new_depth)
+                            .map(|v| -v);
+                    }
+                }
+            }
+            self.internal_unmake_move(mov);
+
+            match value {
+                None => {
+                    if increased_alpha {
+                        self.tt.borrow_mut().insert(
+                            self.made_moves.len(),
+                            self.hasher.get_hash(),
+                            depth,
+                            alpha,
+                            best_move.unwrap(),
+                            LOWER_BOUND,
+                        );
+                    }
+
+                    return None;
+                }
+                Some(value) => {
+                    if value > best_score {
+                        best_score = value;
+                        best_move = Some(mov);
+                        if value > alpha {
+                            increased_alpha = true;
+                            alpha = value;
+                            self.add_pv_move(mov, ply);
+                            if value >= beta {
+                                self.stats.beta_cutoff(ply, i);
+                                if mov.captured.is_none() {
+                                    self.update_history(depth, mov);
+                                }
+                                self.add_killer_move(mov, ply);
+                                self.tt.borrow_mut().insert(
+                                    self.made_moves.len(),
+                                    self.hasher.get_hash(),
+                                    depth,
+                                    value,
+                                    mov,
+                                    LOWER_BOUND,
+                                );
+                                return Some(value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if num_moves == 0 {
+            if self.position.in_check() {
+                return Some(-MATE_SCORE + ply);
+            } else {
+                return Some(0);
+            }
+        }
+
+        if increased_alpha {
+            self.tt.borrow_mut().insert(
+                self.made_moves.len(),
+                self.hasher.get_hash(),
+                depth,
+                alpha,
+                best_move.unwrap(),
+                EXACT_BOUND,
+            );
+        } else {
+            self.tt.borrow_mut().insert(
+                self.made_moves.len(),
+                self.hasher.get_hash(),
+                depth,
+                best_score,
+                best_move.unwrap(),
+                UPPER_BOUND,
+            );
+        }
+
+        Some(best_score)
+    }
+
+    pub fn search_zw(&mut self, ply: Ply, beta: Score, depth: Depth) -> Option<Score> {
+        if self.should_stop() {
+            return None;
+        }
+
+        if self.is_draw(ply) {
+            return Some(0);
+        }
+
+        if ply == MAX_PLY {
+            return Some(self.eval.score(self.position));
+        }
+
+        let alpha = beta - 1;
+        /*
+        if MATE_SCORE - ply < alpha {
+            return Some(alpha);
+        }
+
+        if -MATE_SCORE + ply > beta {
+            return Some(beta);
+        }
+        */
+
+        self.stats.nodes += 1;
+        self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
+
+        let mg = MoveGenerator::from(self.position);
+        let moves = MovePicker::new(
+            self.made_moves.len(),
+            mg,
+            self.tt.clone(),
+            self.hasher.get_hash(),
+            self.stack[ply as usize].clone(),
+            self.history.clone(),
+        );
+        let in_check = self.position.in_check();
+        if self.position.halfmove == 100 {
+            if in_check {
+                for (_, mov) in moves {
+                    self.internal_make_move(mov, ply);
+                    if self.position.move_was_legal(mov) {
+                        self.internal_unmake_move(mov);
+                        return Some(0);
+                    }
+                    self.internal_unmake_move(mov);
+                }
+
+                return Some(-MATE_SCORE + ply);
+            } else {
+                return Some(0);
+            }
+        }
+
+        if let Some(ttentry) = self.tt
+            .borrow_mut()
+            .get(self.made_moves.len(), self.hasher.get_hash())
+        {
+            if ttentry.depth >= depth
+                && ttentry
+                    .best_move
+                    .expand(self.position)
+                    .map(|mov| MoveGenerator::from(self.position).is_legal(mov))
+                    .unwrap_or(false)
+            {
+                let mut score = ttentry.score;
+                if score == MATE_SCORE {
+                    score = MATE_SCORE - ply;
+                } else if score == -MATE_SCORE {
+                    score = -MATE_SCORE + ply;
+                }
+
+                if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
+                    return Some(score);
+                }
+
+                if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
+                    return Some(score);
+                }
+
+                if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
+                    return Some(score);
+                }
+            }
+        }
+
+        if depth < INC_PLY {
+            self.stats.nodes -= 1;
+            return self.qsearch(ply, alpha, beta, depth);
+        }
+
+        // Nullmove
+        if depth >= 5 * INC_PLY && !in_check && self.eval.material.non_pawn_material() > 0 {
+            let eval = self.eval.score(self.position);
+            if eval >= beta {
+                self.internal_make_nullmove(ply);
+                let score = self.search_zw(ply + 1, -alpha, depth - 2 * INC_PLY)
+                    .map(|v| -v);
+                self.internal_unmake_nullmove();
+                match score {
+                    None => return None,
+                    Some(score) => {
+                        if score >= beta {
+                            return Some(beta);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Internal deepening
+        if depth >= 4 * INC_PLY && !moves.has_tt_move() {
+            self.search_zw(ply, beta, depth - 2 * INC_PLY);
+        }
+
+        let mut best_score = -Score::max_value();
+        let mut best_move = None;
+
+        let futility_prune = !in_check
+            && INC_PLY <= depth
+            && depth < 2 * INC_PLY
+            && alpha >= -MATE_SCORE + MAX_PLY
+            && beta <= MATE_SCORE - MAX_PLY;
+
+        let mut num_moves = 0;
+        for (i, (mtype, mov)) in moves.enumerate() {
+            self.internal_make_move(mov, ply);
+            if !self.position.move_was_legal(mov) {
+                self.internal_unmake_move(mov);
+                continue;
+            }
+
+            num_moves += 1;
+            let check = self.position.in_check();
+
+            if futility_prune && !check && mtype == MoveType::Quiet && num_moves > 1 {
+                let futility_margin = 300;
+                if alpha > self.eval.material.score() + futility_margin {
+                    self.internal_unmake_move(mov);
+                    continue;
+                }
+            }
+
+            let mut extension = 0;
+            let mut reduction = 0;
+
+            if check {
+                extension += INC_PLY;
+            }
+
+            if num_moves > 6 && extension <= 0 {
+                reduction += INC_PLY;
+            }
+
+            let mut new_depth = depth - INC_PLY + extension - reduction;
+
+            let mut value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
+            let mut research = false;
+            if value.is_some() {
+                if value.unwrap() > alpha && reduction > 0 {
+                    new_depth += reduction;
+                    research = true;
+                }
+
+                if research {
+                    value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
+                }
+            }
+
+            self.internal_unmake_move(mov);
+
+            if value == None {
+                return None;
+            }
+
+            if value.unwrap() > best_score {
+                best_score = value.unwrap();
+                best_move = Some(mov);
+                if value.unwrap() >= beta {
+                    self.stats.beta_cutoff(ply, i);
+                    if mov.captured.is_none() {
+                        self.update_history(depth, mov);
+                    }
+                    self.add_killer_move(mov, ply);
+
+                    self.tt.borrow_mut().insert(
+                        self.made_moves.len(),
+                        self.hasher.get_hash(),
+                        depth,
+                        best_score,
+                        mov,
+                        LOWER_BOUND,
+                    );
+                    return value;
+                }
+            }
+        }
+
+        if num_moves == 0 {
+            if self.position.in_check() {
+                return Some(-MATE_SCORE + ply);
+            } else {
+                return Some(0);
+            }
+        }
+
+        self.tt.borrow_mut().insert(
+            self.made_moves.len(),
+            self.hasher.get_hash(),
+            depth,
+            best_score,
+            best_move.unwrap(),
+            UPPER_BOUND,
+        );
+        Some(best_score)
+    }
+
+    pub fn qsearch(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
+        if self.should_stop() {
+            return None;
+        }
+
+        /*
+        if MATE_SCORE - ply < alpha {
+            return Some(alpha);
+        }
+
+        if -MATE_SCORE + ply > beta {
+            return Some(beta);
+        }
+        */
+
+        self.stats.nodes += 1;
+
+        let in_check = self.position.in_check();
+        let mut depth = depth;
+
+        if in_check {
+            depth += INC_PLY;
+        }
+
+        let eval = self.eval.score(self.position);
+        let mut alpha = alpha;
+        let mg = MoveGenerator::from(self.position);
+        if !in_check {
+            if eval >= beta {
+                return Some(eval);
+            }
+
+            if alpha < eval {
+                alpha = eval;
+            }
+        }
+
+        let moves = if in_check {
+            MovePicker::qsearch_in_check(
+                self.made_moves.len(),
+                mg,
+                self.tt.clone(),
+                self.hasher.get_hash(),
+                self.stack[ply as usize].clone(),
+                self.history.clone(),
+            )
+        } else {
+            MovePicker::qsearch(
+                self.made_moves.len(),
+                mg,
+                self.tt.clone(),
+                self.hasher.get_hash(),
+                self.stack[ply as usize].clone(),
+                self.history.clone(),
+            )
+        };
+
+        let mut num_moves = 0;
+        for (_mtype, mov) in moves {
+            self.internal_make_move(mov, ply);
+            if !self.position.move_was_legal(mov) {
+                self.internal_unmake_move(mov);
+                continue;
+            }
+            num_moves += 1;
+
+            let value = self.qsearch(ply + 1, -beta, -alpha, depth - INC_PLY)
+                .map(|v| -v);
+            self.internal_unmake_move(mov);
+
+            match value {
+                None => return None,
+                Some(score) => {
+                    if score > alpha {
+                        alpha = score;
+                        if score >= beta {
+                            return value;
+                        }
+                    }
+                }
+            }
+        }
+
+        if num_moves == 0 && in_check {
+            return Some(-MATE_SCORE + ply);
+        }
+
+        Some(alpha)
+    }
+
+    fn uci_info(&self, d: Depth, alpha: Score) {
+        let elapsed = time::Instant::now() - self.started_at;
+        let millis = elapsed.as_secs() as u32 * 1000 + elapsed.subsec_nanos() / 1_000_000;
+        let score_str = if alpha.abs() >= MATE_SCORE - MAX_PLY {
+            if alpha < 0 {
+                format!("mate {}", -MATE_SCORE - alpha)
+            } else {
+                format!("mate {}", -alpha + MATE_SCORE)
+            }
+        } else {
+            format!("cp {}", alpha)
+        };
+        print!(
+            "info depth {} seldepth {} nodes {} score {} time {} hashfull {} pv ",
+            d / INC_PLY,
+            self.max_ply_searched,
+            self.stats.nodes,
+            score_str,
+            millis,
+            self.tt.borrow().usage()
+        );
+        for mov in self.pv[0].iter().take_while(|o| o.is_some()) {
+            print!("{} ", mov.unwrap().to_algebraic());
+        }
+        println!();
+    }
+
+    fn add_killer_move(&mut self, mov: Move, ply: Ply) {
+        // Captures are sorted to the front (and less likely to be legal in sibling nodes). Hence
+        // we do not track captures as killer moves.
+        if mov.captured.is_some() {
+            return;
+        }
+
+        let killers = &mut self.stack[ply as usize].borrow_mut().killers_moves;
+
+        if killers[0] == None {
+            killers[0] = Some(mov);
+            return;
+        }
+
+        // If this move is also the most recently added killer move, do nothing.
+        if killers[0] == Some(mov) {
+            return;
+        }
+
+        killers[1] = killers[0];
+        killers[0] = Some(mov);
+    }
+
+    fn update_history(&mut self, depth: Depth, mov: Move) {
+        let d = (depth / INC_PLY) as i32;
+        self.history.borrow_mut()[self.position.white_to_move as usize][mov.from.0 as usize]
+            [mov.to.0 as usize] += d * d;
+        if self.history.borrow()[self.position.white_to_move as usize][mov.from.0 as usize]
+            [mov.to.0 as usize] > Score::max_value() as i32
+        {
+            let mut history = self.history.borrow_mut();
+            for stm in 0..2 {
+                for from in 0..64 {
+                    for to in 0..64 {
+                        history[stm][from][to] /= 4;
+                    }
+                }
+            }
+        }
+    }
+
+    fn add_pv_move(&mut self, mov: Move, ply: Ply) {
+        self.pv[ply as usize][0] = Some(mov);
+        for i in 0..MAX_PLY - ply - 1 {
+            self.pv[ply as usize][1 + i as usize] = self.pv[1 + ply as usize][i as usize];
+
+            if self.pv[1 + ply as usize][i as usize] == None {
+                break;
+            }
+        }
+
+        if ply == MAX_PLY - 1 {
+            self.pv[ply as usize][0] = Some(mov);
+        } else {
+            self.pv[1 + ply as usize][0] = None;
+        }
+    }
+
+    fn start_another_iteration(&mut self, d: Depth) -> bool {
+        if d == MAX_PLY {
+            return false;
+        }
+
+        match self.stop_condition {
+            StopCondition::Depth(stop_d) => d <= stop_d,
+            StopCondition::TimePerMove { millis } => {
+                let now = time::Instant::now();
+                let elapsed = now - self.started_at;
+                let elapsed_millis =
+                    elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_nanos()) / 1_000_000;
+                elapsed_millis + 50 <= millis
+            }
+            StopCondition::Variable {
+                wtime,
+                btime,
+                winc,
+                binc,
+                movestogo,
+            } => {
+                let now = time::Instant::now();
+                let elapsed = now - self.started_at;
+                let elapsed_millis =
+                    elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_nanos()) / 1_000_000;
+
+                let time = if self.searching_for_white {
+                    wtime
+                } else {
+                    btime
+                };
+                let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
+                let movestogo = movestogo.unwrap_or(40);
+                elapsed_millis <= ::std::cmp::min(time, time / movestogo + inc) / 2
+            }
+            _ => true,
+        }
+    }
+
+    fn should_stop(&mut self) -> bool {
+        match self.stop_condition {
+            StopCondition::Infinite => false,
+            StopCondition::Nodes(nodes) => self.stats.nodes >= nodes,
+            StopCondition::Depth(_) => false, /* handled in start_another_iteration */
+            StopCondition::TimePerMove { millis } => {
+                if self.stats.nodes & 0x7F == 0 {
+                    let now = time::Instant::now();
+                    let elapsed = now - self.started_at;
+                    let elapsed_millis =
+                        elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_nanos()) / 1_000_000;
+                    return elapsed_millis + 20 > millis;
+                }
+                false
+            }
+            StopCondition::Variable {
+                wtime,
+                btime,
+                winc,
+                binc,
+                movestogo,
+            } => {
+                if self.stats.nodes & 0x7F == 0 {
+                    let now = time::Instant::now();
+                    let elapsed = now - self.started_at;
+                    let elapsed_millis =
+                        elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_nanos()) / 1_000_000;
+
+                    let time = if self.searching_for_white {
+                        wtime
+                    } else {
+                        btime
+                    };
+                    let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
+                    let movestogo = ::std::cmp::min(10, movestogo.unwrap_or(10));
+                    return elapsed_millis >= ::std::cmp::min(time - 10, time / movestogo + inc);
+                }
+                false
+            }
+        }
+    }
+
+    fn is_draw(&self, ply: Ply) -> bool {
+        let last_move = self.stack[ply as usize - 1].borrow().current_move;
+        if last_move.and_then(|mov| mov.captured).is_some() {
+            self.eval.material.is_draw()
+        } else if last_move.is_some() && last_move.unwrap().piece != Piece::Pawn {
+            let possible_repetitions = self.past_position.last().unwrap();
+            possible_repetitions
+                .iter()
+                .take(possible_repetitions.len() - 1)
+                .any(|&h| h == self.hasher.get_hash())
+        } else {
+            false
+        }
+    }
+
+    pub fn perft(&mut self, depth: usize) {
+        let start = time::Instant::now();
+
+        let mut num_moves = 0;
+        let mg = MoveGenerator::from(self.position);
+        let moves = mg.all_moves();
+
+        if depth > 0 {
+            for mov in moves {
+                self.internal_make_move(mov, 0);
+                if self.position.move_was_legal(mov) {
+                    let perft = self.internal_perft(depth - 1);
+                    num_moves += perft;
+                    println!("{}: {}", mov.to_algebraic(), perft);
+                }
+                self.internal_unmake_move(mov);
+            }
+        }
+
+        let elapsed = time::Instant::now() - start;
+
+        println!();
+        println!("Nodes searched: {}", num_moves);
+        println!(
+            "Took {} ms",
+            elapsed.as_secs() as u32 * 1000 + elapsed.subsec_nanos() / 1_000_000
+        );
+        println!();
+    }
+
+    fn internal_perft(&mut self, depth: usize) -> usize {
+        if depth == 0 {
+            return 1;
+        }
+
+        let mut num_moves = 0;
+        let mg = MoveGenerator::from(self.position);
+        let moves = mg.all_moves();
+
+        for mov in moves {
+            self.internal_make_move(mov, 0);
+            if self.position.move_was_legal(mov) {
+                num_moves += self.internal_perft(depth - 1);
+            }
+            self.internal_unmake_move(mov);
+        }
+
+        num_moves
+    }
+
+    pub fn make_move(&mut self, mov: Move) {
+        self.internal_make_move(mov, 0);
+        self.made_moves.push(mov);
+    }
+
+    pub fn internal_make_move(&mut self, mov: Move, ply: Ply) {
+        self.details.push(IrreversibleDetails {
+            en_passant: self.position.en_passant,
+            castling: self.position.castling,
+            halfmove: self.position.halfmove,
+        });
+
+        self.stack[ply as usize].borrow_mut().current_move = Some(mov);
+
+        self.hasher.make_move(self.position, mov);
+        self.eval.make_move(mov, self.position);
+        self.position.make_move(mov);
+
+        if self.position.halfmove == 0 {
+            self.past_position.push(vec![self.hasher.get_hash()]);
+        } else {
+            self.past_position
+                .last_mut()
+                .unwrap()
+                .push(self.hasher.get_hash());
+        }
+    }
+
+    fn internal_make_nullmove(&mut self, ply: Ply) {
+        self.details.push(IrreversibleDetails {
+            en_passant: self.position.en_passant,
+            castling: self.position.castling,
+            halfmove: self.position.halfmove,
+        });
+        self.stack[ply as usize].borrow_mut().current_move = None;
+
+        self.hasher.make_nullmove(self.position);
+        self.position.make_nullmove();
+    }
+
+    fn internal_unmake_nullmove(&mut self) {
+        let irreversible = self.details.pop().unwrap();
+        self.hasher.unmake_nullmove(self.position, irreversible);
+        self.position.unmake_nullmove(irreversible);
+    }
+
+    pub fn redo_eval(&mut self) {
+        self.eval = Eval::from(self.position);
+    }
+
+    /*
+    pub fn unmake_move(&mut self) {
+        let mov = self.made_moves.pop().unwrap();
+        self.internal_unmake_move(mov);
+    }
+    */
+
+    pub fn internal_unmake_move(&mut self, mov: Move) {
+        if self.position.halfmove == 0 {
+            self.past_position.pop();
+        } else {
+            self.past_position.last_mut().unwrap().pop();
+        }
+
+        let irreversible = self.details.pop().unwrap();
+        self.hasher.unmake_move(self.position, mov, irreversible);
+        self.eval.unmake_move(mov, self.position);
+        self.position.unmake_move(mov, irreversible);
+    }
+}
