@@ -45,20 +45,6 @@ impl Bitboard {
     pub fn squares(self) -> SquareIterator {
         SquareIterator { bb: self }
     }
-
-    pub fn print(&self) {
-        for rank in 0..8 {
-            for file in 0..8 {
-                let sq = Square::file_rank(file, 7 - rank);
-                if *self & sq {
-                    print!("#");
-                } else {
-                    print!("_");
-                }
-            }
-            println!();
-        }
-    }
 }
 
 impl From<u64> for Bitboard {
