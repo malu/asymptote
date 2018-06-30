@@ -283,6 +283,7 @@ impl Search {
 
         if depth >= 4 * INC_PLY && !moves.has_tt_move() {
             self.search_pv(ply, alpha, beta, depth - 2 * INC_PLY);
+            self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
         }
 
         let mut alpha = alpha;
@@ -335,6 +336,7 @@ impl Search {
                             best_move.unwrap(),
                             LOWER_BOUND,
                         );
+                        self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
                     }
 
                     return None;
@@ -361,6 +363,7 @@ impl Search {
                                     mov,
                                     LOWER_BOUND,
                                 );
+                                self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
                                 return Some(value);
                             }
                         }
@@ -781,14 +784,12 @@ impl Search {
             self.pv[ply as usize][1 + i as usize] = self.pv[1 + ply as usize][i as usize];
 
             if self.pv[1 + ply as usize][i as usize] == None {
+                for j in i + 1..MAX_PLY - ply - 1 {
+                    self.pv[ply as usize][j as usize] = None;
+                }
                 break;
             }
-        }
-
-        if ply == MAX_PLY - 1 {
-            self.pv[ply as usize][0] = Some(mov);
-        } else {
-            self.pv[1 + ply as usize][0] = None;
+            self.pv[1 + ply as usize][i as usize] = None;
         }
     }
 
