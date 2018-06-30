@@ -597,13 +597,12 @@ impl Positional {
     }
 
     pub fn king_safety(&self, pos: Position) -> (Score, Score) {
-        (
-            self.king_safety_for_side(pos, true) - self.king_safety_for_side(pos, false),
-            0,
-        )
+        let (wmg, weg) = self.king_safety_for_side(pos, true);
+        let (bmg, beg) = self.king_safety_for_side(pos, false);
+        (wmg - bmg, weg - beg)
     }
 
-    fn king_safety_for_side(&self, pos: Position, white: bool) -> Score {
+    fn king_safety_for_side(&self, pos: Position, white: bool) -> (Score, Score) {
         let us = if white {
             pos.white_pieces
         } else {
@@ -611,10 +610,23 @@ impl Positional {
         };
         let them = !us;
 
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        const CENTER_DISTANCE: [Score; 64] = [
+            3, 3, 3, 3, 3, 3, 3, 3,
+            3, 2, 2, 2, 2, 2, 2, 3,
+            3, 2, 1, 1, 1, 1, 2, 3,
+            3, 2, 1, 0, 0, 1, 2, 3,
+            3, 2, 1, 0, 0, 1, 2, 3,
+            3, 2, 1, 1, 1, 1, 2, 3,
+            3, 2, 2, 2, 2, 2, 2, 3,
+            3, 3, 3, 3, 3, 3, 3, 3,
+        ];
+
         let mut index = 0;
 
         let king = pos.kings & us;
-        let file = king.squares().nth(0).unwrap().file();
+        let king_sq = king.squares().nth(0).unwrap();
+        let file = king_sq.file();
         let king_file = FILES[file as usize];
         let adjacent_files = king.left(1) | king | king.right(1);
         let front = adjacent_files.forward(white, 1);
@@ -640,7 +652,9 @@ impl Positional {
             index += 1;
         }
 
-        -((index * index) as Score)
+        let mg_penalty = (index * index) as Score;
+        let eg_penalty = CENTER_DISTANCE[king_sq.0 as usize];
+        (-mg_penalty, -5 * eg_penalty)
     }
 }
 
