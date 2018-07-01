@@ -120,14 +120,6 @@ impl UCI {
                         self.search.make_move(mov);
                         i += 1;
                     }
-
-                    /*
-                    if i < self.search.made_moves.len() {
-                        for _ in i..self.search.made_moves.len() {
-                            self.search.unmake_move();
-                        }
-                    }
-                    */
                 }
             } else if line.starts_with("quit") {
                 return;

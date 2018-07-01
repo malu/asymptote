@@ -310,8 +310,6 @@ pub struct MoveGenerator {
 
 impl MoveGenerator {
     pub fn good_captures(&mut self) -> (Vec<Move>, Vec<i16>) {
-        //let rooks_and_better = self.position.queens | self.position.rooks;
-        //let light_pieces_and_better = rooks_and_better | self.position.bishops | self.position.knights;
         let all_pieces = self.position.all_pieces;
         let ep = if self.position.en_passant != 255 {
             if self.position.white_to_move {
@@ -351,7 +349,6 @@ impl MoveGenerator {
                 see.push(score);
             }
         }
-        //moves.into_iter().filter(|&mov| mov.captured.is_none() || self.position.see(mov) >= 0).collect();
 
         (result, see)
     }
@@ -375,8 +372,6 @@ impl MoveGenerator {
     }
 
     pub fn bad_captures(&mut self) -> (Vec<Move>, Vec<i16>) {
-        //let light_pieces_and_worse = self.position.pawns | self.position.knights | self.position.bishops;
-        //let rooks_and_worse = self.position.rooks | light_pieces_and_worse;
         let all_pieces = self.position.all_pieces;
         let ep = if self.position.en_passant != 255 {
             if self.position.white_to_move {
@@ -416,7 +411,6 @@ impl MoveGenerator {
                 see.push(score);
             }
         }
-        //moves.into_iter().filter(|&mov| mov.captured.is_none() || self.position.see(mov) >= 0).collect();
 
         (result, see)
     }

@@ -44,7 +44,6 @@ impl Position {
         };
         let piece_after_move = mov.promoted.unwrap_or(mov.piece);
         let value = piece_value - self.see_square(mov.to, piece_after_move);
-        //let value = ::std::cmp::max(0, piece_value - self.see_square(mov.to, piece_after_move));
         self.unmake_capture(mov);
         self.en_passant = ep;
 
