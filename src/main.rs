@@ -17,7 +17,7 @@ mod eval;
 mod hash;
 mod movegen;
 mod movepick;
-mod position;
+pub mod position;
 mod search;
 mod tt;
 mod uci;

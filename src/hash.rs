@@ -100,8 +100,8 @@ impl Hasher {
             pos.white_pieces
         };
 
-        if pos.en_passant != 255 {
-            self.hash ^= self.en_passant[pos.en_passant as usize];
+        if pos.details.en_passant != 255 {
+            self.hash ^= self.en_passant[pos.details.en_passant as usize];
         }
         if pos.pawns & rank2 & mov.from
             && rank4 & mov.to
@@ -110,7 +110,7 @@ impl Hasher {
             self.hash ^= self.en_passant[mov.from.file() as usize];
         }
 
-        let mut castling = pos.castling;
+        let mut castling = pos.details.castling;
         self.hash ^= self.castle[castling as usize];
 
         match mov.captured {
@@ -246,13 +246,13 @@ impl Hasher {
         irreversible_details: IrreversibleDetails,
     ) {
         self.hash ^= self.white_to_move;
-        if pos.en_passant != 255 {
-            self.hash ^= self.en_passant[pos.en_passant as usize];
+        if pos.details.en_passant != 255 {
+            self.hash ^= self.en_passant[pos.details.en_passant as usize];
         }
         if irreversible_details.en_passant != 255 {
             self.hash ^= self.en_passant[irreversible_details.en_passant as usize];
         }
-        self.hash ^= self.castle[pos.castling as usize];
+        self.hash ^= self.castle[pos.details.castling as usize];
         self.hash ^= self.castle[irreversible_details.castling as usize];
         let unmaking_white_move = !pos.white_to_move;
 
@@ -371,20 +371,20 @@ impl Hasher {
 
     pub fn make_nullmove(&mut self, pos: &Position) {
         self.hash ^= self.white_to_move;
-        if pos.en_passant != 255 {
-            self.hash ^= self.en_passant[pos.en_passant as usize];
+        if pos.details.en_passant != 255 {
+            self.hash ^= self.en_passant[pos.details.en_passant as usize];
         }
     }
 
     pub fn unmake_nullmove(&mut self, pos: &Position, irreversible_details: IrreversibleDetails) {
         self.hash ^= self.white_to_move;
-        if pos.en_passant != 255 {
-            self.hash ^= self.en_passant[pos.en_passant as usize];
+        if pos.details.en_passant != 255 {
+            self.hash ^= self.en_passant[pos.details.en_passant as usize];
         }
         if irreversible_details.en_passant != 255 {
             self.hash ^= self.en_passant[irreversible_details.en_passant as usize];
         }
-        self.hash ^= self.castle[pos.castling as usize];
+        self.hash ^= self.castle[pos.details.castling as usize];
         self.hash ^= self.castle[irreversible_details.castling as usize];
     }
 }

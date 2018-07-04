@@ -2,38 +2,89 @@ use bitboard::*;
 use eval::*;
 use movegen::*;
 
-// Position does not implement Copy because moving of Copy types involves always a memcpy and we
-// want to avoid that.
+/// Bit indicating if white can castle kingside.
+pub const CASTLE_WHITE_KSIDE: u8 = 0x1;
+
+/// Bit indicating if white can castle queenside.
+pub const CASTLE_WHITE_QSIDE: u8 = 0x2;
+
+/// Bit indicating if black can castle kingside.
+pub const CASTLE_BLACK_KSIDE: u8 = 0x4;
+
+/// Bit indicating if black can castle queenside.
+pub const CASTLE_BLACK_QSIDE: u8 = 0x8;
+
+/// A `Position` holds all information to completely describe a chess position.
+///
+/// Position does not implement Copy because moving of Copy types always involves a memcpy and we
+/// want to avoid that.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Position {
+    /// The color of the piece occupying the respective square, if any. A set bit corresponds to
+    /// the white side.
     pub color: Bitboard,
+
+    /// Bitboard of all pawns on the board. A set bit means a pawn occupies the respective square.
     pub pawns: Bitboard,
+
+    /// Bitboard of all bishops on the board. A set bit means a bishop occupies the respective square.
     pub bishops: Bitboard,
+
+    /// Bitboard of all knights on the board. A set bit means a knight occupies the respective square.
     pub knights: Bitboard,
+
+    /// Bitboard of all rooks on the board. A set bit means a rook occupies the respective square.
     pub rooks: Bitboard,
+
+    /// Bitboard of all queens on the board. A set bit means a queen occupies the respective square.
     pub queens: Bitboard,
+
+    /// Bitboard of all kings on the board. A set bit means a king occupies the respective square.
     pub kings: Bitboard,
-    pub en_passant: u8,
-    pub castling: u8,
+
+    /// Whether it is white's tunr to move.
     pub white_to_move: bool,
-    pub halfmove: usize,
+
+    /// Number of the current full move. The first moves of white and black belong to the first
+    /// full move. Not strictly necessary for correct play.
     pub fullmove: usize,
 
+    /// The irreversible details of thsi position.
+    pub details: IrreversibleDetails,
+
+    /// A bitboard of all pieces on the board.
     pub all_pieces: Bitboard,
+
+    /// A bitboard of all white pieces on the board.
     pub white_pieces: Bitboard,
+
+    /// A bitboard of all black pieces on the board.
     pub black_pieces: Bitboard,
 }
 
+/// Some not easily reverted changes in a position.
+///
+/// Some details (en passant, castling rights and current halfmove clock) whose changes can not
+/// be undone easily and therefore are kept in a stack of past values.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct IrreversibleDetails {
-    pub halfmove: usize,
+    /// Number of moves of both players since the last capture or pawn moves. Used for checking for
+    /// a draw by the 50 moves rule (draw if halfmove = 100 and side to move has at least one legal
+    /// move).
+    pub halfmove: u8,
+
+    /// This is the file of the target square of a possible en passant capture. If there is no such
+    /// capture possible this variable is set to 255.
     pub en_passant: u8,
+
+    /// Possible castling moves for both sides.
     pub castling: u8,
 }
 
 impl Position {
+    /// Static exchange evaluation
     pub fn see(&mut self, mov: Move) -> i16 {
-        let ep = self.en_passant;
+        let ep = self.details.en_passant;
         self.make_capture(mov);
         let piece_value = match mov.captured {
             Some(Piece::Pawn) => PAWN_SCORE,
@@ -47,7 +98,7 @@ impl Position {
         let piece_after_move = mov.promoted.unwrap_or(mov.piece);
         let value = piece_value - self.see_square(mov.to, piece_after_move);
         self.unmake_capture(mov);
-        self.en_passant = ep;
+        self.details.en_passant = ep;
 
         value
     }
@@ -65,13 +116,13 @@ impl Position {
             Piece::King => 10000,
         };
 
-        let ep = self.en_passant;
+        let ep = self.details.en_passant;
         for capture in captures {
             self.make_capture(capture);
 
             value = ::std::cmp::max(value, capture_value - self.see_square(sq, capture.piece));
             self.unmake_capture(capture);
-            self.en_passant = ep;
+            self.details.en_passant = ep;
 
             if value >= capture_value {
                 break;
@@ -114,7 +165,7 @@ impl Position {
         match mov.piece {
             Piece::Pawn => {
                 self.pawns ^= mov.from;
-                self.halfmove = 0;
+                self.details.halfmove = 0;
                 match mov.promoted {
                     Some(Piece::Queen) => {
                         self.queens |= mov.to;
@@ -134,7 +185,7 @@ impl Position {
                     None => {
                         self.pawns |= mov.to;
                         if mov.from.forward(self.white_to_move, 2) == mov.to {
-                            self.en_passant = mov.from.file();
+                            self.details.en_passant = mov.from.file();
                         }
                     }
                 }
@@ -364,6 +415,7 @@ impl Position {
         false
     }
 
+    /// Checks whether the current side to move is in check.
     pub fn in_check(&self) -> bool {
         let us = if self.white_to_move {
             self.white_pieces
@@ -374,6 +426,8 @@ impl Position {
         self.is_attacked(king)
     }
 
+    /// Checks whether `prev_move` (which has to be already made by `self.make_move(prev_move)`) was
+    /// legal.
     pub fn move_was_legal(&mut self, prev_move: Move) -> bool {
         self.white_to_move = !self.white_to_move;
 
@@ -400,6 +454,7 @@ impl Position {
         true
     }
 
+    /// Applies `mov` to the current board position.
     pub fn make_move(&mut self, mov: Move) {
         let them = if self.white_to_move {
             self.black_pieces
@@ -409,15 +464,15 @@ impl Position {
         let rank2 = if self.white_to_move { RANK_2 } else { RANK_7 };
         let rank4 = if self.white_to_move { RANK_4 } else { RANK_5 };
 
-        self.en_passant = 255;
+        self.details.en_passant = 255;
         if self.pawns & rank2 & mov.from
             && rank4 & mov.to
             && ((them & self.pawns).left(1) | (them & self.pawns).right(1)) & mov.to
         {
-            self.en_passant = mov.from.file();
+            self.details.en_passant = mov.from.file();
         }
 
-        self.halfmove += 1;
+        self.details.halfmove += 1;
 
         match mov.captured {
             Some(Piece::Pawn) => {
@@ -429,23 +484,23 @@ impl Position {
                 } else {
                     self.pawns ^= mov.to;
                 }
-                self.halfmove = 0;
+                self.details.halfmove = 0;
             }
             Some(Piece::Knight) => {
                 self.knights ^= mov.to;
-                self.halfmove = 0;
+                self.details.halfmove = 0;
             }
             Some(Piece::Bishop) => {
                 self.bishops ^= mov.to;
-                self.halfmove = 0;
+                self.details.halfmove = 0;
             }
             Some(Piece::Rook) => {
                 self.rooks ^= mov.to;
-                self.halfmove = 0;
+                self.details.halfmove = 0;
             }
             Some(Piece::Queen) => {
                 self.queens ^= mov.to;
-                self.halfmove = 0;
+                self.details.halfmove = 0;
             }
             _ => {}
         }
@@ -453,7 +508,7 @@ impl Position {
         match mov.piece {
             Piece::Pawn => {
                 self.pawns ^= mov.from;
-                self.halfmove = 0;
+                self.details.halfmove = 0;
                 match mov.promoted {
                     Some(Piece::Queen) => {
                         self.queens |= mov.to;
@@ -490,18 +545,18 @@ impl Position {
                 if self.white_to_move {
                     if mov.from.0 == 0 {
                         // A1
-                        self.castling &= !CASTLE_WHITE_QSIDE;
+                        self.details.castling &= !CASTLE_WHITE_QSIDE;
                     } else if mov.from.0 == 7 {
                         // H1
-                        self.castling &= !CASTLE_WHITE_KSIDE;
+                        self.details.castling &= !CASTLE_WHITE_KSIDE;
                     }
                 } else {
                     if mov.from.0 == 56 {
                         // A8
-                        self.castling &= !CASTLE_BLACK_QSIDE;
+                        self.details.castling &= !CASTLE_BLACK_QSIDE;
                     } else if mov.from.0 == 63 {
                         // H8
-                        self.castling &= !CASTLE_BLACK_KSIDE;
+                        self.details.castling &= !CASTLE_BLACK_KSIDE;
                     }
                 }
             }
@@ -532,9 +587,9 @@ impl Position {
                 }
 
                 if self.white_to_move {
-                    self.castling &= !(CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE);
+                    self.details.castling &= !(CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE);
                 } else {
-                    self.castling &= !(CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE);
+                    self.details.castling &= !(CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE);
                 }
             }
         }
@@ -556,10 +611,9 @@ impl Position {
         self.black_pieces = self.all_pieces & !self.white_pieces;
     }
 
+    /// Undoes a previously made move (by `self.make_move(mov)`).
     pub fn unmake_move(&mut self, mov: Move, irreversible_details: IrreversibleDetails) {
-        self.en_passant = irreversible_details.en_passant;
-        self.castling = irreversible_details.castling;
-        self.halfmove = irreversible_details.halfmove;
+        self.details = irreversible_details;
         self.white_to_move = !self.white_to_move;
         let unmaking_white_move = self.white_to_move;
 
@@ -681,19 +735,21 @@ impl Position {
         self.black_pieces = self.all_pieces & !self.white_pieces;
     }
 
+    /// Applies a null move (no move, just change side to move) allowing one side to make two
+    /// consecutive moves.
     pub fn make_nullmove(&mut self) {
         self.white_to_move = !self.white_to_move;
-        self.en_passant = 255;
-        self.halfmove += 1;
+        self.details.en_passant = 255;
+        self.details.halfmove += 1;
     }
 
+    /// Undoes a previous null move.
     pub fn unmake_nullmove(&mut self, irreversible_details: IrreversibleDetails) {
         self.white_to_move = !self.white_to_move;
-        self.en_passant = irreversible_details.en_passant;
-        self.castling = irreversible_details.castling;
-        self.halfmove = irreversible_details.halfmove;
+        self.details = irreversible_details;
     }
 
+    /// Finds the piece type occupying `at`.
     pub fn find_piece(&self, at: Square) -> Option<Piece> {
         if self.pawns & at {
             Some(Piece::Pawn)
@@ -712,6 +768,7 @@ impl Position {
         }
     }
 
+    /// Prints the board state.
     pub fn print(&self, pre: &str) {
         println!("{}     a b c d e f g h", pre);
         println!("{}   +-----------------+", pre);
@@ -783,19 +840,19 @@ impl Position {
                 println!("|  Castling rights:");
             } else if 8 - rank == 4 {
                 print!("|  ");
-                if self.castling & CASTLE_WHITE_KSIDE > 0 {
+                if self.details.castling & CASTLE_WHITE_KSIDE > 0 {
                     print!("K");
                 }
 
-                if self.castling & CASTLE_WHITE_QSIDE > 0 {
+                if self.details.castling & CASTLE_WHITE_QSIDE > 0 {
                     print!("Q");
                 }
 
-                if self.castling & CASTLE_BLACK_KSIDE > 0 {
+                if self.details.castling & CASTLE_BLACK_KSIDE > 0 {
                     print!("k");
                 }
 
-                if self.castling & CASTLE_BLACK_QSIDE > 0 {
+                if self.details.castling & CASTLE_BLACK_QSIDE > 0 {
                     print!("q");
                 }
 
@@ -818,14 +875,16 @@ impl<'a> From<&'a str> for Position {
             rooks: Bitboard::from(0x0),
             queens: Bitboard::from(0x0),
             kings: Bitboard::from(0x0),
-            en_passant: 255,
-            castling: CASTLE_WHITE_KSIDE
-                | CASTLE_WHITE_QSIDE
-                | CASTLE_BLACK_KSIDE
-                | CASTLE_BLACK_QSIDE,
+            details: IrreversibleDetails {
+                en_passant: 255,
+                castling: CASTLE_WHITE_KSIDE
+                    | CASTLE_WHITE_QSIDE
+                    | CASTLE_BLACK_KSIDE
+                    | CASTLE_BLACK_QSIDE,
+                halfmove: 0,
+            },
             white_to_move: true,
             fullmove: 1,
-            halfmove: 0,
 
             all_pieces: Bitboard::from(0x0),
             white_pieces: Bitboard::from(0x0),
@@ -946,21 +1005,21 @@ impl<'a> From<&'a str> for Position {
             pos.white_to_move = false;
         }
 
-        pos.castling = 0;
+        pos.details.castling = 0;
         for c in split.next().unwrap().chars() {
             match c {
                 '-' => break,
-                'K' => pos.castling |= CASTLE_WHITE_KSIDE,
-                'Q' => pos.castling |= CASTLE_WHITE_QSIDE,
-                'k' => pos.castling |= CASTLE_BLACK_KSIDE,
-                'q' => pos.castling |= CASTLE_BLACK_QSIDE,
+                'K' => pos.details.castling |= CASTLE_WHITE_KSIDE,
+                'Q' => pos.details.castling |= CASTLE_WHITE_QSIDE,
+                'k' => pos.details.castling |= CASTLE_BLACK_KSIDE,
+                'q' => pos.details.castling |= CASTLE_BLACK_QSIDE,
                 x => panic!("Unexpected character in fen castling: {}", x),
             }
         }
 
         if let Some(en_passant_sq) = split.next() {
             if en_passant_sq != "-" {
-                pos.en_passant = match en_passant_sq.chars().nth(0) {
+                pos.details.en_passant = match en_passant_sq.chars().nth(0) {
                     Some('a') => 0,
                     Some('b') => 1,
                     Some('c') => 2,
@@ -975,21 +1034,17 @@ impl<'a> From<&'a str> for Position {
             }
         }
 
-        let halfmove: usize = split.next().unwrap().parse().unwrap();
+        let halfmove: u8 = split.next().unwrap().parse().unwrap();
         let fullmove: usize = split.next().unwrap().parse().unwrap();
 
-        pos.halfmove = halfmove;
+        pos.details.halfmove = halfmove;
         pos.fullmove = fullmove;
 
         pos
     }
 }
 
-pub const CASTLE_WHITE_KSIDE: u8 = 0x1;
-pub const CASTLE_WHITE_QSIDE: u8 = 0x2;
-pub const CASTLE_BLACK_KSIDE: u8 = 0x4;
-pub const CASTLE_BLACK_QSIDE: u8 = 0x8;
-
+/// The starting position in standadrd chess.
 pub const STARTING_POSITION: Position = Position {
     color: STARTING_COLOR,
     pawns: STARTING_PAWNS,
@@ -998,11 +1053,13 @@ pub const STARTING_POSITION: Position = Position {
     rooks: STARTING_ROOKS,
     queens: STARTING_QUEENS,
     kings: STARTING_KINGS,
-    en_passant: 255,
-    castling: CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE | CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE,
+    details: IrreversibleDetails {
+        en_passant: 255,
+        castling: CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE | CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE,
+        halfmove: 0,
+    },
     white_to_move: true,
     fullmove: 1,
-    halfmove: 0,
 
     all_pieces: STARTING_ALL,
     white_pieces: STARTING_COLOR,

@@ -272,7 +272,7 @@ impl Search {
             return Some(beta);
         }
 
-        if self.position.halfmove == 100 {
+        if self.position.details.halfmove == 100 {
             if self.checkmate() {
                 return Some(-MATE_SCORE + ply);
             } else {
@@ -443,7 +443,7 @@ impl Search {
             Rc::clone(&self.history),
         );
         let in_check = self.position.in_check();
-        if self.position.halfmove == 100 {
+        if self.position.details.halfmove == 100 {
             if self.checkmate() {
                 return Some(-MATE_SCORE + ply);
             } else {
@@ -1003,19 +1003,14 @@ impl Search {
     }
 
     pub fn internal_make_move(&mut self, mov: Move, ply: Ply) {
-        self.details.push(IrreversibleDetails {
-            en_passant: self.position.en_passant,
-            castling: self.position.castling,
-            halfmove: self.position.halfmove,
-        });
-
+        self.details.push(self.position.details);
         self.stack[ply as usize].borrow_mut().current_move = Some(mov);
 
         self.hasher.make_move(&self.position, mov);
         self.eval.make_move(mov, &self.position);
         self.position.make_move(mov);
 
-        if self.position.halfmove == 0 {
+        if self.position.details.halfmove == 0 {
             self.past_position.push(vec![self.hasher.get_hash()]);
         } else {
             self.past_position
@@ -1026,11 +1021,7 @@ impl Search {
     }
 
     fn internal_make_nullmove(&mut self, ply: Ply) {
-        self.details.push(IrreversibleDetails {
-            en_passant: self.position.en_passant,
-            castling: self.position.castling,
-            halfmove: self.position.halfmove,
-        });
+        self.details.push(self.position.details);
         self.stack[ply as usize].borrow_mut().current_move = None;
 
         self.hasher.make_nullmove(&self.position);
@@ -1055,7 +1046,7 @@ impl Search {
     */
 
     pub fn internal_unmake_move(&mut self, mov: Move) {
-        if self.position.halfmove == 0 {
+        if self.position.details.halfmove == 0 {
             self.past_position.pop();
         } else {
             self.past_position.last_mut().unwrap().pop();

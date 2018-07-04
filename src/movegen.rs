@@ -311,11 +311,11 @@ pub struct MoveGenerator<'p> {
 impl<'p> MoveGenerator<'p> {
     pub fn good_captures(&mut self) -> (Vec<Move>, Vec<i16>) {
         let all_pieces = self.position.all_pieces;
-        let ep = if self.position.en_passant != 255 {
+        let ep = if self.position.details.en_passant != 255 {
             if self.position.white_to_move {
-                Square::file_rank(self.position.en_passant, 5).to_bb()
+                Square::file_rank(self.position.details.en_passant, 5).to_bb()
             } else {
-                Square::file_rank(self.position.en_passant, 2).to_bb()
+                Square::file_rank(self.position.details.en_passant, 2).to_bb()
             }
         } else {
             Bitboard::from(0)
@@ -374,29 +374,14 @@ impl<'p> MoveGenerator<'p> {
 
     pub fn bad_captures(&mut self) -> (Vec<Move>, Vec<i16>) {
         let all_pieces = self.position.all_pieces;
-        let ep = if self.position.en_passant != 255 {
-            if self.position.white_to_move {
-                Square::file_rank(self.position.en_passant, 5).to_bb()
-            } else {
-                Square::file_rank(self.position.en_passant, 2).to_bb()
-            }
-        } else {
-            Bitboard::from(0)
-        };
 
         let them = if self.position.white_to_move {
             self.position.black_pieces
         } else {
             self.position.white_pieces
         };
-        let promotion_rank = if self.position.white_to_move {
-            RANK_8
-        } else {
-            RANK_1
-        };
 
         let mut moves = Vec::with_capacity(64);
-        self.pawn(them & all_pieces & !promotion_rank | ep, &mut moves);
         self.knight(them & all_pieces, &mut moves);
         self.bishop(them & all_pieces, &mut moves);
         self.rook(them & all_pieces, &mut moves);
@@ -539,20 +524,20 @@ impl<'p> MoveGenerator<'p> {
         }
 
         // en passant
-        if self.position.en_passant != 255 {
+        if self.position.details.en_passant != 255 {
             let en_passant_capturers_rank = if self.position.white_to_move {
                 RANK_5
             } else {
                 RANK_4
             };
             let ep_square = if self.position.white_to_move {
-                Square::file_rank(self.position.en_passant, 5)
+                Square::file_rank(self.position.details.en_passant, 5)
             } else {
-                Square::file_rank(self.position.en_passant, 2)
+                Square::file_rank(self.position.details.en_passant, 2)
             };
             let capturers = us
                 & self.position.pawns
-                & EN_PASSANT_FILES[self.position.en_passant as usize]
+                & EN_PASSANT_FILES[self.position.details.en_passant as usize]
                 & en_passant_capturers_rank;
 
             if targets & ep_square {
@@ -560,7 +545,7 @@ impl<'p> MoveGenerator<'p> {
                     moves.push(Move {
                         from,
                         to: Square::file_rank(
-                            self.position.en_passant,
+                            self.position.details.en_passant,
                             from.forward(wtm, 1).rank(),
                         ),
                         piece: Piece::Pawn,
@@ -727,18 +712,18 @@ impl<'p> MoveGenerator<'p> {
         let castle_qside;
         if self.position.white_to_move {
             us = self.position.white_pieces;
-            castle_kside = (self.position.castling & CASTLE_WHITE_KSIDE) > 0
+            castle_kside = (self.position.details.castling & CASTLE_WHITE_KSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60)).is_empty()
                 && (self.position.rooks & us & Square(7));
-            castle_qside = (self.position.castling & CASTLE_WHITE_QSIDE) > 0
+            castle_qside = (self.position.details.castling & CASTLE_WHITE_QSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_0E)).is_empty()
                 && (self.position.rooks & us & Square(0));
         } else {
             us = self.position.black_pieces;
-            castle_kside = (self.position.castling & CASTLE_BLACK_KSIDE) > 0
+            castle_kside = (self.position.details.castling & CASTLE_BLACK_KSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x60_00_00_00_00_00_00_00)).is_empty()
                 && (self.position.rooks & us & Square(63));
-            castle_qside = (self.position.castling & CASTLE_BLACK_QSIDE) > 0
+            castle_qside = (self.position.details.castling & CASTLE_BLACK_QSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x0E_00_00_00_00_00_00_00)).is_empty()
                 && (self.position.rooks & us & Square(56));
         }
