@@ -553,8 +553,20 @@ impl Search {
                 extension += INC_PLY;
             }
 
-            if num_moves > 6 && extension <= 0 {
-                reduction += INC_PLY;
+            const LMR_MAX_DEPTH: Depth = 6 * INC_PLY;
+            const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] =
+                [0, 3, 3, 5, 5, 9, 9];
+
+            if extension <= 0 {
+                if depth <= LMR_MAX_DEPTH
+                    && num_moves > LMR_MOVES[(depth / INC_PLY) as usize]
+                    && mtype != MoveType::GoodCapture
+                    && mtype != MoveType::Killer
+                    && !check
+                    && !in_check
+                {
+                    reduction += INC_PLY;
+                }
             }
 
             let mut new_depth = depth - INC_PLY + extension - reduction;
