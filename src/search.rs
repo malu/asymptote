@@ -253,10 +253,10 @@ impl Search {
         let moves = MovePicker::new(
             self.made_moves.len(),
             MoveGenerator::from(self.position),
-            self.tt.clone(),
+            Rc::clone(&self.tt),
             self.hasher.get_hash(),
-            self.stack[ply as usize].clone(),
-            self.history.clone(),
+            Rc::clone(&self.stack[ply as usize]),
+            Rc::clone(&self.history),
         );
         let in_check = self.position.in_check();
         if self.position.halfmove == 100 {
@@ -432,10 +432,10 @@ impl Search {
         let moves = MovePicker::new(
             self.made_moves.len(),
             mg,
-            self.tt.clone(),
+            Rc::clone(&self.tt),
             self.hasher.get_hash(),
-            self.stack[ply as usize].clone(),
-            self.history.clone(),
+            Rc::clone(&self.stack[ply as usize]),
+            Rc::clone(&self.history),
         );
         let in_check = self.position.in_check();
         if self.position.halfmove == 100 {
@@ -671,19 +671,19 @@ impl Search {
             MovePicker::qsearch_in_check(
                 self.made_moves.len(),
                 mg,
-                self.tt.clone(),
+                Rc::clone(&self.tt),
                 self.hasher.get_hash(),
-                self.stack[ply as usize].clone(),
-                self.history.clone(),
+                Rc::clone(&self.stack[ply as usize]),
+                Rc::clone(&self.history),
             )
         } else {
             MovePicker::qsearch(
                 self.made_moves.len(),
                 mg,
-                self.tt.clone(),
+                Rc::clone(&self.tt),
                 self.hasher.get_hash(),
-                self.stack[ply as usize].clone(),
-                self.history.clone(),
+                Rc::clone(&self.stack[ply as usize]),
+                Rc::clone(&self.history),
             )
         };
 
