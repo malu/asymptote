@@ -726,18 +726,18 @@ impl MoveGenerator {
         if self.position.white_to_move {
             us = self.position.white_pieces;
             castle_kside = (self.position.castling & CASTLE_WHITE_KSIDE) > 0
-                && (self.position.all_pieces & Bitboard::from(0x0000000000000060)).is_empty()
+                && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60)).is_empty()
                 && (self.position.rooks & us & Square(7));
             castle_qside = (self.position.castling & CASTLE_WHITE_QSIDE) > 0
-                && (self.position.all_pieces & Bitboard::from(0x000000000000000E)).is_empty()
+                && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_0E)).is_empty()
                 && (self.position.rooks & us & Square(0));
         } else {
             us = self.position.black_pieces;
             castle_kside = (self.position.castling & CASTLE_BLACK_KSIDE) > 0
-                && (self.position.all_pieces & Bitboard::from(0x6000000000000000)).is_empty()
+                && (self.position.all_pieces & Bitboard::from(0x60_00_00_00_00_00_00_00)).is_empty()
                 && (self.position.rooks & us & Square(63));
             castle_qside = (self.position.castling & CASTLE_BLACK_QSIDE) > 0
-                && (self.position.all_pieces & Bitboard::from(0x0E00000000000000)).is_empty()
+                && (self.position.all_pieces & Bitboard::from(0x0E_00_00_00_00_00_00_00)).is_empty()
                 && (self.position.rooks & us & Square(56));
         }
 
