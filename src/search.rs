@@ -316,11 +316,9 @@ impl Search {
                     .map(|v| -v);
             } else {
                 value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
-                if value.is_some() {
-                    if value.unwrap() > alpha {
-                        value = self.search_pv(ply + 1, -beta, -alpha, new_depth)
-                            .map(|v| -v);
-                    }
+                if value.is_some() && value.unwrap() > alpha {
+                    value = self.search_pv(ply + 1, -beta, -alpha, new_depth)
+                        .map(|v| -v);
                 }
             }
             self.internal_unmake_move(mov);
@@ -773,17 +771,17 @@ impl Search {
     }
 
     fn update_history(&mut self, depth: Depth, mov: Move) {
-        let d = (depth / INC_PLY) as i32;
+        let d = i32::from(depth / INC_PLY);
         self.history.borrow_mut()[self.position.white_to_move as usize][mov.from.0 as usize]
             [mov.to.0 as usize] += d * d;
         if self.history.borrow()[self.position.white_to_move as usize][mov.from.0 as usize]
-            [mov.to.0 as usize] > Score::max_value() as i32
+            [mov.to.0 as usize] > i32::from(Score::max_value())
         {
             let mut history = self.history.borrow_mut();
-            for stm in 0..2 {
-                for from in 0..64 {
-                    for to in 0..64 {
-                        history[stm][from][to] /= 4;
+            for stm in history.iter_mut() {
+                for from in stm.iter_mut() {
+                    for to in from.iter_mut() {
+                        *to /= 4;
                     }
                 }
             }

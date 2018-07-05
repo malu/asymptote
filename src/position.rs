@@ -769,12 +769,10 @@ impl Position {
                     None => {
                         if self.color & sq {
                             print!("# ");
+                        } else if (rank + file) % 2 == 1 {
+                            print!(". ");
                         } else {
-                            if (rank + file) % 2 == 1 {
-                                print!(". ");
-                            } else {
-                                print!("  ");
-                            }
+                            print!("  ");
                         }
                     }
                 }
