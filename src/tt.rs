@@ -55,40 +55,12 @@ const PROMOTION_BISHOP: u8 = 0b0100_0000;
 const PROMOTION_KNIGHT: u8 = 0b0000_0000;
 
 impl TTMove {
-    fn is_null(&self) -> bool {
-        unsafe { ::std::mem::transmute::<TTMove, u16>(*self) == 0 }
+    fn is_null(self) -> bool {
+        unsafe { ::std::mem::transmute::<TTMove, u16>(self) == 0 }
     }
-}
 
-impl From<Move> for TTMove {
-    fn from(mov: Move) -> TTMove {
-        let mut result = TTMove {
-            from: mov.from.0 & 63,
-            to: mov.to.0 & 63,
-        };
-
-        if mov.captured.is_some() {
-            result.from |= 1 << 6
-        }
-
-        if mov.en_passant {
-            result.from |= 1 << 7
-        }
-
-        match mov.promoted {
-            Some(Piece::Queen) => result.to |= PROMOTION_QUEEN,
-            Some(Piece::Rook) => result.to |= PROMOTION_ROOK,
-            Some(Piece::Bishop) => result.to |= PROMOTION_BISHOP,
-            Some(Piece::Knight) => result.to |= PROMOTION_KNIGHT,
-            _ => {}
-        }
-
-        result
-    }
-}
-
-impl TTMove {
-    pub fn expand(&self, pos: Position) -> Option<Move> {
+    // Expands this `TTMove` to a `Move`value.
+    pub fn expand(self, pos: Position) -> Option<Move> {
         let mut result = Move {
             from: Square(self.from & 63),
             to: Square(self.to & 63),
@@ -117,6 +89,33 @@ impl TTMove {
         }
 
         Some(result)
+    }
+}
+
+impl From<Move> for TTMove {
+    fn from(mov: Move) -> TTMove {
+        let mut result = TTMove {
+            from: mov.from.0 & 63,
+            to: mov.to.0 & 63,
+        };
+
+        if mov.captured.is_some() {
+            result.from |= 1 << 6
+        }
+
+        if mov.en_passant {
+            result.from |= 1 << 7
+        }
+
+        match mov.promoted {
+            Some(Piece::Queen) => result.to |= PROMOTION_QUEEN,
+            Some(Piece::Rook) => result.to |= PROMOTION_ROOK,
+            Some(Piece::Bishop) => result.to |= PROMOTION_BISHOP,
+            Some(Piece::Knight) => result.to |= PROMOTION_KNIGHT,
+            _ => {}
+        }
+
+        result
     }
 }
 
