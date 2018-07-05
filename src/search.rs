@@ -143,7 +143,7 @@ impl Search {
             moves.swap(0, swap_with);
         }
 
-        'deepening: for d in 1i16.. {
+        'deepening: for d in 1_i16.. {
             if !self.start_another_iteration(d) {
                 break;
             }
@@ -461,12 +461,12 @@ impl Search {
             .borrow_mut()
             .get(self.made_moves.len(), self.hasher.get_hash())
         {
+            let check_move_legality = |mov| MoveGenerator::from(self.position).is_legal(mov);
             if ttentry.depth >= depth
                 && ttentry
                     .best_move
                     .expand(self.position)
-                    .map(|mov| MoveGenerator::from(self.position).is_legal(mov))
-                    .unwrap_or(false)
+                    .map_or(false, check_move_legality)
             {
                 let mut score = ttentry.score;
                 if score == MATE_SCORE {

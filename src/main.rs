@@ -1,3 +1,10 @@
+#![cfg_attr(feature = "cargo-clippy", warn(option_map_unwrap_or))]
+#![cfg_attr(feature = "cargo-clippy", warn(option_map_unwrap_or_else))]
+#![cfg_attr(feature = "cargo-clippy", warn(result_map_unwrap_or_else))]
+#![cfg_attr(feature = "cargo-clippy", warn(single_match_else))]
+#![cfg_attr(feature = "cargo-clippy", warn(unseparated_literal_suffix))]
+#![cfg_attr(feature = "cargo-clippy", warn(used_underscore_binding))]
+
 #[macro_use]
 extern crate lazy_static;
 extern crate rand;
@@ -20,13 +27,14 @@ use uci::*;
 
 fn main() {
     let mut args = args().skip(1);
-    match args.next() {
-        Some(cmd) => match cmd.as_ref() {
+    if let Some(cmd) = args.next() {
+        match cmd.as_ref() {
             "perft" => {
                 let mut search = Search::new(STARTING_POSITION);
-                let i = match args.next() {
-                    Some(n) => n.parse().unwrap(),
-                    _ => 4,
+                let i = if let Some(n) = args.next() {
+                    n.parse().unwrap()
+                } else {
+                    4
                 };
                 search.perft(i);
             }
@@ -35,10 +43,9 @@ fn main() {
                 println!("bestmove {}", search.root().to_algebraic());
             }
             _ => {}
-        },
-        None => {
-            let mut uci = UCI::new();
-            uci.run();
         }
+    } else {
+        let mut uci = UCI::new();
+        uci.run();
     }
 }
