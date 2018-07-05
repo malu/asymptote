@@ -490,22 +490,18 @@ impl Position {
                 if self.white_to_move {
                     if mov.from.0 == 0 {
                         // A1
-                        self.castling &=
-                            CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE | CASTLE_WHITE_KSIDE;
+                        self.castling &= !CASTLE_WHITE_QSIDE;
                     } else if mov.from.0 == 7 {
                         // H1
-                        self.castling &=
-                            CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE | CASTLE_WHITE_QSIDE;
+                        self.castling &= !CASTLE_WHITE_KSIDE;
                     }
                 } else {
                     if mov.from.0 == 56 {
                         // A8
-                        self.castling &=
-                            CASTLE_BLACK_KSIDE | CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE;
+                        self.castling &= !CASTLE_BLACK_QSIDE;
                     } else if mov.from.0 == 63 {
                         // H8
-                        self.castling &=
-                            CASTLE_BLACK_QSIDE | CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE;
+                        self.castling &= !CASTLE_BLACK_KSIDE;
                     }
                 }
             }
@@ -536,9 +532,9 @@ impl Position {
                 }
 
                 if self.white_to_move {
-                    self.castling &= CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE;
+                    self.castling &= !(CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE);
                 } else {
-                    self.castling &= CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE;
+                    self.castling &= !(CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE);
                 }
             }
         }
