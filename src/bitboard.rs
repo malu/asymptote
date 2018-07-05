@@ -14,7 +14,7 @@ pub struct SquareIterator {
 // Bitboard impls
 // =========================================================
 impl Bitboard {
-    pub fn forward(&self, white_to_move: bool, ranks: u8) -> Self {
+    pub fn forward(self, white_to_move: bool, ranks: u8) -> Self {
         if white_to_move {
             Bitboard(self.0 << (8 * ranks))
         } else {
@@ -22,23 +22,23 @@ impl Bitboard {
         }
     }
 
-    pub fn backward(&self, white_to_move: bool, ranks: u8) -> Self {
+    pub fn backward(self, white_to_move: bool, ranks: u8) -> Self {
         self.forward(!white_to_move, ranks)
     }
 
-    pub fn right(&self, files: u8) -> Self {
-        (*self & LEFT_FILES[8 - files as usize]) << files
+    pub fn right(self, files: u8) -> Self {
+        (self & LEFT_FILES[8 - files as usize]) << files
     }
 
-    pub fn left(&self, files: u8) -> Self {
-        (*self & RIGHT_FILES[8 - files as usize]) >> files
+    pub fn left(self, files: u8) -> Self {
+        (self & RIGHT_FILES[8 - files as usize]) >> files
     }
 
-    pub fn popcount(&self) -> usize {
+    pub fn popcount(self) -> usize {
         self.0.count_ones() as usize
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub fn is_empty(self) -> bool {
         self.0 == 0
     }
 
@@ -142,7 +142,7 @@ impl Shr<u8> for Bitboard {
 // Square impls
 // =========================================================
 impl Square {
-    pub fn to_bb(&self) -> Bitboard {
+    pub fn to_bb(self) -> Bitboard {
         Bitboard(1 << self.0)
     }
 
@@ -150,7 +150,7 @@ impl Square {
         Square(rank * 8 + file)
     }
 
-    pub fn forward(&self, white_to_move: bool, ranks: u8) -> Self {
+    pub fn forward(self, white_to_move: bool, ranks: u8) -> Self {
         // TODO: Are these possible overflows dangerous?
         if white_to_move {
             Square(self.0 + (8 * ranks))
@@ -159,27 +159,27 @@ impl Square {
         }
     }
 
-    pub fn backward(&self, white_to_move: bool, ranks: u8) -> Self {
+    pub fn backward(self, white_to_move: bool, ranks: u8) -> Self {
         self.forward(!white_to_move, ranks)
     }
 
-    pub fn right(&self, files: u8) -> Self {
+    pub fn right(self, files: u8) -> Self {
         // TODO: Are these possible overflows dangerous?
         // FIXME: Yes, they are...
         Square(self.0 + files)
     }
 
-    pub fn left(&self, files: u8) -> Self {
+    pub fn left(self, files: u8) -> Self {
         // TODO: Are these possible overflows dangerous?
         // FIXME: Yes, they are...
         Square(self.0 - files)
     }
 
-    pub fn rank(&self) -> u8 {
+    pub fn rank(self) -> u8 {
         self.0 >> 3
     }
 
-    pub fn file(&self) -> u8 {
+    pub fn file(self) -> u8 {
         self.0 & 0x7
     }
 }
