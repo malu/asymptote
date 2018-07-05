@@ -6,6 +6,7 @@
 #![cfg_attr(feature = "cargo-clippy", warn(used_underscore_binding))]
 
 #![cfg_attr(feature = "cargo-clippy", warn(clone_on_ref_ptr))]
+#![cfg_attr(feature = "cargo-clippy", warn(multiple_inherent_impl))]
 
 #[macro_use]
 extern crate lazy_static;
