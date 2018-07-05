@@ -231,6 +231,9 @@ impl Search {
             return None;
         }
 
+        self.stats.nodes += 1;
+        self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
+
         if self.is_draw(ply) {
             return Some(0);
         }
@@ -247,17 +250,6 @@ impl Search {
             return Some(beta);
         }
 
-        self.stats.nodes += 1;
-        self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
-
-        let moves = MovePicker::new(
-            self.made_moves.len(),
-            MoveGenerator::from(self.position),
-            Rc::clone(&self.tt),
-            self.hasher.get_hash(),
-            Rc::clone(&self.stack[ply as usize]),
-            Rc::clone(&self.history),
-        );
         if self.position.halfmove == 100 {
             if self.checkmate() {
                 return Some(-MATE_SCORE + ply);
@@ -271,6 +263,14 @@ impl Search {
             return self.qsearch(ply, alpha, beta, depth);
         }
 
+        let moves = MovePicker::new(
+            self.made_moves.len(),
+            MoveGenerator::from(self.position),
+            Rc::clone(&self.tt),
+            self.hasher.get_hash(),
+            Rc::clone(&self.stack[ply as usize]),
+            Rc::clone(&self.history),
+        );
         if depth >= 4 * INC_PLY && !moves.has_tt_move() {
             self.search_pv(ply, alpha, beta, depth - 2 * INC_PLY);
             self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
@@ -324,9 +324,9 @@ impl Search {
                             best_move.unwrap(),
                             LOWER_BOUND,
                         );
-                        self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
                     }
 
+                    self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
                     return None;
                 }
                 Some(value) => {
@@ -368,25 +368,19 @@ impl Search {
             }
         }
 
-        if increased_alpha {
-            self.tt.borrow_mut().insert(
-                self.made_moves.len(),
-                self.hasher.get_hash(),
-                depth,
-                alpha,
-                best_move.unwrap(),
-                EXACT_BOUND,
-            );
+        let tt_bound = if increased_alpha {
+            EXACT_BOUND
         } else {
-            self.tt.borrow_mut().insert(
-                self.made_moves.len(),
-                self.hasher.get_hash(),
-                depth,
-                best_score,
-                best_move.unwrap(),
-                UPPER_BOUND,
-            );
-        }
+            UPPER_BOUND
+        };
+        self.tt.borrow_mut().insert(
+            self.made_moves.len(),
+            self.hasher.get_hash(),
+            depth,
+            best_score,
+            best_move.unwrap(),
+            tt_bound,
+        );
 
         Some(best_score)
     }
