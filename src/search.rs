@@ -258,18 +258,8 @@ impl Search {
             Rc::clone(&self.stack[ply as usize]),
             Rc::clone(&self.history),
         );
-        let in_check = self.position.in_check();
         if self.position.halfmove == 100 {
-            if in_check {
-                for (_, mov) in moves {
-                    self.internal_make_move(mov, ply);
-                    if self.position.move_was_legal(mov) {
-                        self.internal_unmake_move(mov);
-                        return Some(0);
-                    }
-                    self.internal_unmake_move(mov);
-                }
-
+            if self.checkmate() {
                 return Some(-MATE_SCORE + ply);
             } else {
                 return Some(0);
@@ -439,16 +429,7 @@ impl Search {
         );
         let in_check = self.position.in_check();
         if self.position.halfmove == 100 {
-            if in_check {
-                for (_, mov) in moves {
-                    self.internal_make_move(mov, ply);
-                    if self.position.move_was_legal(mov) {
-                        self.internal_unmake_move(mov);
-                        return Some(0);
-                    }
-                    self.internal_unmake_move(mov);
-                }
-
+            if self.checkmate() {
                 return Some(-MATE_SCORE + ply);
             } else {
                 return Some(0);
@@ -718,6 +699,32 @@ impl Search {
         }
 
         Some(alpha)
+    }
+
+    fn checkmate(&mut self) -> bool {
+        if !self.position.in_check() {
+            return false;
+        }
+
+        let moves = MovePicker::new(
+            self.made_moves.len(),
+            MoveGenerator::from(self.position),
+            Rc::clone(&self.tt),
+            self.hasher.get_hash(),
+            Rc::clone(&self.stack[MAX_PLY as usize - 1]),
+            Rc::clone(&self.history),
+        );
+
+        for (_, mov) in moves {
+            self.internal_make_move(mov, MAX_PLY - 1);
+            if self.position.move_was_legal(mov) {
+                self.internal_unmake_move(mov);
+                return false;
+            }
+            self.internal_unmake_move(mov);
+        }
+
+        true
     }
 
     fn uci_info(&self, d: Depth, alpha: Score) {
