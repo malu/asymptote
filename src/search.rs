@@ -724,7 +724,7 @@ impl Search {
 
     fn uci_info(&self, d: Depth, alpha: Score) {
         let elapsed = time::Instant::now() - self.started_at;
-        let millis = elapsed.as_secs() as u32 * 1000 + elapsed.subsec_nanos() / 1_000_000;
+        let millis = elapsed.as_secs() as u32 * 1000 + elapsed.subsec_millis();
         let score_str = if alpha.abs() >= MATE_SCORE - MAX_PLY {
             if alpha < 0 {
                 format!("mate {}", -MATE_SCORE - alpha)
@@ -815,8 +815,7 @@ impl Search {
             StopCondition::TimePerMove { millis } => {
                 let now = time::Instant::now();
                 let elapsed = now - self.started_at;
-                let elapsed_millis =
-                    elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_nanos()) / 1_000_000;
+                let elapsed_millis = elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_millis());
                 elapsed_millis + 50 <= millis
             }
             StopCondition::Variable {
@@ -828,8 +827,7 @@ impl Search {
             } => {
                 let now = time::Instant::now();
                 let elapsed = now - self.started_at;
-                let elapsed_millis =
-                    elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_nanos()) / 1_000_000;
+                let elapsed_millis = elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_millis());
 
                 let time = if self.searching_for_white {
                     wtime
@@ -854,7 +852,7 @@ impl Search {
                     let now = time::Instant::now();
                     let elapsed = now - self.started_at;
                     let elapsed_millis =
-                        elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_nanos()) / 1_000_000;
+                        elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_millis());
                     return elapsed_millis + 20 > millis;
                 }
                 false
@@ -870,7 +868,7 @@ impl Search {
                     let now = time::Instant::now();
                     let elapsed = now - self.started_at;
                     let elapsed_millis =
-                        elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_nanos()) / 1_000_000;
+                        elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_millis());
 
                     let time = if self.searching_for_white {
                         wtime
@@ -926,7 +924,7 @@ impl Search {
         println!("Nodes searched: {}", num_moves);
         println!(
             "Took {} ms",
-            elapsed.as_secs() as u32 * 1000 + elapsed.subsec_nanos() / 1_000_000
+            elapsed.as_secs() as u32 * 1000 + elapsed.subsec_millis()
         );
         println!();
     }
