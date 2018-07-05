@@ -855,7 +855,7 @@ impl Move {
         }
     }
 
-    pub fn to_algebraic(&self) -> String {
+    pub fn to_algebraic(self) -> String {
         let mut alg = String::with_capacity(5);
         let letters: Vec<_> = "abcdefgh".chars().collect();
         let numbers: Vec<_> = "12345678".chars().collect();
