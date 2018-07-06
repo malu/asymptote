@@ -259,10 +259,8 @@ impl Hasher {
         if unmaking_white_move {
             self.hash ^= self.color[mov.from.0 as usize];
             self.hash ^= self.color[mov.to.0 as usize];
-        } else {
-            if pos.color & mov.from {
-                self.hash ^= self.color[mov.from.0 as usize];
-            }
+        } else if pos.color & mov.from {
+            self.hash ^= self.color[mov.from.0 as usize];
         }
 
         match mov.piece {

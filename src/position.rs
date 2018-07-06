@@ -162,10 +162,8 @@ impl Position {
         if self.white_to_move {
             self.color |= mov.to;
             self.color ^= mov.from;
-        } else {
-            if self.color & mov.to {
-                self.color ^= mov.to;
-            }
+        } else if self.color & mov.to {
+            self.color ^= mov.to;
         }
         self.white_to_move = !self.white_to_move;
         self.all_pieces =
