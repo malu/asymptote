@@ -125,7 +125,11 @@ impl Search {
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
 
-        let mut moves = MoveGenerator::from(self.position).all_moves();
+        let mut moves = MoveGenerator::from(self.position)
+            .all_moves()
+            .into_iter()
+            .map(|mov| (mov, 0))
+            .collect::<Vec<_>>();
 
         if let Some(ttentry) = self.tt
             .borrow_mut()
@@ -134,7 +138,7 @@ impl Search {
             let mut swap_with = 0;
             let ttmove = ttentry.best_move.expand(self.position);
             for (i, &mov) in moves.iter().enumerate() {
-                if Some(mov) == ttmove {
+                if Some(mov.0) == ttmove {
                     swap_with = i;
                     break;
                 }
@@ -156,7 +160,7 @@ impl Search {
             let mut best_move_index = 0;
 
             let mut num_moves = 0;
-            'try_moves: for (i, &mov) in moves.iter().enumerate() {
+            'try_moves: for (i, &mut (mov, ref mut subtree_size)) in moves.iter_mut().enumerate() {
                 self.internal_make_move(mov, 0);
                 if !self.position.move_was_legal(mov) {
                     self.internal_unmake_move(mov);
@@ -170,6 +174,7 @@ impl Search {
                     new_depth += INC_PLY;
                 }
 
+                let num_nodes_before = self.stats.nodes;
                 let value;
                 if !increased_alpha {
                     value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
@@ -181,6 +186,8 @@ impl Search {
                         value = value_zw;
                     }
                 }
+
+                *subtree_size = ((self.stats.nodes - num_nodes_before) / 2) as i64;
 
                 self.internal_unmake_move(mov);
 
@@ -207,17 +214,20 @@ impl Search {
                 }
             }
 
-            let best_move = moves[best_move_index];
-            moves.insert(0, best_move);
-            moves.remove(best_move_index + 1);
+            if best_move_index > 0 {
+                let best_move = moves[best_move_index];
+                moves.insert(0, best_move);
+                moves.remove(best_move_index + 1);
+            }
+            moves[1..num_moves].sort_by_key(|&(_, subtree_size)| -subtree_size);
             self.uci_info(depth, alpha);
 
             if num_moves == 1 {
-                return moves[0];
+                return moves[0].0;
             }
         }
 
-        moves[0]
+        moves[0].0
     }
 
     pub fn search_pv(
