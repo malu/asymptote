@@ -265,7 +265,7 @@ impl Search {
 
         let moves = MovePicker::new(
             self.made_moves.len(),
-            MoveGenerator::from(self.position),
+            self.position,
             Rc::clone(&self.tt),
             self.hasher.get_hash(),
             Rc::clone(&self.stack[ply as usize]),
@@ -412,10 +412,9 @@ impl Search {
         self.stats.nodes += 1;
         self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
 
-        let mg = MoveGenerator::from(self.position);
         let moves = MovePicker::new(
             self.made_moves.len(),
-            mg,
+            self.position,
             Rc::clone(&self.tt),
             self.hasher.get_hash(),
             Rc::clone(&self.stack[ply as usize]),
@@ -631,7 +630,6 @@ impl Search {
 
         let eval = self.eval.score(self.position);
         let mut alpha = alpha;
-        let mg = MoveGenerator::from(self.position);
         if !in_check {
             if eval >= beta {
                 return Some(eval);
@@ -645,7 +643,7 @@ impl Search {
         let moves = if in_check {
             MovePicker::qsearch_in_check(
                 self.made_moves.len(),
-                mg,
+                self.position,
                 Rc::clone(&self.tt),
                 self.hasher.get_hash(),
                 Rc::clone(&self.stack[ply as usize]),
@@ -654,7 +652,7 @@ impl Search {
         } else {
             MovePicker::qsearch(
                 self.made_moves.len(),
-                mg,
+                self.position,
                 Rc::clone(&self.tt),
                 self.hasher.get_hash(),
                 Rc::clone(&self.stack[ply as usize]),
@@ -702,7 +700,7 @@ impl Search {
 
         let moves = MovePicker::new(
             self.made_moves.len(),
-            MoveGenerator::from(self.position),
+            self.position,
             Rc::clone(&self.tt),
             self.hasher.get_hash(),
             Rc::clone(&self.stack[MAX_PLY as usize - 1]),

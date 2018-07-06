@@ -4,15 +4,15 @@ use std::rc::Rc;
 use eval::*;
 use hash::*;
 use movegen::*;
+use position::*;
 use search::*;
 use tt::*;
 
 pub struct MovePicker {
-    white_to_move: bool,
     tick: usize,
     tt: Rc<RefCell<TT>>,
     hash: Hash,
-    movegen: MoveGenerator,
+    position: Position,
     excluded: Vec<Move>,
     stage: usize,
     moves: Vec<Move>,
@@ -74,19 +74,18 @@ pub enum MoveType {
 impl MovePicker {
     pub fn new(
         tick: usize,
-        movegen: MoveGenerator,
+        position: Position,
         tt: Rc<RefCell<TT>>,
         hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
     ) -> Self {
         MovePicker {
-            white_to_move: movegen.position.white_to_move,
             history,
             tick,
             tt,
             hash,
-            movegen,
+            position,
             excluded: Vec::new(),
             stage: 0,
             moves: Vec::new(),
@@ -98,19 +97,18 @@ impl MovePicker {
 
     pub fn qsearch(
         tick: usize,
-        movegen: MoveGenerator,
+        position: Position,
         tt: Rc<RefCell<TT>>,
         hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
     ) -> Self {
         MovePicker {
-            white_to_move: movegen.position.white_to_move,
             history,
             tick,
             tt,
             hash,
-            movegen,
+            position,
             excluded: Vec::new(),
             stage: 10,
             moves: Vec::new(),
@@ -122,19 +120,18 @@ impl MovePicker {
 
     pub fn qsearch_in_check(
         tick: usize,
-        movegen: MoveGenerator,
+        position: Position,
         tt: Rc<RefCell<TT>>,
         hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
     ) -> Self {
         MovePicker {
-            white_to_move: movegen.position.white_to_move,
             history,
             tick,
             tt,
             hash,
-            movegen,
+            position,
             excluded: Vec::new(),
             stage: 13,
             moves: Vec::new(),
@@ -146,10 +143,8 @@ impl MovePicker {
 
     pub fn has_tt_move(&self) -> bool {
         if let Some(ttentry) = self.tt.borrow_mut().get(self.tick, self.hash) {
-            if let Some(mov) = ttentry.best_move.expand(self.movegen.position) {
-                if self.movegen.is_legal(mov) {
-                    return true;
-                }
+            if let Some(mov) = ttentry.best_move.expand(self.position) {
+                return MoveGenerator::from(self.position).is_legal(mov);
             }
         }
 
@@ -182,8 +177,8 @@ impl Iterator for MovePicker {
             Stage::TTMove => {
                 self.stage += 1;
                 if let Some(ttentry) = self.tt.borrow_mut().get(self.tick, self.hash) {
-                    if let Some(mov) = ttentry.best_move.expand(self.movegen.position) {
-                        if self.movegen.is_legal(mov) {
+                    if let Some(mov) = ttentry.best_move.expand(self.position) {
+                        if MoveGenerator::from(self.position).is_legal(mov) {
                             self.excluded.push(mov);
                             return Some((MoveType::TTMove, mov));
                         }
@@ -192,7 +187,7 @@ impl Iterator for MovePicker {
                 self.next()
             }
             Stage::GenerateGoodCaptures => {
-                let (moves, scores) = self.movegen.good_captures();
+                let (moves, scores) = MoveGenerator::from(self.position).good_captures();
                 self.moves = moves;
                 self.scores = scores;
                 self.index = 0;
@@ -216,9 +211,10 @@ impl Iterator for MovePicker {
                 self.moves = self.ply_details
                     .borrow()
                     .killers_moves
-                    .iter()
+                    .into_iter()
                     .filter(|m| m.is_some())
                     .map(|m| m.unwrap())
+                    .filter(|&m| MoveGenerator::from(self.position).is_legal(m))
                     .collect();
                 self.scores = self.moves.iter().map(|_| 0).collect();
                 self.index = 0;
@@ -228,7 +224,7 @@ impl Iterator for MovePicker {
             Stage::Killers => {
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
-                    if self.excluded.contains(&mov) || !self.movegen.is_legal(mov) {
+                    if self.excluded.contains(&mov) {
                         self.next()
                     } else {
                         self.excluded.push(mov);
@@ -240,9 +236,9 @@ impl Iterator for MovePicker {
                 }
             }
             Stage::GenerateQuietMoves => {
-                self.moves = self.movegen.quiet_moves();
+                self.moves = MoveGenerator::from(self.position).quiet_moves();
                 {
-                    let wtm = self.white_to_move as usize;
+                    let wtm = self.position.white_to_move as usize;
                     let history = self.history.borrow();
                     self.scores = self.moves
                         .iter()
@@ -267,7 +263,7 @@ impl Iterator for MovePicker {
                 }
             }
             Stage::GenerateBadCaptures => {
-                let (moves, scores) = self.movegen.bad_captures();
+                let (moves, scores) = MoveGenerator::from(self.position).bad_captures();
                 self.moves = moves;
                 self.scores = scores;
                 self.index = 0;
