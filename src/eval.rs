@@ -110,12 +110,56 @@ impl Eval {
         let phase = self.phase();
         let (king_mg, king_eg) = self.positional.king_safety(pos);
         score += (king_mg * phase + king_eg * (62 - phase)) / 62;
+        let (pawns_mg, pawns_eg) = self.pawns(pos);
+        score += (pawns_mg * phase + pawns_eg * (62 - phase)) / 62;
 
         if pos.white_to_move {
             score
         } else {
             -score
         }
+    }
+
+    fn pawns(&mut self, pos: Position) -> (Score, Score) {
+        let (wmg, weg) = self.pawns_for_side(pos, true);
+        let (bmg, beg) = self.pawns_for_side(pos, false);
+        (wmg - bmg, weg - beg)
+    }
+
+    fn pawns_for_side(&mut self, pos: Position, white: bool) -> (Score, Score) {
+        let us = if white {
+            pos.white_pieces
+        } else {
+            pos.black_pieces
+        };
+        let them = !us;
+        let side = white as usize;
+
+        const PASSER_ON_RANK_BONUS_EG: [Score; 8] = [0, 160, 80, 40, 20, 10, 10, 0];
+        const PASSER_ON_RANK_BONUS_MG: [Score; 8] = [0, 60, 50, 40, 30, 20, 10, 0];
+
+        let mut mg = 0;
+        let mut eg = 0;
+        for pawn in (pos.pawns & us).squares() {
+            let sq = pawn.0 as usize;
+            let corridor = PAWN_CORRIDOR[side][sq];
+            let file_forward = corridor & !(corridor.left(2) | corridor.right(2));
+            let passed = (corridor & them & pos.pawns).is_empty();
+            let doubled = !(file_forward & us & pos.pawns).is_empty();
+
+            if passed && !doubled {
+                let mut relative_rank = if white {
+                    pawn.rank() as usize ^ 7
+                } else {
+                    pawn.rank() as usize
+                };
+
+                mg += PASSER_ON_RANK_BONUS_MG[relative_rank];
+                eg += PASSER_ON_RANK_BONUS_EG[relative_rank];
+            }
+        }
+
+        (mg, eg)
     }
 
     fn phase(&self) -> i16 {
