@@ -515,11 +515,15 @@ impl Search {
         let mut best_score = -Score::max_value();
         let mut best_move = None;
 
-        let futility_prune = !in_check
-            && INC_PLY <= depth
-            && depth < 2 * INC_PLY
-            && alpha >= -MATE_SCORE + MAX_PLY
-            && beta <= MATE_SCORE - MAX_PLY;
+        let mut pruned = false;
+        let futility_prune = !in_check && depth < 2 * INC_PLY && alpha > -MATE_SCORE + MAX_PLY;
+
+        let eval = self.eval.score(&self.position);
+        const POSITIONAL_MARGIN: Score = 300;
+        let futility_limit = alpha - (eval + POSITIONAL_MARGIN);
+        if futility_limit > 2 * QUEEN_SCORE - PAWN_SCORE {
+            return Some(alpha);
+        }
 
         let mut num_moves = 0;
         for (i, (mtype, mov)) in moves.enumerate() {
@@ -529,16 +533,34 @@ impl Search {
                 continue;
             }
 
-            num_moves += 1;
             let check = self.position.in_check();
 
-            if futility_prune && !check && mtype == MoveType::Quiet && num_moves > 1 {
-                let futility_margin = 300;
-                if alpha > self.eval.material.score() + futility_margin {
+            if futility_prune && !check {
+                let capture_value = match mov.captured {
+                    Some(Piece::Pawn) => PAWN_SCORE,
+                    Some(Piece::Knight) => KNIGHT_SCORE,
+                    Some(Piece::Bishop) => BISHOP_SCORE,
+                    Some(Piece::Rook) => ROOK_SCORE,
+                    Some(Piece::Queen) => QUEEN_SCORE,
+                    _ => 0,
+                };
+
+                let promotion_value = match mov.promoted {
+                    Some(Piece::Knight) => KNIGHT_SCORE - PAWN_SCORE,
+                    Some(Piece::Bishop) => BISHOP_SCORE - PAWN_SCORE,
+                    Some(Piece::Rook) => ROOK_SCORE - PAWN_SCORE,
+                    Some(Piece::Queen) => QUEEN_SCORE - PAWN_SCORE,
+                    _ => 0,
+                };
+
+                if futility_limit > capture_value + promotion_value {
+                    pruned = true;
                     self.internal_unmake_move(mov);
                     continue;
                 }
             }
+
+            num_moves += 1;
 
             let mut extension = 0;
             let mut reduction = 0;
@@ -608,7 +630,9 @@ impl Search {
         }
 
         if num_moves == 0 {
-            if self.position.in_check() {
+            if pruned {
+                return Some(alpha);
+            } else if self.position.in_check() {
                 return Some(-MATE_SCORE + ply);
             } else {
                 return Some(0);
