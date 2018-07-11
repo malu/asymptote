@@ -1025,4 +1025,8 @@ impl Search {
         self.eval.unmake_move(mov, self.position);
         self.position.unmake_move(mov, irreversible);
     }
+
+    pub fn resize_tt(&mut self, bits: u64) {
+        self.tt = Rc::new(RefCell::new(TT::new(bits)));
+    }
 }

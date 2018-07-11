@@ -129,6 +129,12 @@ impl TT {
             table.push(Bucket([TTEntry::default(); NUM_CLUSTERS]));
         }
 
+        eprintln!(
+            "Using {} bits for addressing the transposition table. Resulting size of TT: {} MB",
+            bits,
+            (1 << bits) * 64 / 1024 / 1024
+        );
+
         TT {
             table,
             bitmask,

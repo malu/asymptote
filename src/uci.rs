@@ -82,10 +82,54 @@ impl UCI {
             let line = line.unwrap();
             if line.starts_with("ucinewgame") {
                 self.search = Search::new(STARTING_POSITION);
+            } else if line.starts_with("setoption") {
+                let mut words = line.split_whitespace();
+                assert!(words.next() == Some("setoption"));
+                assert!(words.next() == Some("name"));
+                let mut name_parts = Vec::new();
+                let mut value_parts = Vec::new();
+
+                // parse option name
+                while let Some(word) = words.next() {
+                    if word == "value" {
+                        break;
+                    } else {
+                        name_parts.push(word);
+                    }
+                }
+
+                while let Some(word) = words.next() {
+                    value_parts.push(word);
+                }
+
+                let mut name = name_parts
+                    .into_iter()
+                    .fold(String::new(), |name, part| name + part);
+                name.make_ascii_lowercase();
+                let value = value_parts
+                    .into_iter()
+                    .fold(String::new(), |name, part| name + part);
+
+                match name.as_ref() {
+                    "hash" => {
+                        if let Ok(mb) = value.parse::<usize>() {
+                            let hash_buckets = 1024 * 1024 * mb / 64; // 64 bytes per hash bucket
+                            let power_of_two = (hash_buckets + 1).next_power_of_two() / 2;
+                            let bits = power_of_two.trailing_zeros();
+                            self.search.resize_tt(bits as u64);
+                        } else {
+                            eprintln!("Unable to parse value '{}' as integer", value);
+                        }
+                    }
+                    _ => {
+                        eprintln!("Unrecognized option {}", name);
+                    }
+                }
             } else if line.starts_with("uci") {
                 self.search = Search::new(STARTING_POSITION);
                 println!("id name rChess");
                 println!("id author M. Lupke");
+                println!("option name Hash type spin default 1");
                 println!("uciok");
             } else if line.starts_with("isready") {
                 println!("readyok");
