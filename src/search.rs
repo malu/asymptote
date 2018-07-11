@@ -107,7 +107,7 @@ impl Search {
             started_at: time::Instant::now(),
             stop_condition: StopCondition::Infinite,
             hasher: Hasher::new(),
-            tt: Rc::new(RefCell::new(TT::new(20))),
+            tt: Rc::new(RefCell::new(TT::new(14))),
             stats: Statistics::default(),
             pv,
             max_ply_searched: 0,
