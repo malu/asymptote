@@ -175,7 +175,7 @@ impl UCI {
                             continue;
                         }
 
-                        let mov = Move::from_algebraic(self.search.position, mov);
+                        let mov = Move::from_algebraic(&self.search.position, mov);
                         self.search.make_move(mov);
                         i += 1;
                     }
@@ -184,13 +184,13 @@ impl UCI {
                 return;
             } else if line.starts_with("showmoves") {
                 println!("Pseudo-legal moves");
-                for mov in MoveGenerator::from(self.search.position).all_moves() {
+                for mov in MoveGenerator::from(&self.search.position).all_moves() {
                     print!("{} ", mov.to_algebraic());
                 }
                 println!("\n");
 
                 println!("Legal moves");
-                for mov in MoveGenerator::from(self.search.position).all_moves() {
+                for mov in MoveGenerator::from(&self.search.position).all_moves() {
                     self.search.internal_make_move(mov, 0);
                     if self.search.position.move_was_legal(mov) {
                         print!("{} ", mov.to_algebraic());
@@ -206,7 +206,7 @@ impl UCI {
                     .borrow_mut()
                     .get(self.search.made_moves.len(), self.search.hasher.get_hash());
                 if let Some(tt) = tt {
-                    if let Some(best_move) = tt.best_move.expand(self.search.position) {
+                    if let Some(best_move) = tt.best_move.expand(&self.search.position) {
                         println!("Best move: {}", best_move.to_algebraic());
                         print!("Score:     ");
                         if tt.bound == EXACT_BOUND {

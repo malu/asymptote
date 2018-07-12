@@ -143,8 +143,8 @@ impl MovePicker {
 
     pub fn has_tt_move(&self) -> bool {
         if let Some(ttentry) = self.tt.borrow_mut().get(self.tick, self.hash) {
-            if let Some(mov) = ttentry.best_move.expand(self.position) {
-                return MoveGenerator::from(self.position).is_legal(mov);
+            if let Some(mov) = ttentry.best_move.expand(&self.position) {
+                return MoveGenerator::from(&self.position).is_legal(mov);
             }
         }
 
@@ -177,8 +177,8 @@ impl Iterator for MovePicker {
             Stage::TTMove => {
                 self.stage += 1;
                 if let Some(ttentry) = self.tt.borrow_mut().get(self.tick, self.hash) {
-                    if let Some(mov) = ttentry.best_move.expand(self.position) {
-                        if MoveGenerator::from(self.position).is_legal(mov) {
+                    if let Some(mov) = ttentry.best_move.expand(&self.position) {
+                        if MoveGenerator::from(&self.position).is_legal(mov) {
                             self.excluded.push(mov);
                             return Some((MoveType::TTMove, mov));
                         }
@@ -187,7 +187,7 @@ impl Iterator for MovePicker {
                 self.next()
             }
             Stage::GenerateGoodCaptures => {
-                let (moves, scores) = MoveGenerator::from(self.position).good_captures();
+                let (moves, scores) = MoveGenerator::from(&self.position).good_captures();
                 self.moves = moves;
                 self.scores = scores;
                 self.index = 0;
@@ -214,7 +214,7 @@ impl Iterator for MovePicker {
                     .into_iter()
                     .filter(|m| m.is_some())
                     .map(|m| m.unwrap())
-                    .filter(|&m| MoveGenerator::from(self.position).is_legal(m))
+                    .filter(|&m| MoveGenerator::from(&self.position).is_legal(m))
                     .collect();
                 self.scores = self.moves.iter().map(|_| 0).collect();
                 self.index = 0;
@@ -236,7 +236,7 @@ impl Iterator for MovePicker {
                 }
             }
             Stage::GenerateQuietMoves => {
-                self.moves = MoveGenerator::from(self.position).quiet_moves();
+                self.moves = MoveGenerator::from(&self.position).quiet_moves();
                 {
                     let wtm = self.position.white_to_move as usize;
                     let history = self.history.borrow();
@@ -263,7 +263,7 @@ impl Iterator for MovePicker {
                 }
             }
             Stage::GenerateBadCaptures => {
-                let (moves, scores) = MoveGenerator::from(self.position).bad_captures();
+                let (moves, scores) = MoveGenerator::from(&self.position).bad_captures();
                 self.moves = moves;
                 self.scores = scores;
                 self.index = 0;

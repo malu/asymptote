@@ -2,7 +2,9 @@ use bitboard::*;
 use eval::*;
 use movegen::*;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+// Position does not implement Copy because moving of Copy types involves always a memcpy and we
+// want to avoid that.
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Position {
     pub color: Bitboard,
     pub pawns: Bitboard,
@@ -281,7 +283,7 @@ impl Position {
     }
 
     fn get_cheapest_captures(&mut self, sq: Square) -> Vec<Move> {
-        let mg = MoveGenerator::from(*self);
+        let mg = MoveGenerator::from(self as &Position);
         let mut captures = Vec::with_capacity(8);
         let targets = sq.to_bb();
         mg.pawn(targets, &mut captures);
@@ -327,7 +329,7 @@ impl Position {
             self.white_pieces
         };
 
-        let mg = MoveGenerator::from(*self);
+        let mg = MoveGenerator::from(self);
         let bishop_attacks: Bitboard =
             get_bishop_attacks_from(sq, self.all_pieces) & (self.bishops | self.queens) & them;
         if !bishop_attacks.is_empty() {

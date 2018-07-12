@@ -91,7 +91,7 @@ impl Hasher {
         self.hash
     }
 
-    pub fn make_move(&mut self, pos: Position, mov: Move) {
+    pub fn make_move(&mut self, pos: &Position, mov: Move) {
         let rank2 = if pos.white_to_move { RANK_2 } else { RANK_7 };
         let rank4 = if pos.white_to_move { RANK_4 } else { RANK_5 };
         let them = if pos.white_to_move {
@@ -241,7 +241,7 @@ impl Hasher {
 
     pub fn unmake_move(
         &mut self,
-        pos: Position,
+        pos: &Position,
         mov: Move,
         irreversible_details: IrreversibleDetails,
     ) {
@@ -369,14 +369,14 @@ impl Hasher {
         }
     }
 
-    pub fn make_nullmove(&mut self, pos: Position) {
+    pub fn make_nullmove(&mut self, pos: &Position) {
         self.hash ^= self.white_to_move;
         if pos.en_passant != 255 {
             self.hash ^= self.en_passant[pos.en_passant as usize];
         }
     }
 
-    pub fn unmake_nullmove(&mut self, pos: Position, irreversible_details: IrreversibleDetails) {
+    pub fn unmake_nullmove(&mut self, pos: &Position, irreversible_details: IrreversibleDetails) {
         self.hash ^= self.white_to_move;
         if pos.en_passant != 255 {
             self.hash ^= self.en_passant[pos.en_passant as usize];

@@ -60,7 +60,7 @@ impl TTMove {
     }
 
     // Expands this `TTMove` to a `Move`value.
-    pub fn expand(self, pos: Position) -> Option<Move> {
+    pub fn expand(self, pos: &Position) -> Option<Move> {
         let mut result = Move {
             from: Square(self.from & 63),
             to: Square(self.to & 63),

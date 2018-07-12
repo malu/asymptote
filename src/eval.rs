@@ -48,24 +48,24 @@ pub const ROOK_SCORE: Score = 500;
 pub const QUEEN_SCORE: Score = 900;
 
 impl Eval {
-    fn mobility(&mut self, pos: Position) -> Score {
-        let mut pos = pos;
-        pos.white_to_move = true;
-        let mg = MoveGenerator::from(pos);
+    fn mobility(&mut self, pos: &Position) -> Score {
+        let mut pos = pos.clone();
         let mut white_knight_mobility = 0;
+        let mut white_bishop_mobility = 0;
+        let mut white_rook_mobility = 0;
+        pos.white_to_move = true;
         for knight in (pos.knights & pos.white_pieces).squares() {
-            white_knight_mobility +=
-                KNIGHT_MOBILITY[mg.knight_from(knight).popcount() as usize] - KNIGHT_MOBILITY_AVG;
+            white_knight_mobility += KNIGHT_MOBILITY
+                [KNIGHT_ATTACKS[knight.0 as usize].popcount() as usize]
+                - KNIGHT_MOBILITY_AVG;
         }
 
-        let mut white_bishop_mobility = 0;
         for bishop in (pos.bishops & pos.white_pieces).squares() {
             white_bishop_mobility += BISHOP_MOBILITY
                 [get_bishop_attacks_from(bishop, pos.all_pieces).popcount() as usize]
                 - BISHOP_MOBILITY_AVG;
         }
 
-        let mut white_rook_mobility = 0;
         for rook in (pos.rooks & pos.white_pieces).squares() {
             white_rook_mobility += ROOK_MOBILITY
                 [get_rook_attacks_from(rook, pos.all_pieces).popcount() as usize]
@@ -73,11 +73,11 @@ impl Eval {
         }
 
         pos.white_to_move = false;
-        let mg = MoveGenerator::from(pos);
         let mut black_knight_mobility = 0;
         for knight in (pos.knights & pos.black_pieces).squares() {
-            black_knight_mobility +=
-                KNIGHT_MOBILITY[mg.knight_from(knight).popcount() as usize] - KNIGHT_MOBILITY_AVG;
+            black_knight_mobility += KNIGHT_MOBILITY
+                [KNIGHT_ATTACKS[knight.0 as usize].popcount() as usize]
+                - KNIGHT_MOBILITY_AVG;
         }
 
         let mut black_bishop_mobility = 0;
@@ -100,7 +100,7 @@ impl Eval {
         white_mobility - black_mobility
     }
 
-    pub fn score(&mut self, pos: Position) -> Score {
+    pub fn score(&mut self, pos: &Position) -> Score {
         let mut score = 0;
         score += self.material.score();
         score += self.pst.score();
@@ -120,13 +120,13 @@ impl Eval {
         }
     }
 
-    fn pawns(&mut self, pos: Position) -> (Score, Score) {
+    fn pawns(&mut self, pos: &Position) -> (Score, Score) {
         let (wmg, weg) = self.pawns_for_side(pos, true);
         let (bmg, beg) = self.pawns_for_side(pos, false);
         (wmg - bmg, weg - beg)
     }
 
-    fn pawns_for_side(&mut self, pos: Position, white: bool) -> (Score, Score) {
+    fn pawns_for_side(&mut self, pos: &Position, white: bool) -> (Score, Score) {
         let us = if white {
             pos.white_pieces
         } else {
@@ -166,7 +166,7 @@ impl Eval {
         self.material.non_pawn_material()
     }
 
-    pub fn make_move(&mut self, mov: Move, pos: Position) {
+    pub fn make_move(&mut self, mov: Move, pos: &Position) {
         match mov.piece {
             Piece::Pawn => {
                 if pos.white_to_move {
@@ -288,7 +288,7 @@ impl Eval {
         }
     }
 
-    pub fn unmake_move(&mut self, mov: Move, pos: Position) {
+    pub fn unmake_move(&mut self, mov: Move, pos: &Position) {
         let unmaking_white_move = !pos.white_to_move;
         match mov.piece {
             Piece::Pawn => {
@@ -412,8 +412,8 @@ impl Eval {
     }
 }
 
-impl From<Position> for Eval {
-    fn from(pos: Position) -> Eval {
+impl<'p> From<&'p Position> for Eval {
+    fn from(pos: &Position) -> Eval {
         Eval {
             material: Material::from(pos),
             pst: PST::from(pos),
@@ -503,8 +503,8 @@ impl Material {
     }
 }
 
-impl From<Position> for Material {
-    fn from(pos: Position) -> Material {
+impl<'p> From<&'p Position> for Material {
+    fn from(pos: &Position) -> Material {
         Material {
             white_pawns: (pos.white_pieces & pos.pawns).popcount() as usize,
             white_knights: (pos.white_pieces & pos.knights).popcount() as usize,
@@ -526,8 +526,8 @@ impl PST {
     }
 }
 
-impl From<Position> for PST {
-    fn from(pos: Position) -> PST {
+impl<'p> From<&'p Position> for PST {
+    fn from(pos: &Position) -> PST {
         PST {
             white_pawns: (pos.white_pieces & pos.pawns)
                 .squares()
@@ -582,7 +582,7 @@ pub const KNIGHT_PST: [Score; 64] = [
 ];
 
 impl Positional {
-    fn score(&self, _pos: Position) -> Score {
+    fn score(&self, _pos: &Position) -> Score {
         let mut score = 0;
         let penalty = [0, 0, 25, 60, 90, 140, 200, 270];
 
@@ -597,13 +597,13 @@ impl Positional {
         score
     }
 
-    pub fn king_safety(&self, pos: Position) -> (Score, Score) {
+    pub fn king_safety(&self, pos: &Position) -> (Score, Score) {
         let (wmg, weg) = self.king_safety_for_side(pos, true);
         let (bmg, beg) = self.king_safety_for_side(pos, false);
         (wmg - bmg, weg - beg)
     }
 
-    fn king_safety_for_side(&self, pos: Position, white: bool) -> (Score, Score) {
+    fn king_safety_for_side(&self, pos: &Position, white: bool) -> (Score, Score) {
         let us = if white {
             pos.white_pieces
         } else {
@@ -659,8 +659,8 @@ impl Positional {
     }
 }
 
-impl From<Position> for Positional {
-    fn from(pos: Position) -> Positional {
+impl<'p> From<&'p Position> for Positional {
+    fn from(pos: &Position) -> Positional {
         let mut white_pawns_per_file = [0; 8];
         let mut black_pawns_per_file = [0; 8];
 

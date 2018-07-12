@@ -102,8 +102,8 @@ impl Search {
             details: Vec::with_capacity(16),
             history: Rc::new(RefCell::new([[[0; 64]; 64]; 2])),
             stack,
+            eval: Eval::from(&position),
             position,
-            eval: Eval::from(position),
             started_at: time::Instant::now(),
             stop_condition: StopCondition::Infinite,
             hasher: Hasher::new(),
@@ -125,7 +125,7 @@ impl Search {
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
 
-        let mut moves = MoveGenerator::from(self.position)
+        let mut moves = MoveGenerator::from(&self.position)
             .all_moves()
             .into_iter()
             .map(|mov| (mov, 0))
@@ -136,7 +136,7 @@ impl Search {
             .get(self.made_moves.len(), self.hasher.get_hash())
         {
             let mut swap_with = 0;
-            let ttmove = ttentry.best_move.expand(self.position);
+            let ttmove = ttentry.best_move.expand(&self.position);
             for (i, &mov) in moves.iter().enumerate() {
                 if Some(mov.0) == ttmove {
                     swap_with = i;
@@ -261,7 +261,7 @@ impl Search {
         }
 
         if ply == MAX_PLY {
-            return Some(self.eval.score(self.position));
+            return Some(self.eval.score(&self.position));
         }
 
         if MATE_SCORE - ply < alpha {
@@ -287,7 +287,7 @@ impl Search {
 
         let moves = MovePicker::new(
             self.made_moves.len(),
-            self.position,
+            self.position.clone(),
             Rc::clone(&self.tt),
             self.hasher.get_hash(),
             Rc::clone(&self.stack[ply as usize]),
@@ -417,7 +417,7 @@ impl Search {
         }
 
         if ply == MAX_PLY {
-            return Some(self.eval.score(self.position));
+            return Some(self.eval.score(&self.position));
         }
 
         let alpha = beta - 1;
@@ -436,7 +436,7 @@ impl Search {
 
         let moves = MovePicker::new(
             self.made_moves.len(),
-            self.position,
+            self.position.clone(),
             Rc::clone(&self.tt),
             self.hasher.get_hash(),
             Rc::clone(&self.stack[ply as usize]),
@@ -455,11 +455,11 @@ impl Search {
             .borrow_mut()
             .get(self.made_moves.len(), self.hasher.get_hash())
         {
-            let check_move_legality = |mov| MoveGenerator::from(self.position).is_legal(mov);
+            let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
             if ttentry.depth >= depth
                 && ttentry
                     .best_move
-                    .expand(self.position)
+                    .expand(&self.position)
                     .map_or(false, check_move_legality)
             {
                 let mut score = ttentry.score;
@@ -490,7 +490,7 @@ impl Search {
 
         // Nullmove
         if depth >= 5 * INC_PLY && !in_check && self.eval.material.non_pawn_material() > 0 {
-            let eval = self.eval.score(self.position);
+            let eval = self.eval.score(&self.position);
             if eval >= beta {
                 self.internal_make_nullmove(ply);
                 let score = self.search_zw(ply + 1, -alpha, depth - 2 * INC_PLY)
@@ -650,7 +650,7 @@ impl Search {
             depth += INC_PLY;
         }
 
-        let eval = self.eval.score(self.position);
+        let eval = self.eval.score(&self.position);
         let mut alpha = alpha;
         if !in_check {
             if eval >= beta {
@@ -665,7 +665,7 @@ impl Search {
         let moves = if in_check {
             MovePicker::qsearch_in_check(
                 self.made_moves.len(),
-                self.position,
+                self.position.clone(),
                 Rc::clone(&self.tt),
                 self.hasher.get_hash(),
                 Rc::clone(&self.stack[ply as usize]),
@@ -674,7 +674,7 @@ impl Search {
         } else {
             MovePicker::qsearch(
                 self.made_moves.len(),
-                self.position,
+                self.position.clone(),
                 Rc::clone(&self.tt),
                 self.hasher.get_hash(),
                 Rc::clone(&self.stack[ply as usize]),
@@ -722,7 +722,7 @@ impl Search {
 
         let moves = MovePicker::new(
             self.made_moves.len(),
-            self.position,
+            self.position.clone(),
             Rc::clone(&self.tt),
             self.hasher.get_hash(),
             Rc::clone(&self.stack[MAX_PLY as usize - 1]),
@@ -922,8 +922,7 @@ impl Search {
         let start = time::Instant::now();
 
         let mut num_moves = 0;
-        let mg = MoveGenerator::from(self.position);
-        let moves = mg.all_moves();
+        let moves = MoveGenerator::from(&self.position).all_moves();
 
         if depth > 0 {
             for mov in moves {
@@ -954,8 +953,7 @@ impl Search {
         }
 
         let mut num_moves = 0;
-        let mg = MoveGenerator::from(self.position);
-        let moves = mg.all_moves();
+        let moves = MoveGenerator::from(&self.position).all_moves();
 
         for mov in moves {
             self.internal_make_move(mov, 0);
@@ -982,8 +980,8 @@ impl Search {
 
         self.stack[ply as usize].borrow_mut().current_move = Some(mov);
 
-        self.hasher.make_move(self.position, mov);
-        self.eval.make_move(mov, self.position);
+        self.hasher.make_move(&self.position, mov);
+        self.eval.make_move(mov, &self.position);
         self.position.make_move(mov);
 
         if self.position.halfmove == 0 {
@@ -1004,18 +1002,18 @@ impl Search {
         });
         self.stack[ply as usize].borrow_mut().current_move = None;
 
-        self.hasher.make_nullmove(self.position);
+        self.hasher.make_nullmove(&self.position);
         self.position.make_nullmove();
     }
 
     fn internal_unmake_nullmove(&mut self) {
         let irreversible = self.details.pop().unwrap();
-        self.hasher.unmake_nullmove(self.position, irreversible);
+        self.hasher.unmake_nullmove(&self.position, irreversible);
         self.position.unmake_nullmove(irreversible);
     }
 
     pub fn redo_eval(&mut self) {
-        self.eval = Eval::from(self.position);
+        self.eval = Eval::from(&self.position);
     }
 
     /*
@@ -1033,8 +1031,8 @@ impl Search {
         }
 
         let irreversible = self.details.pop().unwrap();
-        self.hasher.unmake_move(self.position, mov, irreversible);
-        self.eval.unmake_move(mov, self.position);
+        self.hasher.unmake_move(&self.position, mov, irreversible);
+        self.eval.unmake_move(mov, &self.position);
         self.position.unmake_move(mov, irreversible);
     }
 

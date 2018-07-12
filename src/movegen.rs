@@ -304,11 +304,11 @@ pub struct Move {
     pub en_passant: bool,
 }
 
-pub struct MoveGenerator {
-    pub position: Position,
+pub struct MoveGenerator<'p> {
+    pub position: &'p Position,
 }
 
-impl MoveGenerator {
+impl<'p> MoveGenerator<'p> {
     pub fn good_captures(&mut self) -> (Vec<Move>, Vec<i16>) {
         let all_pieces = self.position.all_pieces;
         let ep = if self.position.en_passant != 255 {
@@ -342,8 +342,9 @@ impl MoveGenerator {
 
         let mut result = Vec::with_capacity(64);
         let mut see = Vec::with_capacity(64);
+        let mut pos = self.position.clone();
         for mov in moves {
-            let score = self.position.see(mov);
+            let score = pos.see(mov);
             if score >= 0 {
                 result.push(mov);
                 see.push(score);
@@ -404,8 +405,9 @@ impl MoveGenerator {
 
         let mut result = Vec::with_capacity(64);
         let mut see = Vec::with_capacity(64);
+        let mut pos = self.position.clone();
         for mov in moves {
-            let score = self.position.see(mov);
+            let score = pos.see(mov);
             if score < 0 {
                 result.push(mov);
                 see.push(score);
@@ -782,14 +784,14 @@ impl MoveGenerator {
     }
 }
 
-impl From<Position> for MoveGenerator {
-    fn from(pos: Position) -> Self {
+impl<'p> From<&'p Position> for MoveGenerator<'p> {
+    fn from(pos: &'p Position) -> Self {
         MoveGenerator { position: pos }
     }
 }
 
 impl Move {
-    pub fn from_algebraic(pos: Position, alg: &str) -> Move {
+    pub fn from_algebraic(pos: &Position, alg: &str) -> Move {
         let mut from_rank = 0;
         let mut from_file = 0;
         let mut to_rank = 0;
