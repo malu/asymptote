@@ -5,6 +5,17 @@ use search::*;
 use std::io::{self, BufRead};
 pub struct UCI {
     search: Search,
+    options: PersistentOptions,
+}
+
+struct PersistentOptions {
+    hash_bits: u64,
+}
+
+impl Default for PersistentOptions {
+    fn default() -> Self {
+        PersistentOptions { hash_bits: 17 }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -72,6 +83,7 @@ impl UCI {
         initialize_magics();
         UCI {
             search: Search::new(STARTING_POSITION),
+            options: PersistentOptions::default(),
         }
     }
 
@@ -82,6 +94,7 @@ impl UCI {
             let line = line.unwrap();
             if line.starts_with("ucinewgame") {
                 self.search = Search::new(STARTING_POSITION);
+                self.search.resize_tt(self.options.hash_bits);
             } else if line.starts_with("setoption") {
                 let mut words = line.split_whitespace();
                 assert!(words.next() == Some("setoption"));
@@ -117,6 +130,7 @@ impl UCI {
                             let power_of_two = (hash_buckets + 1).next_power_of_two() / 2;
                             let bits = power_of_two.trailing_zeros();
                             self.search.resize_tt(bits as u64);
+                            self.options.hash_bits = bits as u64;
                         } else {
                             eprintln!("Unable to parse value '{}' as integer", value);
                         }
