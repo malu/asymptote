@@ -1,6 +1,7 @@
 use movegen::*;
 use position::*;
 use search::*;
+use tt::*;
 
 use std::io::{self, BufRead};
 pub struct UCI {
@@ -207,11 +208,20 @@ impl UCI {
                     .borrow_mut()
                     .get(self.search.made_moves.len(), self.search.hasher.get_hash());
                 if let Some(tt) = tt {
-                    tt.best_move
-                        .expand(self.search.position)
-                        .iter()
-                        .for_each(|&mov| println!("{:?}", mov.to_algebraic()));
-                    println!("{:?}", tt);
+                    if let Some(best_move) = tt.best_move.expand(self.search.position) {
+                        println!("Best move: {}", best_move.to_algebraic());
+                        print!("Score:     ");
+                        if tt.bound == EXACT_BOUND {
+                            println!("= {}", tt.score);
+                        } else if tt.bound & LOWER_BOUND > 0 {
+                            println!("> {}", tt.score);
+                        } else {
+                            println!("< {}", tt.score);
+                        }
+                        println!("Depth:     {} ({} plies)", tt.depth, tt.depth / INC_PLY);
+                    } else {
+                        println!("No TT entry.");
+                    }
                 }
             } else if line.starts_with("perft") {
                 self.search
