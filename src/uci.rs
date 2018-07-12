@@ -143,7 +143,7 @@ impl UCI {
                 self.search = Search::new(STARTING_POSITION);
                 println!("id name rChess");
                 println!("id author M. Lupke");
-                println!("option name Hash type spin default 1");
+                println!("option name Hash type spin default 1 min 0 max 2048");
                 println!("uciok");
             } else if line.starts_with("isready") {
                 println!("readyok");
