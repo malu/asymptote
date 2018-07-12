@@ -182,8 +182,6 @@ impl UCI {
                 }
             } else if line.starts_with("quit") {
                 return;
-            } else if line.starts_with("showboard") {
-                self.search.position.print("");
             } else if line.starts_with("showmoves") {
                 println!("Pseudo-legal moves");
                 for mov in MoveGenerator::from(self.search.position).all_moves() {
