@@ -147,15 +147,18 @@ impl Search {
             moves.swap(0, swap_with);
         }
 
+        let mut alpha = -Score::max_value();
+        let mut max_depth = 0;
         'deepening: for d in 1_i16.. {
             if !self.start_another_iteration(d) {
                 break;
             }
             let depth = d * INC_PLY;
+            max_depth = ::std::cmp::max(max_depth, depth);
 
             self.max_ply_searched = 0;
             let mut increased_alpha = false;
-            let mut alpha = -Score::max_value();
+            alpha = -Score::max_value();
             let beta = Score::max_value();
             let mut best_move_index = 0;
 
@@ -226,6 +229,15 @@ impl Search {
                 return moves[0].0;
             }
         }
+
+        self.tt.borrow_mut().insert(
+            self.made_moves.len(),
+            self.hasher.get_hash(),
+            max_depth,
+            alpha,
+            moves[0].0,
+            EXACT_BOUND,
+        );
 
         moves[0].0
     }
