@@ -303,7 +303,6 @@ impl Search {
         }
 
         let moves = MovePicker::new(
-            self.made_moves.len(),
             self.position.clone(),
             Rc::clone(&self.tt),
             self.hasher.get_hash(),
@@ -445,7 +444,6 @@ impl Search {
         self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
 
         let moves = MovePicker::new(
-            self.made_moves.len(),
             self.position.clone(),
             Rc::clone(&self.tt),
             self.hasher.get_hash(),
@@ -665,7 +663,6 @@ impl Search {
 
         let moves = if in_check {
             MovePicker::qsearch_in_check(
-                self.made_moves.len(),
                 self.position.clone(),
                 Rc::clone(&self.tt),
                 self.hasher.get_hash(),
@@ -674,7 +671,6 @@ impl Search {
             )
         } else {
             MovePicker::qsearch(
-                self.made_moves.len(),
                 self.position.clone(),
                 Rc::clone(&self.tt),
                 self.hasher.get_hash(),
@@ -738,7 +734,6 @@ impl Search {
         }
 
         let moves = MovePicker::new(
-            self.made_moves.len(),
             self.position.clone(),
             Rc::clone(&self.tt),
             self.hasher.get_hash(),

@@ -25,7 +25,6 @@ use search::*;
 use tt::*;
 
 pub struct MovePicker {
-    tick: usize,
     tt: Rc<RefCell<TT>>,
     hash: Hash,
     position: Position,
@@ -89,7 +88,6 @@ pub enum MoveType {
 
 impl MovePicker {
     pub fn new(
-        tick: usize,
         position: Position,
         tt: Rc<RefCell<TT>>,
         hash: Hash,
@@ -98,7 +96,6 @@ impl MovePicker {
     ) -> Self {
         MovePicker {
             history,
-            tick,
             tt,
             hash,
             position,
@@ -112,7 +109,6 @@ impl MovePicker {
     }
 
     pub fn qsearch(
-        tick: usize,
         position: Position,
         tt: Rc<RefCell<TT>>,
         hash: Hash,
@@ -121,7 +117,6 @@ impl MovePicker {
     ) -> Self {
         MovePicker {
             history,
-            tick,
             tt,
             hash,
             position,
@@ -135,7 +130,6 @@ impl MovePicker {
     }
 
     pub fn qsearch_in_check(
-        tick: usize,
         position: Position,
         tt: Rc<RefCell<TT>>,
         hash: Hash,
@@ -144,7 +138,6 @@ impl MovePicker {
     ) -> Self {
         MovePicker {
             history,
-            tick,
             tt,
             hash,
             position,
