@@ -27,6 +27,7 @@ pub struct Bucket([TTEntry; NUM_CLUSTERS]);
 pub struct TT {
     table: Vec<Bucket>,
     bitmask: u64,
+    generation: u8,
     usage: u64,
 }
 
@@ -42,7 +43,7 @@ pub struct TTEntry {
     pub depth: Depth,      // 2 byte
     pub score: Score,      // 2 byte
     pub bound: Bound,      // 1 byte
-    age: u8,               // 1 byte
+    generation: u8,        // 1 byte
 }
 
 impl Default for TTEntry {
@@ -53,7 +54,7 @@ impl Default for TTEntry {
             score: 0,
             best_move: TTMove { from: 0, to: 0 },
             bound: 0,
-            age: 0,
+            generation: 0,
         }
     }
 }
@@ -154,6 +155,7 @@ impl TT {
         TT {
             table,
             bitmask,
+            generation: 0,
             usage: 0,
         }
     }
@@ -163,9 +165,12 @@ impl TT {
         1000 * self.usage / len as u64
     }
 
+    pub fn next_generation(&mut self) {
+        self.generation.wrapping_add(1);
+    }
+
     pub fn insert(
         &mut self,
-        tick: usize,
         hash: Hash,
         depth: Depth,
         score: Score,
@@ -177,7 +182,6 @@ impl TT {
         let mut replace_depth = None;
         let mut lowest_depth = 255;
         let mut replace = NUM_CLUSTERS - 1;
-        let tick = tick as u8;
 
         let mut score = score;
         if score > MATE_SCORE - MAX_PLY {
@@ -204,7 +208,7 @@ impl TT {
                     break;
                 }
 
-                if tick != entry.age && entry.depth < age_depth {
+                if self.generation != entry.generation && entry.depth < age_depth {
                     age_depth = entry.depth;
                     replace_age = Some(i);
                 }
@@ -231,12 +235,12 @@ impl TT {
                 score,
                 best_move: TTMove::from(best_move),
                 bound,
-                age: tick,
+                generation: self.generation,
             }
         };
     }
 
-    pub fn get(&mut self, tick: usize, hash: Hash) -> Option<TTEntry> {
+    pub fn get(&mut self, hash: Hash) -> Option<TTEntry> {
         for entry in unsafe {
             &mut self.table
                 .get_unchecked_mut((hash & self.bitmask) as usize)
@@ -247,7 +251,7 @@ impl TT {
             }
 
             if entry.key == hash {
-                entry.age = tick as u8;
+                entry.generation = self.generation;
                 return Some(*entry);
             }
         }

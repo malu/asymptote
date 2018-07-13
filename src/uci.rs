@@ -220,7 +220,7 @@ impl UCI {
                 let tt = self.search
                     .tt
                     .borrow_mut()
-                    .get(self.search.made_moves.len(), self.search.hasher.get_hash());
+                    .get(self.search.hasher.get_hash());
                 if let Some(tt) = tt {
                     if let Some(best_move) = tt.best_move.expand(&self.search.position) {
                         println!("Best move: {}", best_move.to_algebraic());

@@ -143,6 +143,7 @@ impl Search {
         self.searching_for_white = self.position.white_to_move;
         self.started_at = time::Instant::now();
         self.stats.reset();
+        self.tt.borrow_mut().next_generation();
         self.pv
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
@@ -153,10 +154,7 @@ impl Search {
             .map(|mov| (mov, 0))
             .collect::<Vec<_>>();
 
-        if let Some(ttentry) = self.tt
-            .borrow_mut()
-            .get(self.made_moves.len(), self.hasher.get_hash())
-        {
+        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
             let mut swap_with = 0;
             let ttmove = ttentry.best_move.expand(&self.position);
             for (i, &mov) in moves.iter().enumerate() {
@@ -253,7 +251,6 @@ impl Search {
         }
 
         self.tt.borrow_mut().insert(
-            self.made_moves.len(),
             self.hasher.get_hash(),
             max_depth,
             alpha,
@@ -359,7 +356,6 @@ impl Search {
                 None => {
                     if increased_alpha {
                         self.tt.borrow_mut().insert(
-                            self.made_moves.len(),
                             self.hasher.get_hash(),
                             depth,
                             alpha,
@@ -386,7 +382,6 @@ impl Search {
                                 }
                                 self.add_killer_move(mov, ply);
                                 self.tt.borrow_mut().insert(
-                                    self.made_moves.len(),
                                     self.hasher.get_hash(),
                                     depth,
                                     value,
@@ -416,7 +411,6 @@ impl Search {
             UPPER_BOUND
         };
         self.tt.borrow_mut().insert(
-            self.made_moves.len(),
             self.hasher.get_hash(),
             depth,
             best_score,
@@ -460,10 +454,7 @@ impl Search {
         );
         let in_check = self.position.in_check();
 
-        if let Some(ttentry) = self.tt
-            .borrow_mut()
-            .get(self.made_moves.len(), self.hasher.get_hash())
-        {
+        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
             let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
             if ttentry.depth >= depth
                 && ttentry
@@ -615,7 +606,6 @@ impl Search {
                     self.add_killer_move(mov, ply);
 
                     self.tt.borrow_mut().insert(
-                        self.made_moves.len(),
                         self.hasher.get_hash(),
                         depth,
                         best_score,
@@ -638,7 +628,6 @@ impl Search {
         }
 
         self.tt.borrow_mut().insert(
-            self.made_moves.len(),
             self.hasher.get_hash(),
             depth,
             best_score,

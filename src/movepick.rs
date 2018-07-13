@@ -158,7 +158,7 @@ impl MovePicker {
     }
 
     pub fn has_tt_move(&self) -> bool {
-        if let Some(ttentry) = self.tt.borrow_mut().get(self.tick, self.hash) {
+        if let Some(ttentry) = self.tt.borrow_mut().get(self.hash) {
             if let Some(mov) = ttentry.best_move.expand(&self.position) {
                 return MoveGenerator::from(&self.position).is_legal(mov);
             }
@@ -192,7 +192,7 @@ impl Iterator for MovePicker {
         match STAGE_ORDER[self.stage] {
             Stage::TTMove => {
                 self.stage += 1;
-                if let Some(ttentry) = self.tt.borrow_mut().get(self.tick, self.hash) {
+                if let Some(ttentry) = self.tt.borrow_mut().get(self.hash) {
                     if let Some(mov) = ttentry.best_move.expand(&self.position) {
                         if MoveGenerator::from(&self.position).is_legal(mov) {
                             self.excluded.push(mov);
