@@ -525,6 +525,7 @@ impl Search {
             return Some(alpha);
         }
 
+        let nullmove_reply = self.stack[ply as usize - 1].borrow().current_move == None;
         let mut num_moves = 0;
         for (i, (mtype, mov)) in moves.enumerate() {
             self.internal_make_move(mov, ply);
@@ -572,6 +573,12 @@ impl Search {
             const LMR_MAX_DEPTH: Depth = 6 * INC_PLY;
             const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] =
                 [0, 3, 3, 5, 5, 9, 9];
+
+            // Reduce quiet responses to a null move one ply. They are unlikely to produce a
+            // cutoff.
+            if nullmove_reply && mtype == MoveType::Quiet {
+                reduction += INC_PLY;
+            }
 
             if extension <= 0 {
                 if depth <= LMR_MAX_DEPTH
