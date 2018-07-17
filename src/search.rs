@@ -242,7 +242,8 @@ impl Search {
                 moves.insert(0, best_move);
                 moves.remove(best_move_index + 1);
             }
-            moves[1..num_moves].sort_by_key(|&(_, subtree_size)| -subtree_size);
+            let num_pseudo_legal_moves = moves.len();
+            moves[1..num_pseudo_legal_moves].sort_by_key(|&(_, subtree_size)| -subtree_size);
             self.uci_info(depth, alpha);
 
             if num_moves == 1 {
