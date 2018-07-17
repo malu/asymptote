@@ -272,8 +272,14 @@ impl Search {
         self.stats.nodes += 1;
         self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
 
+        // Check if there is a draw by insufficient mating material or threefold repetition.
         if self.is_draw(ply) {
             return Some(0);
+        }
+
+        // Check if the fifty moves rule applies and if so, return the apropriate score.
+        if let Some(score) = self.fifty_moves_rule(ply) {
+            return Some(score);
         }
 
         if ply == MAX_PLY {
@@ -286,10 +292,6 @@ impl Search {
 
         if -MATE_SCORE + ply > beta {
             return Some(beta);
-        }
-
-        if let Some(score) = self.fifty_moves_rule(ply) {
-            return Some(score);
         }
 
         if depth < INC_PLY {
@@ -424,8 +426,14 @@ impl Search {
             return None;
         }
 
+        // Check if there is a draw by insufficient mating material or threefold repetition.
         if self.is_draw(ply) {
             return Some(0);
+        }
+
+        // Check if the fifty moves rule applies and if so, return the apropriate score.
+        if let Some(score) = self.fifty_moves_rule(ply) {
+            return Some(score);
         }
 
         if ply == MAX_PLY {
@@ -455,10 +463,6 @@ impl Search {
             Rc::clone(&self.history),
         );
         let in_check = self.position.in_check();
-
-        if let Some(score) = self.fifty_moves_rule(ply) {
-            return Some(score);
-        }
 
         if let Some(ttentry) = self.tt
             .borrow_mut()
