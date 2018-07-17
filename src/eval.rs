@@ -499,6 +499,14 @@ impl Material {
             white_material -= 4 * self.white_pawns as Score;
         }
 
+        if self.white_bishops > 1 {
+            white_material += 40;
+        }
+
+        if self.black_bishops > 1 {
+            black_material += 40;
+        }
+
         white_material - black_material
     }
 
