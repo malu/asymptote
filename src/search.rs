@@ -288,12 +288,8 @@ impl Search {
             return Some(beta);
         }
 
-        if self.position.details.halfmove == 100 {
-            if self.checkmate() {
-                return Some(-MATE_SCORE + ply);
-            } else {
-                return Some(0);
-            }
+        if let Some(score) = self.fifty_moves_rule(ply) {
+            return Some(score);
         }
 
         if depth < INC_PLY {
@@ -459,12 +455,9 @@ impl Search {
             Rc::clone(&self.history),
         );
         let in_check = self.position.in_check();
-        if self.position.details.halfmove == 100 {
-            if self.checkmate() {
-                return Some(-MATE_SCORE + ply);
-            } else {
-                return Some(0);
-            }
+
+        if let Some(score) = self.fifty_moves_rule(ply) {
+            return Some(score);
         }
 
         if let Some(ttentry) = self.tt
@@ -760,6 +753,22 @@ impl Search {
         }
 
         Some(alpha)
+    }
+
+    /// Checks for draws by fifty moves rule.
+    ///
+    /// Returns `None` if the halfmove clock did not reach move 100 yet.
+    /// Returns the mate score for `ply` if checkmate and a draw score otherwise.
+    fn fifty_moves_rule(&mut self, ply: Ply) -> Option<Score> {
+        if self.position.details.halfmove == 100 {
+            if self.checkmate() {
+                return Some(-MATE_SCORE + ply);
+            } else {
+                return Some(0);
+            }
+        }
+
+        None
     }
 
     fn checkmate(&mut self) -> bool {
