@@ -32,6 +32,12 @@ pub type History = [[[i32; 64]; 64]; 2];
 pub const INC_PLY: Depth = 64;
 pub const MAX_PLY: Ply = 128 - 1;
 
+const FUTILITY_POSITIONAL_MARGIN: Score = 300;
+const FUTILITY_MAX_EXPECTED_GAIN: Score = 2 * QUEEN_SCORE - PAWN_SCORE;
+
+const LMR_MAX_DEPTH: Depth = 6 * INC_PLY;
+const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [0, 3, 3, 5, 5, 9, 9];
+
 pub struct Search {
     details: Vec<IrreversibleDetails>,
     stack: Vec<Rc<RefCell<PlyDetails>>>,
@@ -319,7 +325,7 @@ impl Search {
         let mut best_score = -Score::max_value();
 
         let mut num_moves = 0;
-        for (i, (_mtype, mov)) in moves.enumerate() {
+        for (_mtype, mov) in moves {
             self.internal_make_move(mov, ply);
             if !self.position.move_was_legal(mov) {
                 self.internal_unmake_move(mov);
@@ -374,7 +380,7 @@ impl Search {
                             alpha = value;
                             self.add_pv_move(mov, ply);
                             if value >= beta {
-                                self.stats.beta_cutoff(ply, i);
+                                self.stats.beta_cutoff(ply, num_moves);
                                 if mov.captured.is_none() {
                                     self.update_history(depth, mov);
                                 }
@@ -441,16 +447,6 @@ impl Search {
         }
 
         let alpha = beta - 1;
-        /*
-        if MATE_SCORE - ply < alpha {
-            return Some(alpha);
-        }
-
-        if -MATE_SCORE + ply > beta {
-            return Some(beta);
-        }
-        */
-
         self.stats.nodes += 1;
         self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
 
@@ -532,15 +528,14 @@ impl Search {
         let futility_prune = !in_check && depth < 2 * INC_PLY && alpha > -MATE_SCORE + MAX_PLY;
 
         let eval = self.eval.score(&self.position);
-        const POSITIONAL_MARGIN: Score = 300;
-        let futility_limit = alpha - (eval + POSITIONAL_MARGIN);
-        if futility_limit > 2 * QUEEN_SCORE - PAWN_SCORE {
+        let futility_limit = alpha - (eval + FUTILITY_POSITIONAL_MARGIN);
+        if futility_limit > FUTILITY_MAX_EXPECTED_GAIN {
             return Some(alpha);
         }
 
         let nullmove_reply = self.stack[ply as usize - 1].borrow().current_move == None;
         let mut num_moves = 0;
-        for (i, (mtype, mov)) in moves.enumerate() {
+        for (mtype, mov) in moves {
             self.internal_make_move(mov, ply);
             if !self.position.move_was_legal(mov) {
                 self.internal_unmake_move(mov);
@@ -569,10 +564,6 @@ impl Search {
             if check {
                 extension += INC_PLY;
             }
-
-            const LMR_MAX_DEPTH: Depth = 6 * INC_PLY;
-            const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] =
-                [0, 3, 3, 5, 5, 9, 9];
 
             // Reduce quiet responses to a null move one ply. They are unlikely to produce a
             // cutoff.
@@ -617,7 +608,7 @@ impl Search {
                 best_score = value.unwrap();
                 best_move = Some(mov);
                 if value.unwrap() >= beta {
-                    self.stats.beta_cutoff(ply, i);
+                    self.stats.beta_cutoff(ply, num_moves);
                     if mov.captured.is_none() {
                         self.update_history(depth, mov);
                     }
@@ -661,16 +652,6 @@ impl Search {
         if self.should_stop() {
             return None;
         }
-
-        /*
-        if MATE_SCORE - ply < alpha {
-            return Some(alpha);
-        }
-
-        if -MATE_SCORE + ply > beta {
-            return Some(beta);
-        }
-        */
 
         self.stats.nodes += 1;
 
