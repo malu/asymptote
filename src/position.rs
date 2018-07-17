@@ -15,7 +15,6 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use bitboard::*;
-use eval::*;
 use movegen::*;
 
 /// Bit indicating if white can castle kingside.
@@ -102,15 +101,7 @@ impl Position {
     pub fn see(&mut self, mov: Move) -> i16 {
         let ep = self.details.en_passant;
         self.make_capture(mov);
-        let piece_value = match mov.captured {
-            Some(Piece::Pawn) => PAWN_SCORE,
-            Some(Piece::Knight) => KNIGHT_SCORE,
-            Some(Piece::Bishop) => BISHOP_SCORE,
-            Some(Piece::Rook) => ROOK_SCORE,
-            Some(Piece::Queen) => QUEEN_SCORE,
-            Some(Piece::King) => 10000,
-            None => 0,
-        };
+        let piece_value = mov.captured.map_or(0, Piece::value);
         let piece_after_move = mov.promoted.unwrap_or(mov.piece);
         let value = piece_value - self.see_square(mov.to, piece_after_move);
         self.unmake_capture(mov);
@@ -123,15 +114,7 @@ impl Position {
         let mut value = 0;
         let captures = self.get_cheapest_captures(sq);
 
-        let capture_value = match occupier {
-            Piece::Pawn => 100,
-            Piece::Knight => 300,
-            Piece::Bishop => 320,
-            Piece::Rook => 500,
-            Piece::Queen => 900,
-            Piece::King => 10000,
-        };
-
+        let capture_value = occupier.value();
         let ep = self.details.en_passant;
         for capture in captures {
             self.make_capture(capture);

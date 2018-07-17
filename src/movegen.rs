@@ -15,6 +15,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use bitboard::*;
+use eval::*;
 use position::*;
 use rand::{prelude::*, prng::ChaChaRng};
 
@@ -307,6 +308,19 @@ pub enum Piece {
     Rook,
     Queen,
     King,
+}
+
+impl Piece {
+    pub fn value(self) -> Score {
+        match self {
+            Piece::Pawn => PAWN_SCORE,
+            Piece::Knight => KNIGHT_SCORE,
+            Piece::Bishop => BISHOP_SCORE,
+            Piece::Rook => ROOK_SCORE,
+            Piece::Queen => QUEEN_SCORE,
+            Piece::King => 10000,
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

@@ -550,22 +550,9 @@ impl Search {
             let check = self.position.in_check();
 
             if futility_prune && !check {
-                let capture_value = match mov.captured {
-                    Some(Piece::Pawn) => PAWN_SCORE,
-                    Some(Piece::Knight) => KNIGHT_SCORE,
-                    Some(Piece::Bishop) => BISHOP_SCORE,
-                    Some(Piece::Rook) => ROOK_SCORE,
-                    Some(Piece::Queen) => QUEEN_SCORE,
-                    _ => 0,
-                };
-
-                let promotion_value = match mov.promoted {
-                    Some(Piece::Knight) => KNIGHT_SCORE - PAWN_SCORE,
-                    Some(Piece::Bishop) => BISHOP_SCORE - PAWN_SCORE,
-                    Some(Piece::Rook) => ROOK_SCORE - PAWN_SCORE,
-                    Some(Piece::Queen) => QUEEN_SCORE - PAWN_SCORE,
-                    _ => 0,
-                };
+                let capture_value = mov.captured.map_or(0, Piece::value);
+                let promotion_value = mov.promoted
+                    .map_or(0, |piece| piece.value() - Piece::Pawn.value());
 
                 if futility_limit > capture_value + promotion_value {
                     pruned = true;
