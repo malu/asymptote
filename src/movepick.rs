@@ -35,6 +35,7 @@ pub struct MovePicker {
     index: usize,
     ply_details: Rc<RefCell<PlyDetails>>,
     history: Rc<RefCell<History>>,
+    skip_quiets: bool,
 }
 
 #[derive(Clone)]
@@ -105,6 +106,7 @@ impl MovePicker {
             scores: Vec::new(),
             index: 0,
             ply_details,
+            skip_quiets: false,
         }
     }
 
@@ -126,6 +128,7 @@ impl MovePicker {
             scores: Vec::new(),
             index: 0,
             ply_details,
+            skip_quiets: false,
         }
     }
 
@@ -147,6 +150,7 @@ impl MovePicker {
             scores: Vec::new(),
             index: 0,
             ply_details,
+            skip_quiets: false,
         }
     }
 
@@ -158,6 +162,10 @@ impl MovePicker {
         }
 
         false
+    }
+
+    pub fn skip_quiets(&mut self, skip_quiets: bool) {
+        self.skip_quiets = skip_quiets;
     }
 
     fn get_move(&mut self) -> Move {
@@ -217,6 +225,11 @@ impl Iterator for MovePicker {
                 }
             }
             Stage::GenerateKillers => {
+                if self.skip_quiets {
+                    self.stage += 1;
+                    return self.next();
+                }
+
                 self.moves = self.ply_details
                     .borrow()
                     .killers_moves
@@ -231,6 +244,11 @@ impl Iterator for MovePicker {
                 self.next()
             }
             Stage::Killers => {
+                if self.skip_quiets {
+                    self.stage += 1;
+                    return self.next();
+                }
+
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {
@@ -245,6 +263,11 @@ impl Iterator for MovePicker {
                 }
             }
             Stage::GenerateQuietMoves => {
+                if self.skip_quiets {
+                    self.stage += 1;
+                    return self.next();
+                }
+
                 self.moves = MoveGenerator::from(&self.position).quiet_moves();
                 {
                     let wtm = self.position.white_to_move as usize;
@@ -259,6 +282,11 @@ impl Iterator for MovePicker {
                 self.next()
             }
             Stage::QuietMoves => {
+                if self.skip_quiets {
+                    self.stage += 1;
+                    return self.next();
+                }
+
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {

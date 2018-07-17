@@ -444,13 +444,6 @@ impl Search {
         self.stats.nodes += 1;
         self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
 
-        let moves = MovePicker::new(
-            self.position.clone(),
-            Rc::clone(&self.tt),
-            self.hasher.get_hash(),
-            Rc::clone(&self.stack[ply as usize]),
-            Rc::clone(&self.history),
-        );
         let in_check = self.position.in_check();
 
         if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
@@ -506,24 +499,40 @@ impl Search {
             }
         }
 
+        let mut best_score = -Score::max_value();
+        let mut best_move = None;
+
+        let mut pruned;
+        let futility_prune = !in_check && depth < 2 * INC_PLY && alpha > -MATE_SCORE + MAX_PLY;
+
+        let eval = self.eval.score(&self.position);
+        let futility_limit = alpha - (eval + FUTILITY_POSITIONAL_MARGIN);
+        let futility_skip_quiets;
+        if futility_limit > FUTILITY_MAX_EXPECTED_GAIN {
+            return Some(alpha);
+        }
+
+        // If the futility limit is positive, a move has to gain material or else it gets pruned.
+        // Therefore we can skip all quiet moves since they don't change material.
+        futility_skip_quiets = futility_limit > 0;
+
+        let nullmove_reply = self.stack[ply as usize - 1].borrow().current_move == None;
+
+        let mut moves = MovePicker::new(
+            self.position.clone(),
+            Rc::clone(&self.tt),
+            self.hasher.get_hash(),
+            Rc::clone(&self.stack[ply as usize]),
+            Rc::clone(&self.history),
+        );
+        moves.skip_quiets(futility_skip_quiets);
+        pruned = futility_skip_quiets;
+
         // Internal deepening
         if depth >= 4 * INC_PLY && !moves.has_tt_move() {
             self.search_zw(ply, beta, depth - 2 * INC_PLY);
         }
 
-        let mut best_score = -Score::max_value();
-        let mut best_move = None;
-
-        let mut pruned = false;
-        let futility_prune = !in_check && depth < 2 * INC_PLY && alpha > -MATE_SCORE + MAX_PLY;
-
-        let eval = self.eval.score(&self.position);
-        let futility_limit = alpha - (eval + FUTILITY_POSITIONAL_MARGIN);
-        if futility_limit > FUTILITY_MAX_EXPECTED_GAIN {
-            return Some(alpha);
-        }
-
-        let nullmove_reply = self.stack[ply as usize - 1].borrow().current_move == None;
         let mut num_moves = 0;
         for (mtype, mov) in moves {
             self.internal_make_move(mov, ply);
