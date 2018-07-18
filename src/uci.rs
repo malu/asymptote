@@ -158,7 +158,7 @@ impl UCI {
                 }
             } else if line.starts_with("uci") {
                 self.search = Search::new(STARTING_POSITION);
-                println!("id name rChess");
+                println!("id name Asymptote");
                 println!("id author M. Lupke");
                 println!("option name Hash type spin default 1 min 0 max 2048");
                 println!("uciok");
