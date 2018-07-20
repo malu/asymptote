@@ -8,23 +8,23 @@ env:
   - secure: L1guMEzEXkx0v5ATYp6qhYqUBSZ6nb5CFzRyGMGy7mRAEH7SFhXbN50nkIUWyh5h4TJJ8xr29EKqP4C+vi0YRFeLpmK/1QIxmIL8wwa4qMHmlX7M0A+PaCxNEOrd4I4TjSAxCoQ2IP6wrvoSbVfkfwgQE/ITo+/TiBX/Bcx4fZmDQuR0fzoRPj//dFK0ZoJm2/k2PPP57lP7FnY81D65TBZmT/O/rStq2xuW/lG645IBwdqbxl461kOBud9DHuNQeTBO347dYSj3a1vFRjbCvqYsTUWbeysuJNeubXwlTK3TOnJPkUVqNW1DxxsAa2D66DNikhFluGmNhbZw4RHRSKk9rKpwF1Sk8xas4dWc+DNv+erYRKqFNVlcXn7MurJxafKt8+iFheKOl1HUuL9KT+mqq8NcphXctzjuCzMZ+zRSFIVNH6QJoVKZ0zzcC/e5g5MrZiG8Rgsf2IyqkNNHdMhc5sgNXBrxZPl+MPuJ/ahRpiWTCTG/VWD0B7XZ7o2H2z2H2vCH63vmxIIPqpye/DNehAIsI9Had0rOkYpcofVdEp6sZ9fxSil97se/iSgMaL6U4Idj8x6MU0MYCyVaelyrD1g7BY40MZDc5PBMbkRAymEzFrZtbaYxp/O16csEf6yLsXFn2DUEo7qlnRs6SAzKPDHcimSRWw10JrA9EMM=
 matrix:
   include:
-  - env: TARGET=i686-unknown-linux-gnu
-  - env: TARGET=i686-unknown-linux-gnu RUSTFLAGS="-C target-features=+popcnt"
-  - env: TARGET=x86_64-unknown-linux-gnu
-  - env: TARGET=x86_64-unknown-linux-gnu RUSTFLAGS="-C target-features=+popcnt"
-  - env: TARGET=i686-apple-darwin
+  - env: TARGET=i686-unknown-linux-gnu FEATURES=-popcnt
+  - env: TARGET=i686-unknown-linux-gnu FEATURES=+popcnt
+  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=-popcnt
+  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=+popcnt
+  - env: TARGET=i686-apple-darwin FEATURES=-popcnt
     os: osx
-  - env: TARGET=i686-apple-darwin RUSTFLAGS="-C target-features=+popcnt"
+  - env: TARGET=i686-apple-darwin FEATURES=+popcnt
     os: osx
-  - env: TARGET=x86_64-apple-darwin
+  - env: TARGET=x86_64-apple-darwin FEATURES=-popcnt
     os: osx
-  - env: TARGET=x86_64-apple-darwin RUSTFLAGS="-C target-features=+popcnt"
+  - env: TARGET=x86_64-apple-darwin FEATURES=+popcnt
     os: osx
-  - env: TARGET=x86_64-pc-windows-gnu
-  - env: TARGET=x86_64-pc-windows-gnu RUSTFLAGS="-C target-features=+popcnt"
-  - env: TARGET=x86_64-unknown-linux-gnu
+  - env: TARGET=x86_64-pc-windows-gnu FEATURES=-popcnt
+  - env: TARGET=x86_64-pc-windows-gnu FEATURES=+popcnt
+  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=-popcnt
     rust: nightly
-  - env: TARGET=x86_64-unknown-linux-gnu RUSTFLAGS="-C target-features=+popcnt"
+  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=+popcnt
     rust: nightly
 before_install:
 - set -e
@@ -39,7 +39,7 @@ before_deploy:
 - sh ci/before_deploy.sh
 deploy:
   file_glob: true
-  file: "$CRATE_NAME-$TRAVIS_TAG-$TARGET.*"
+  file: "$CRATE_NAME-$TRAVIS_TAG-$TARGET$FEATURES.*"
   on:
     condition: "$TRAVIS_RUST_VERSION = stable"
     tags: true
