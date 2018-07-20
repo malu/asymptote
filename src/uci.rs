@@ -176,7 +176,7 @@ impl UCI {
                         self.search.position = STARTING_POSITION;
                         self.search.redo_eval();
                     } else {
-                        self.search.position = Position::from(fen);
+                        self.search.position = Position::from(fen.trim_left_matches("fen"));
                         self.search.redo_eval();
                     }
                 }

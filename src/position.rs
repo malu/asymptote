@@ -890,8 +890,7 @@ impl<'a> From<&'a str> for Position {
             black_pieces: Bitboard::from(0x0),
         };
 
-        let mut split = fen.split(' ');
-        assert!(split.next() == Some("fen"));
+        let mut split = fen.split(' ').filter(|s| !s.is_empty());
 
         let mut file = 0;
         let mut rank = 7;
