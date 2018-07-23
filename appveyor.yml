@@ -15,23 +15,23 @@ environment:
   matrix:
     # MinGW
     - TARGET: i686-pc-windows-gnu
-      FEATURES: -popcount
+      FEATURES: -popcnt
     - TARGET: i686-pc-windows-gnu
-      FEATURES: +popcount
+      FEATURES: +popcnt
     - TARGET: x86_64-pc-windows-gnu
-      FEATURES: -popcount
+      FEATURES: -popcnt
     - TARGET: x86_64-pc-windows-gnu
-      FEATURES: +popcount
+      FEATURES: +popcnt
 
     # MSVC
     - TARGET: i686-pc-windows-msvc
-      FEATURES: -popcount
+      FEATURES: -popcnt
     - TARGET: i686-pc-windows-msvc
-      FEATURES: +popcount
+      FEATURES: +popcnt
     - TARGET: x86_64-pc-windows-msvc
-      FEATURES: -popcount
+      FEATURES: -popcnt
     - TARGET: x86_64-pc-windows-msvc
-      FEATURES: +popcount
+      FEATURES: +popcnt
 
     # Testing other channels
     - TARGET: x86_64-pc-windows-gnu
