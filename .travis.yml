@@ -19,8 +19,6 @@ matrix:
     os: osx
   - env: TARGET=x86_64-apple-darwin FEATURES=+popcnt
     os: osx
-  - env: TARGET=x86_64-pc-windows-gnu FEATURES=-popcnt
-  - env: TARGET=x86_64-pc-windows-gnu FEATURES=+popcnt
   - env: TARGET=x86_64-unknown-linux-gnu FEATURES=-popcnt
     rust: nightly
   - env: TARGET=x86_64-unknown-linux-gnu FEATURES=+popcnt
