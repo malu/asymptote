@@ -12,7 +12,7 @@ main() {
     fi
 
     RUSTFLAGS="-C target-feature=$FEATURES" cross test --target $TARGET
-    RUSTFLAGS="-C target-feature=$FEATURES" cross test --target $TARGET
+    RUSTFLAGS="-C target-feature=$FEATURES" cross test --target $TARGET --release
 
     # cross run --target $TARGET
     # cross run --target $TARGET --release
