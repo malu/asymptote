@@ -659,9 +659,9 @@ impl Search {
             depth += INC_PLY;
         }
 
-        let eval = self.eval.score(&self.position);
         let mut alpha = alpha;
         if !in_check {
+            let eval = self.eval.score(&self.position);
             if eval >= beta {
                 return Some(eval);
             }
