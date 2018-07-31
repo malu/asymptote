@@ -301,8 +301,9 @@ fn sparse_random(rng: &mut ChaChaRng) -> u64 {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[repr(u8)]
 pub enum Piece {
-    Pawn,
+    Pawn = 0,
     Knight,
     Bishop,
     Rook,
@@ -311,6 +312,10 @@ pub enum Piece {
 }
 
 impl Piece {
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
     pub fn value(self) -> Score {
         match self {
             Piece::Pawn => PAWN_SCORE,

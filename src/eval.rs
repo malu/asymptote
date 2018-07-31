@@ -21,7 +21,7 @@ use position::*;
 #[derive(Debug)]
 pub struct Eval {
     pub material: Material,
-    pst: PST,
+    pst: [Score; 2],
     positional: Positional,
 }
 
@@ -37,14 +37,6 @@ pub struct Material {
     black_bishops: usize,
     black_rooks: usize,
     black_queens: usize,
-}
-
-#[derive(Debug)]
-struct PST {
-    white_pawns: Score,
-    black_pawns: Score,
-    white_knights: Score,
-    black_knights: Score,
 }
 
 #[derive(Debug)]
@@ -119,7 +111,7 @@ impl Eval {
     pub fn score(&mut self, pos: &Position) -> Score {
         let mut score = 0;
         score += self.material.score();
-        score += self.pst.score();
+        score += self.pst[1] - self.pst[0];
         score += self.positional.score(pos);
         score += self.mobility(pos);
 
@@ -183,23 +175,28 @@ impl Eval {
     }
 
     pub fn make_move(&mut self, mov: Move, pos: &Position) {
+        self.pst[pos.white_to_move as usize] -=
+            pst(&PST[mov.piece.index()], pos.white_to_move, mov.from);
+
+        if let Some(promotion_piece) = mov.promoted {
+            self.pst[pos.white_to_move as usize] +=
+                pst(&PST[promotion_piece.index()], pos.white_to_move, mov.to);
+        } else {
+            self.pst[pos.white_to_move as usize] +=
+                pst(&PST[mov.piece.index()], pos.white_to_move, mov.to);
+        }
+
+        if let Some(captured_piece) = mov.captured {
+            self.pst[1 - pos.white_to_move as usize] -=
+                pst(&PST[captured_piece.index()], !pos.white_to_move, mov.to);
+        }
+
         match mov.piece {
             Piece::Pawn => {
                 if pos.white_to_move {
                     self.positional.white_pawns_per_file[mov.from.file() as usize] -= 1;
-                    self.pst.white_pawns -= pst(&PAWN_PST, true, mov.from);
                 } else {
                     self.positional.black_pawns_per_file[mov.from.file() as usize] -= 1;
-                    self.pst.black_pawns -= pst(&PAWN_PST, false, mov.from);
-                }
-            }
-            Piece::Knight => {
-                if pos.white_to_move {
-                    self.pst.white_knights -= pst(&KNIGHT_PST, true, mov.from);
-                    self.pst.white_knights += pst(&KNIGHT_PST, true, mov.to);
-                } else {
-                    self.pst.black_knights -= pst(&KNIGHT_PST, false, mov.from);
-                    self.pst.black_knights += pst(&KNIGHT_PST, false, mov.to);
                 }
             }
             _ => {}
@@ -210,20 +207,16 @@ impl Eval {
                 if pos.white_to_move {
                     self.positional.black_pawns_per_file[mov.to.file() as usize] -= 1;
                     self.material.black_pawns -= 1;
-                    self.pst.black_pawns -= pst(&PAWN_PST, false, mov.to);
                 } else {
                     self.positional.white_pawns_per_file[mov.to.file() as usize] -= 1;
                     self.material.white_pawns -= 1;
-                    self.pst.white_pawns -= pst(&PAWN_PST, true, mov.to);
                 }
             }
             Some(Piece::Knight) => {
                 if pos.white_to_move {
                     self.material.black_knights -= 1;
-                    self.pst.black_knights -= pst(&KNIGHT_PST, false, mov.to);
                 } else {
                     self.material.white_knights -= 1;
-                    self.pst.white_knights -= pst(&KNIGHT_PST, true, mov.to);
                 }
             }
             Some(Piece::Bishop) => {
@@ -255,21 +248,17 @@ impl Eval {
                 None => {
                     if pos.white_to_move {
                         self.positional.white_pawns_per_file[mov.to.file() as usize] += 1;
-                        self.pst.white_pawns += pst(&PAWN_PST, true, mov.to);
                     } else {
                         self.positional.black_pawns_per_file[mov.to.file() as usize] += 1;
-                        self.pst.black_pawns += pst(&PAWN_PST, false, mov.to);
                     }
                 }
                 Some(Piece::Knight) => {
                     if pos.white_to_move {
                         self.material.white_pawns -= 1;
                         self.material.white_knights += 1;
-                        self.pst.white_knights += pst(&KNIGHT_PST, true, mov.to);
                     } else {
                         self.material.black_pawns -= 1;
                         self.material.black_knights += 1;
-                        self.pst.black_knights += pst(&KNIGHT_PST, false, mov.to);
                     }
                 }
                 Some(Piece::Bishop) => {
@@ -306,23 +295,29 @@ impl Eval {
 
     pub fn unmake_move(&mut self, mov: Move, pos: &Position) {
         let unmaking_white_move = !pos.white_to_move;
+
+        self.pst[1 - pos.white_to_move as usize] +=
+            pst(&PST[mov.piece.index()], !pos.white_to_move, mov.from);
+
+        if let Some(promotion_piece) = mov.promoted {
+            self.pst[1 - pos.white_to_move as usize] -=
+                pst(&PST[promotion_piece.index()], !pos.white_to_move, mov.to);
+        } else {
+            self.pst[1 - pos.white_to_move as usize] -=
+                pst(&PST[mov.piece.index()], !pos.white_to_move, mov.to);
+        }
+
+        if let Some(captured_piece) = mov.captured {
+            self.pst[pos.white_to_move as usize] +=
+                pst(&PST[captured_piece.index()], pos.white_to_move, mov.to);
+        }
+
         match mov.piece {
             Piece::Pawn => {
                 if unmaking_white_move {
                     self.positional.white_pawns_per_file[mov.from.file() as usize] += 1;
-                    self.pst.white_pawns += pst(&PAWN_PST, true, mov.from);
                 } else {
                     self.positional.black_pawns_per_file[mov.from.file() as usize] += 1;
-                    self.pst.black_pawns += pst(&PAWN_PST, false, mov.from);
-                }
-            }
-            Piece::Knight => {
-                if unmaking_white_move {
-                    self.pst.white_knights += pst(&KNIGHT_PST, true, mov.from);
-                    self.pst.white_knights -= pst(&KNIGHT_PST, true, mov.to);
-                } else {
-                    self.pst.black_knights += pst(&KNIGHT_PST, false, mov.from);
-                    self.pst.black_knights -= pst(&KNIGHT_PST, false, mov.to);
                 }
             }
             _ => {}
@@ -333,20 +328,16 @@ impl Eval {
                 if unmaking_white_move {
                     self.positional.black_pawns_per_file[mov.to.file() as usize] += 1;
                     self.material.black_pawns += 1;
-                    self.pst.black_pawns += pst(&PAWN_PST, false, mov.to);
                 } else {
                     self.positional.white_pawns_per_file[mov.to.file() as usize] += 1;
                     self.material.white_pawns += 1;
-                    self.pst.white_pawns += pst(&PAWN_PST, true, mov.to);
                 }
             }
             Some(Piece::Knight) => {
                 if unmaking_white_move {
                     self.material.black_knights += 1;
-                    self.pst.black_knights += pst(&KNIGHT_PST, false, mov.to);
                 } else {
                     self.material.white_knights += 1;
-                    self.pst.white_knights += pst(&KNIGHT_PST, true, mov.to);
                 }
             }
             Some(Piece::Bishop) => {
@@ -378,21 +369,17 @@ impl Eval {
                 None => {
                     if unmaking_white_move {
                         self.positional.white_pawns_per_file[mov.to.file() as usize] -= 1;
-                        self.pst.white_pawns -= pst(&PAWN_PST, true, mov.to);
                     } else {
                         self.positional.black_pawns_per_file[mov.to.file() as usize] -= 1;
-                        self.pst.black_pawns -= pst(&PAWN_PST, false, mov.to);
                     }
                 }
                 Some(Piece::Knight) => {
                     if unmaking_white_move {
                         self.material.white_pawns += 1;
                         self.material.white_knights -= 1;
-                        self.pst.white_knights -= pst(&KNIGHT_PST, true, mov.to);
                     } else {
                         self.material.black_pawns += 1;
                         self.material.black_knights -= 1;
-                        self.pst.black_knights -= pst(&KNIGHT_PST, true, mov.to);
                     }
                 }
                 Some(Piece::Bishop) => {
@@ -432,7 +419,7 @@ impl<'p> From<&'p Position> for Eval {
     fn from(pos: &Position) -> Eval {
         Eval {
             material: Material::from(pos),
-            pst: PST::from(pos),
+            pst: init_pst_score(pos),
             positional: Positional::from(pos),
         }
     }
@@ -544,33 +531,60 @@ impl<'p> From<&'p Position> for Material {
     }
 }
 
-impl PST {
-    fn score(&self) -> Score {
-        self.white_pawns - self.black_pawns
-    }
-}
+fn init_pst_score(pos: &Position) -> [Score; 2] {
+    let mut white = 0;
+    white += (pos.white_pieces & pos.pawns)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Pawn.index()], true, sq))
+        .sum::<Score>();
+    white += (pos.white_pieces & pos.knights)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Knight.index()], true, sq))
+        .sum::<Score>();
+    white += (pos.white_pieces & pos.bishops)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Bishop.index()], true, sq))
+        .sum::<Score>();
+    white += (pos.white_pieces & pos.rooks)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Rook.index()], true, sq))
+        .sum::<Score>();
+    white += (pos.white_pieces & pos.queens)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Queen.index()], true, sq))
+        .sum::<Score>();
+    white += (pos.white_pieces & pos.kings)
+        .squares()
+        .map(|sq| pst(&PST[Piece::King.index()], true, sq))
+        .sum::<Score>();
 
-impl<'p> From<&'p Position> for PST {
-    fn from(pos: &Position) -> PST {
-        PST {
-            white_pawns: (pos.white_pieces & pos.pawns)
-                .squares()
-                .map(|sq| pst(&PAWN_PST, true, sq))
-                .sum(),
-            black_pawns: (pos.black_pieces & pos.pawns)
-                .squares()
-                .map(|sq| pst(&PAWN_PST, false, sq))
-                .sum(),
-            white_knights: (pos.white_pieces & pos.knights)
-                .squares()
-                .map(|sq| pst(&KNIGHT_PST, true, sq))
-                .sum(),
-            black_knights: (pos.black_pieces & pos.knights)
-                .squares()
-                .map(|sq| pst(&KNIGHT_PST, false, sq))
-                .sum(),
-        }
-    }
+    let mut black = 0;
+    black += (pos.black_pieces & pos.pawns)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Pawn.index()], false, sq))
+        .sum::<Score>();
+    black += (pos.black_pieces & pos.knights)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Knight.index()], false, sq))
+        .sum::<Score>();
+    black += (pos.black_pieces & pos.bishops)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Bishop.index()], false, sq))
+        .sum::<Score>();
+    black += (pos.black_pieces & pos.rooks)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Rook.index()], false, sq))
+        .sum::<Score>();
+    black += (pos.black_pieces & pos.queens)
+        .squares()
+        .map(|sq| pst(&PST[Piece::Queen.index()], false, sq))
+        .sum::<Score>();
+    black += (pos.black_pieces & pos.kings)
+        .squares()
+        .map(|sq| pst(&PST[Piece::King.index()], false, sq))
+        .sum::<Score>();
+
+    [black, white]
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -585,14 +599,6 @@ pub const PAWN_PST: [Score; 64] = [
       0,   0,   0,   0,   0,   0,   0,   0,
 ];
 
-pub fn pst(pst: &[Score; 64], from_white_perspective: bool, sq: Square) -> Score {
-    if from_white_perspective {
-        pst[sq.0 as usize ^ 0b11_1000]
-    } else {
-        pst[sq.0 as usize]
-    }
-}
-
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub const KNIGHT_PST: [Score; 64] = [
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -604,6 +610,66 @@ pub const KNIGHT_PST: [Score; 64] = [
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
 ];
+
+#[cfg_attr(rustfmt, rustfmt_skip)]
+pub const BISHOP_PST: [Score; 64] = [
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+];
+
+#[cfg_attr(rustfmt, rustfmt_skip)]
+pub const ROOK_PST: [Score; 64] = [
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+];
+
+#[cfg_attr(rustfmt, rustfmt_skip)]
+pub const QUEEN_PST: [Score; 64] = [
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+];
+
+#[cfg_attr(rustfmt, rustfmt_skip)]
+pub const KING_PST: [Score; 64] = [
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+];
+
+pub const PST: &[[Score; 64]] = &[
+    PAWN_PST, KNIGHT_PST, BISHOP_PST, ROOK_PST, QUEEN_PST, KING_PST,
+];
+
+pub fn pst(pst: &[Score; 64], from_white_perspective: bool, sq: Square) -> Score {
+    if from_white_perspective {
+        pst[sq.0 as usize ^ 0b11_1000]
+    } else {
+        pst[sq.0 as usize]
+    }
+}
 
 impl Positional {
     fn score(&self, _pos: &Position) -> Score {
