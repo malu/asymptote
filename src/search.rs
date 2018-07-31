@@ -480,9 +480,9 @@ impl Search {
             return self.qsearch(ply, alpha, beta, depth);
         }
 
+        let eval = self.eval.score(&self.position);
         // Nullmove
         if depth >= 5 * INC_PLY && !in_check && self.eval.material.non_pawn_material() > 0 {
-            let eval = self.eval.score(&self.position);
             if eval >= beta {
                 self.internal_make_nullmove(ply);
                 let score = self.search_zw(ply + 1, -alpha, depth - 2 * INC_PLY)
@@ -505,7 +505,6 @@ impl Search {
         let mut pruned;
         let futility_prune = !in_check && depth < 2 * INC_PLY && alpha > -MATE_SCORE + MAX_PLY;
 
-        let eval = self.eval.score(&self.position);
         let futility_limit = alpha - (eval + FUTILITY_POSITIONAL_MARGIN);
         let futility_skip_quiets;
         if futility_limit > FUTILITY_MAX_EXPECTED_GAIN {
