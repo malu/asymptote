@@ -166,7 +166,7 @@ impl TT {
     }
 
     pub fn next_generation(&mut self) {
-        self.generation.wrapping_add(1);
+        self.generation = self.generation.wrapping_add(1);
     }
 
     pub fn insert(
