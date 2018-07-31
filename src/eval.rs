@@ -187,8 +187,16 @@ impl Eval {
         }
 
         if let Some(captured_piece) = mov.captured {
-            self.pst[1 - pos.white_to_move as usize] -=
-                pst(&PST[captured_piece.index()], !pos.white_to_move, mov.to);
+            if mov.en_passant {
+                self.pst[1 - pos.white_to_move as usize] -= pst(
+                    &PST[Piece::Pawn.index()],
+                    !pos.white_to_move,
+                    mov.to.backward(pos.white_to_move, 1),
+                );
+            } else {
+                self.pst[1 - pos.white_to_move as usize] -=
+                    pst(&PST[captured_piece.index()], !pos.white_to_move, mov.to);
+            }
         }
 
         match mov.piece {
@@ -243,8 +251,8 @@ impl Eval {
             _ => {}
         }
 
-        if mov.piece == Piece::Pawn {
-            match mov.promoted {
+        match mov.piece {
+            Piece::Pawn => match mov.promoted {
                 None => {
                     if pos.white_to_move {
                         self.positional.white_pawns_per_file[mov.to.file() as usize] += 1;
@@ -289,7 +297,29 @@ impl Eval {
                     }
                 }
                 _ => {}
+            },
+            Piece::King => {
+                if mov.to.0 == mov.from.0 + 2 {
+                    // castle kingside
+                    self.pst[pos.white_to_move as usize] -= pst(
+                        &PST[Piece::Rook.index()],
+                        pos.white_to_move,
+                        mov.to.right(1),
+                    );
+                    self.pst[pos.white_to_move as usize] +=
+                        pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(1));
+                } else if mov.from.0 == mov.to.0 + 2 {
+                    // castle queenside
+                    self.pst[pos.white_to_move as usize] -=
+                        pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(2));
+                    self.pst[pos.white_to_move as usize] += pst(
+                        &PST[Piece::Rook.index()],
+                        pos.white_to_move,
+                        mov.to.right(1),
+                    );
+                }
             }
+            _ => {}
         }
     }
 
@@ -308,8 +338,16 @@ impl Eval {
         }
 
         if let Some(captured_piece) = mov.captured {
-            self.pst[pos.white_to_move as usize] +=
-                pst(&PST[captured_piece.index()], pos.white_to_move, mov.to);
+            if mov.en_passant {
+                self.pst[pos.white_to_move as usize] += pst(
+                    &PST[Piece::Pawn.index()],
+                    pos.white_to_move,
+                    mov.to.backward(!pos.white_to_move, 1),
+                );
+            } else {
+                self.pst[pos.white_to_move as usize] +=
+                    pst(&PST[captured_piece.index()], pos.white_to_move, mov.to);
+            }
         }
 
         match mov.piece {
@@ -318,6 +356,33 @@ impl Eval {
                     self.positional.white_pawns_per_file[mov.from.file() as usize] += 1;
                 } else {
                     self.positional.black_pawns_per_file[mov.from.file() as usize] += 1;
+                }
+            }
+            Piece::King => {
+                if mov.to.0 == mov.from.0 + 2 {
+                    // castle kingside
+                    self.pst[1 - pos.white_to_move as usize] += pst(
+                        &PST[Piece::Rook.index()],
+                        !pos.white_to_move,
+                        mov.to.right(1),
+                    );
+                    self.pst[1 - pos.white_to_move as usize] -= pst(
+                        &PST[Piece::Rook.index()],
+                        !pos.white_to_move,
+                        mov.to.left(1),
+                    );
+                } else if mov.from.0 == mov.to.0 + 2 {
+                    // castle queenside
+                    self.pst[1 - pos.white_to_move as usize] += pst(
+                        &PST[Piece::Rook.index()],
+                        !pos.white_to_move,
+                        mov.to.left(2),
+                    );
+                    self.pst[1 - pos.white_to_move as usize] -= pst(
+                        &PST[Piece::Rook.index()],
+                        !pos.white_to_move,
+                        mov.to.right(1),
+                    );
                 }
             }
             _ => {}
@@ -625,14 +690,14 @@ pub const BISHOP_PST: [Score; 64] = [
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub const ROOK_PST: [Score; 64] = [
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
+    20, 20, 20, 25, 25, 20, 20, 20,
+    20, 20, 20, 25, 25, 20, 20, 20,
+    0, 0, 0, 5, 5, 0, 0, 0,
+    0, 0, 0, 5, 5, 0, 0, 0,
+    0, 0, 0, 5, 5, 0, 0, 0,
+    -5, 0, 0, 10, 10, 0, 0, -5,
+    -5, -5, 0, 15, 15, 0, -5, -5,
+    -10, -5, 10, 25, 25, 10, -5, -10,
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
