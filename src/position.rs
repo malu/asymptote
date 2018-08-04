@@ -164,7 +164,6 @@ impl Position {
         match mov.piece {
             Piece::Pawn => {
                 self.pawns ^= mov.from;
-                self.details.halfmove = 0;
                 match mov.promoted {
                     Some(Piece::Queen) => {
                         self.queens |= mov.to;
