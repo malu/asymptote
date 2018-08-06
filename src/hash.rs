@@ -24,12 +24,7 @@ pub type Hash = u64;
 
 pub struct Hasher {
     color: [Hash; 64],
-    pawns: [Hash; 64],
-    knights: [Hash; 64],
-    bishops: [Hash; 64],
-    rooks: [Hash; 64],
-    queens: [Hash; 64],
-    kings: [Hash; 64],
+    hashes: [[Hash; 64]; 6],
     white_to_move: Hash,
     en_passant: [Hash; 8],
     castle: [Hash; 16],
@@ -76,12 +71,7 @@ impl Hasher {
         let mut rng = ChaChaRng::from_seed(seed);
         let mut hasher = Hasher {
             color: [0; 64],
-            pawns: [0; 64],
-            knights: [0; 64],
-            bishops: [0; 64],
-            rooks: [0; 64],
-            queens: [0; 64],
-            kings: [0; 64],
+            hashes: [[0; 64]; 6],
             white_to_move: 0,
             en_passant: [0; 8],
             castle: [0; 16],
@@ -90,12 +80,12 @@ impl Hasher {
         };
 
         rng.fill(&mut hasher.color);
-        rng.fill(&mut hasher.pawns);
-        rng.fill(&mut hasher.knights);
-        rng.fill(&mut hasher.bishops);
-        rng.fill(&mut hasher.rooks);
-        rng.fill(&mut hasher.queens);
-        rng.fill(&mut hasher.kings);
+        rng.fill(&mut hasher.hashes[0]);
+        rng.fill(&mut hasher.hashes[1]);
+        rng.fill(&mut hasher.hashes[2]);
+        rng.fill(&mut hasher.hashes[3]);
+        rng.fill(&mut hasher.hashes[4]);
+        rng.fill(&mut hasher.hashes[5]);
         hasher.white_to_move = rng.gen();
         rng.fill(&mut hasher.en_passant);
         rng.fill(&mut hasher.castle);
@@ -129,99 +119,52 @@ impl Hasher {
         let mut castling = pos.details.castling;
         self.hash ^= self.castle[castling as usize];
 
-        match mov.captured {
-            Some(Piece::Pawn) => {
-                if mov.en_passant {
-                    self.hash ^= self.pawns[mov.to.backward(pos.white_to_move, 1).0 as usize];
-                    if !pos.white_to_move {
-                        self.hash ^= self.color[mov.to.backward(pos.white_to_move, 1).0 as usize];
-                    }
-                } else {
-                    self.hash ^= self.pawns[mov.to.0 as usize];
+        self.hash ^= self.hashes[mov.piece.index()][mov.from.0 as usize];
+
+        if let Some(piece) = mov.captured {
+            if mov.en_passant {
+                self.hash ^= self.hashes[Piece::Pawn.index()]
+                    [mov.to.backward(pos.white_to_move, 1).0 as usize];
+                if !pos.white_to_move {
+                    self.hash ^= self.color[mov.to.backward(pos.white_to_move, 1).0 as usize];
+                }
+            } else {
+                self.hash ^= self.hashes[piece.index()][mov.to.0 as usize];
+                if !pos.white_to_move {
+                    self.hash ^= self.color[mov.to.0 as usize];
                 }
             }
-            Some(Piece::Knight) => {
-                self.hash ^= self.knights[mov.to.0 as usize];
-            }
-            Some(Piece::Bishop) => {
-                self.hash ^= self.bishops[mov.to.0 as usize];
-            }
-            Some(Piece::Rook) => {
-                self.hash ^= self.rooks[mov.to.0 as usize];
-            }
-            Some(Piece::Queen) => {
-                self.hash ^= self.queens[mov.to.0 as usize];
-            }
-            _ => {}
         }
 
-        match mov.piece {
-            Piece::Pawn => {
-                self.hash ^= self.pawns[mov.from.0 as usize];
-                match mov.promoted {
-                    Some(Piece::Queen) => {
-                        self.hash ^= self.queens[mov.to.0 as usize];
-                    }
-                    Some(Piece::Knight) => {
-                        self.hash ^= self.knights[mov.to.0 as usize];
-                    }
-                    Some(Piece::Rook) => {
-                        self.hash ^= self.rooks[mov.to.0 as usize];
-                    }
-                    Some(Piece::Bishop) => {
-                        self.hash ^= self.bishops[mov.to.0 as usize];
-                    }
-                    Some(x) => {
-                        panic!("Invalid promotion: {:?}", x);
-                    }
-                    None => {
-                        self.hash ^= self.pawns[mov.to.0 as usize];
-                    }
-                }
-            }
-            Piece::Knight => {
-                self.hash ^= self.knights[mov.from.0 as usize];
-                self.hash ^= self.knights[mov.to.0 as usize];
-            }
-            Piece::Bishop => {
-                self.hash ^= self.bishops[mov.from.0 as usize];
-                self.hash ^= self.bishops[mov.to.0 as usize];
-            }
-            Piece::Rook => {
-                self.hash ^= self.rooks[mov.from.0 as usize];
-                self.hash ^= self.rooks[mov.to.0 as usize];
-            }
-            Piece::Queen => {
-                self.hash ^= self.queens[mov.from.0 as usize];
-                self.hash ^= self.queens[mov.to.0 as usize];
-            }
-            Piece::King => {
-                if mov.to.0 == mov.from.0 + 2 {
-                    // castle kingside
-                    self.hash ^= self.rooks[mov.to.right(1).0 as usize];
-                    self.hash ^= self.rooks[mov.to.left(1).0 as usize];
-                    if pos.white_to_move {
-                        self.hash ^= self.color[mov.to.right(1).0 as usize];
-                        self.hash ^= self.color[mov.to.left(1).0 as usize];
-                    }
-                } else if mov.from.0 == mov.to.0 + 2 {
-                    // castle queenside
-                    self.hash ^= self.rooks[mov.to.left(2).0 as usize];
-                    self.hash ^= self.rooks[mov.to.right(1).0 as usize];
-                    if pos.white_to_move {
-                        self.hash ^= self.color[mov.to.left(2).0 as usize];
-                        self.hash ^= self.color[mov.to.right(1).0 as usize];
-                    }
-                }
+        if let Some(piece) = mov.promoted {
+            self.hash ^= self.hashes[piece.index()][mov.to.0 as usize];
+        } else {
+            self.hash ^= self.hashes[mov.piece.index()][mov.to.0 as usize];
+        }
 
-                self.hash ^= self.kings[mov.from.0 as usize];
-                self.hash ^= self.kings[mov.to.0 as usize];
-
+        if mov.piece == Piece::King {
+            if mov.to.0 == mov.from.0 + 2 {
+                // castle kingside
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1).0 as usize];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(1).0 as usize];
                 if pos.white_to_move {
-                    castling &= CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE;
-                } else {
-                    castling &= CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE;
+                    self.hash ^= self.color[mov.to.right(1).0 as usize];
+                    self.hash ^= self.color[mov.to.left(1).0 as usize];
                 }
+            } else if mov.from.0 == mov.to.0 + 2 {
+                // castle queenside
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(2).0 as usize];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1).0 as usize];
+                if pos.white_to_move {
+                    self.hash ^= self.color[mov.to.left(2).0 as usize];
+                    self.hash ^= self.color[mov.to.right(1).0 as usize];
+                }
+            }
+
+            if pos.white_to_move {
+                castling &= CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE;
+            } else {
+                castling &= CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE;
             }
         }
 
@@ -244,11 +187,8 @@ impl Hasher {
         if pos.white_to_move {
             self.hash ^= self.color[mov.to.0 as usize];
             self.hash ^= self.color[mov.from.0 as usize];
-        } else {
-            if pos.color & mov.to {
-                self.hash ^= self.color[mov.to.0 as usize];
-            }
         }
+
         self.hash ^= self.castle[castling as usize];
         self.hash ^= self.white_to_move;
     }
@@ -273,113 +213,49 @@ impl Hasher {
         if unmaking_white_move {
             self.hash ^= self.color[mov.from.0 as usize];
             self.hash ^= self.color[mov.to.0 as usize];
-        } else if pos.color & mov.from {
-            self.hash ^= self.color[mov.from.0 as usize];
         }
 
-        match mov.piece {
-            Piece::Pawn => {
-                self.hash ^= self.pawns[mov.from.0 as usize];
-                match mov.promoted {
-                    Some(Piece::Queen) => {
-                        self.hash ^= self.queens[mov.to.0 as usize];
-                    }
-                    Some(Piece::Knight) => {
-                        self.hash ^= self.knights[mov.to.0 as usize];
-                    }
-                    Some(Piece::Rook) => {
-                        self.hash ^= self.rooks[mov.to.0 as usize];
-                    }
-                    Some(Piece::Bishop) => {
-                        self.hash ^= self.bishops[mov.to.0 as usize];
-                    }
-                    Some(x) => {
-                        panic!("Invalid promotion: {:?}", x);
-                    }
-                    None => {
-                        self.hash ^= self.pawns[mov.to.0 as usize];
-                    }
-                }
-            }
-            Piece::Knight => {
-                self.hash ^= self.knights[mov.to.0 as usize];
-                self.hash ^= self.knights[mov.from.0 as usize];
-            }
-            Piece::Bishop => {
-                self.hash ^= self.bishops[mov.to.0 as usize];
-                self.hash ^= self.bishops[mov.from.0 as usize];
-            }
-            Piece::Rook => {
-                self.hash ^= self.rooks[mov.to.0 as usize];
-                self.hash ^= self.rooks[mov.from.0 as usize];
-            }
-            Piece::Queen => {
-                self.hash ^= self.queens[mov.to.0 as usize];
-                self.hash ^= self.queens[mov.from.0 as usize];
-            }
-            Piece::King => {
-                self.hash ^= self.kings[mov.to.0 as usize];
-                self.hash ^= self.kings[mov.from.0 as usize];
+        self.hash ^= self.hashes[mov.piece.index()][mov.from.0 as usize];
 
-                if mov.to.0 == mov.from.0 + 2 {
-                    // castle kingside
-                    self.hash ^= self.rooks[mov.to.right(1).0 as usize];
-                    self.hash ^= self.rooks[mov.to.left(1).0 as usize];
-                    if unmaking_white_move {
-                        self.hash ^= self.color[mov.to.right(1).0 as usize];
-                        self.hash ^= self.color[mov.to.left(1).0 as usize];
-                    }
-                } else if mov.from.0 == mov.to.0 + 2 {
-                    // castle queenside
-                    self.hash ^= self.rooks[mov.to.left(2).0 as usize];
-                    self.hash ^= self.rooks[mov.to.right(1).0 as usize];
-                    if unmaking_white_move {
-                        self.hash ^= self.color[mov.to.left(2).0 as usize];
-                        self.hash ^= self.color[mov.to.right(1).0 as usize];
-                    }
+        if let Some(piece) = mov.captured {
+            if mov.en_passant {
+                self.hash ^= self.hashes[Piece::Pawn.index()]
+                    [mov.to.backward(unmaking_white_move, 1).0 as usize];
+                if !unmaking_white_move {
+                    self.hash ^= self.color[mov.to.backward(unmaking_white_move, 1).0 as usize];
+                }
+            } else {
+                self.hash ^= self.hashes[piece.index()][mov.to.0 as usize];
+                if !unmaking_white_move {
+                    self.hash ^= self.color[mov.to.0 as usize];
                 }
             }
         }
 
-        match mov.captured {
-            Some(Piece::Pawn) => {
-                if mov.en_passant {
-                    self.hash ^= self.pawns[mov.to.backward(!pos.white_to_move, 1).0 as usize];
-                    if !unmaking_white_move {
-                        self.hash ^= self.color[mov.to.backward(!pos.white_to_move, 1).0 as usize];
-                    }
-                } else {
-                    self.hash ^= self.pawns[mov.to.0 as usize];
-                    if !unmaking_white_move {
-                        self.hash ^= self.color[mov.to.0 as usize];
-                    }
+        if let Some(piece) = mov.promoted {
+            self.hash ^= self.hashes[piece.index()][mov.to.0 as usize];
+        } else {
+            self.hash ^= self.hashes[mov.piece.index()][mov.to.0 as usize];
+        }
+
+        if mov.piece == Piece::King {
+            if mov.to.0 == mov.from.0 + 2 {
+                // castle kingside
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1).0 as usize];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(1).0 as usize];
+                if unmaking_white_move {
+                    self.hash ^= self.color[mov.to.right(1).0 as usize];
+                    self.hash ^= self.color[mov.to.left(1).0 as usize];
+                }
+            } else if mov.from.0 == mov.to.0 + 2 {
+                // castle queenside
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(2).0 as usize];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1).0 as usize];
+                if unmaking_white_move {
+                    self.hash ^= self.color[mov.to.left(2).0 as usize];
+                    self.hash ^= self.color[mov.to.right(1).0 as usize];
                 }
             }
-            Some(Piece::Knight) => {
-                self.hash ^= self.knights[mov.to.0 as usize];
-                if !unmaking_white_move {
-                    self.hash ^= self.color[mov.to.0 as usize];
-                }
-            }
-            Some(Piece::Bishop) => {
-                self.hash ^= self.bishops[mov.to.0 as usize];
-                if !unmaking_white_move {
-                    self.hash ^= self.color[mov.to.0 as usize];
-                }
-            }
-            Some(Piece::Rook) => {
-                self.hash ^= self.rooks[mov.to.0 as usize];
-                if !unmaking_white_move {
-                    self.hash ^= self.color[mov.to.0 as usize];
-                }
-            }
-            Some(Piece::Queen) => {
-                self.hash ^= self.queens[mov.to.0 as usize];
-                if !unmaking_white_move {
-                    self.hash ^= self.color[mov.to.0 as usize];
-                }
-            }
-            _ => {}
         }
     }
 
