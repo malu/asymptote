@@ -39,23 +39,8 @@ pub struct Position {
     /// the white side.
     pub color: Bitboard,
 
-    /// Bitboard of all pawns on the board. A set bit means a pawn occupies the respective square.
-    pub pawns: Bitboard,
-
-    /// Bitboard of all bishops on the board. A set bit means a bishop occupies the respective square.
-    pub bishops: Bitboard,
-
-    /// Bitboard of all knights on the board. A set bit means a knight occupies the respective square.
-    pub knights: Bitboard,
-
-    /// Bitboard of all rooks on the board. A set bit means a rook occupies the respective square.
-    pub rooks: Bitboard,
-
-    /// Bitboard of all queens on the board. A set bit means a queen occupies the respective square.
-    pub queens: Bitboard,
-
-    /// Bitboard of all kings on the board. A set bit means a king occupies the respective square.
-    pub kings: Bitboard,
+    /// Bitboard of each piece type on the board. A set bit means a piece occupies the respective square. Index by `bb[Piece::index()]`.
+    pub bb: [Bitboard; 6],
 
     /// Whether it is white's tunr to move.
     pub white_to_move: bool,
@@ -97,6 +82,30 @@ pub struct IrreversibleDetails {
 }
 
 impl Position {
+    pub fn pawns(&self) -> Bitboard {
+        self.bb[Piece::Pawn.index()]
+    }
+
+    pub fn knights(&self) -> Bitboard {
+        self.bb[Piece::Knight.index()]
+    }
+
+    pub fn bishops(&self) -> Bitboard {
+        self.bb[Piece::Bishop.index()]
+    }
+
+    pub fn rooks(&self) -> Bitboard {
+        self.bb[Piece::Rook.index()]
+    }
+
+    pub fn queens(&self) -> Bitboard {
+        self.bb[Piece::Queen.index()]
+    }
+
+    pub fn kings(&self) -> Bitboard {
+        self.bb[Piece::King.index()]
+    }
+
     /// Static exchange evaluation
     pub fn see(&mut self, mov: Move) -> i16 {
         let ep = self.details.en_passant;
@@ -115,13 +124,11 @@ impl Position {
         let captures = self.get_cheapest_captures(sq);
 
         let capture_value = occupier.value();
-        let ep = self.details.en_passant;
         for capture in captures {
             self.make_capture(capture);
 
             value = ::std::cmp::max(value, capture_value - self.see_square(sq, capture.piece));
             self.unmake_capture(capture);
-            self.details.en_passant = ep;
 
             if value >= capture_value {
                 break;
@@ -132,93 +139,41 @@ impl Position {
     }
 
     fn make_capture(&mut self, mov: Move) {
-        match mov.captured {
-            Some(Piece::Pawn) => {
-                if mov.en_passant {
-                    self.pawns ^= mov.to.backward(self.white_to_move, 1);
-                    if !self.white_to_move {
-                        self.color ^= mov.to.backward(self.white_to_move, 1)
-                    }
-                } else {
-                    self.pawns ^= mov.to;
+        self.details.en_passant = 255;
+        self.bb[mov.piece.index()] ^= mov.from;
+
+        if let Some(piece) = mov.captured {
+            if mov.en_passant {
+                self.bb[Piece::Pawn.index()] ^= mov.to.backward(self.white_to_move, 1);
+                if !self.white_to_move {
+                    self.color ^= mov.to.backward(self.white_to_move, 1);
+                }
+            } else {
+                self.bb[piece.index()] ^= mov.to;
+                if !self.white_to_move {
+                    self.color ^= mov.to;
                 }
             }
-            Some(Piece::Knight) => {
-                self.knights ^= mov.to;
-            }
-            Some(Piece::Bishop) => {
-                self.bishops ^= mov.to;
-            }
-            Some(Piece::Rook) => {
-                self.rooks ^= mov.to;
-            }
-            Some(Piece::Queen) => {
-                self.queens ^= mov.to;
-            }
-            Some(Piece::King) => {
-                self.kings ^= mov.to;
-            }
-            _ => {}
         }
 
-        match mov.piece {
-            Piece::Pawn => {
-                self.pawns ^= mov.from;
-                match mov.promoted {
-                    Some(Piece::Queen) => {
-                        self.queens |= mov.to;
-                    }
-                    Some(Piece::Knight) => {
-                        self.knights |= mov.to;
-                    }
-                    Some(Piece::Rook) => {
-                        self.rooks |= mov.to;
-                    }
-                    Some(Piece::Bishop) => {
-                        self.bishops |= mov.to;
-                    }
-                    Some(x) => {
-                        panic!("Invalid promotion: {:?}", x);
-                    }
-                    None => {
-                        self.pawns |= mov.to;
-                        if mov.from.forward(self.white_to_move, 2) == mov.to {
-                            self.details.en_passant = mov.from.file();
-                        }
-                    }
-                }
-            }
-            Piece::Knight => {
-                self.knights ^= mov.from;
-                self.knights |= mov.to;
-            }
-            Piece::Bishop => {
-                self.bishops ^= mov.from;
-                self.bishops |= mov.to;
-            }
-            Piece::Rook => {
-                self.rooks ^= mov.from;
-                self.rooks |= mov.to;
-            }
-            Piece::Queen => {
-                self.queens ^= mov.from;
-                self.queens |= mov.to;
-            }
-            Piece::King => {
-                self.kings ^= mov.from;
-                self.kings |= mov.to;
-            }
+        if let Some(piece) = mov.promoted {
+            self.bb[piece.index()] ^= mov.to;
+        } else {
+            self.bb[mov.piece.index()] ^= mov.to;
         }
 
         if self.white_to_move {
-            self.color |= mov.to;
-            self.color ^= mov.from;
-        } else if self.color & mov.to {
             self.color ^= mov.to;
+            self.color ^= mov.from;
         }
+
         self.white_to_move = !self.white_to_move;
-        self.all_pieces =
-            self.pawns | self.knights | self.bishops | self.rooks | self.queens | self.kings;
+        self.all_pieces = self.pawns()
+            | self.knights()
+            | self.bishops()
+            | self.rooks()
+            | self.queens()
+            | self.kings();
         self.white_pieces = self.all_pieces & self.color;
         self.black_pieces = self.all_pieces & !self.white_pieces;
     }
@@ -228,105 +183,38 @@ impl Position {
         let unmaking_white_move = self.white_to_move;
 
         if unmaking_white_move {
-            self.color |= mov.from;
+            self.color ^= mov.from;
             self.color ^= mov.to;
         }
 
-        match mov.piece {
-            Piece::Pawn => {
-                self.pawns |= mov.from;
-                match mov.promoted {
-                    Some(Piece::Queen) => {
-                        self.queens ^= mov.to;
-                    }
-                    Some(Piece::Knight) => {
-                        self.knights ^= mov.to;
-                    }
-                    Some(Piece::Rook) => {
-                        self.rooks ^= mov.to;
-                    }
-                    Some(Piece::Bishop) => {
-                        self.bishops ^= mov.to;
-                    }
-                    Some(x) => {
-                        panic!("Invalid promotion: {:?}", x);
-                    }
-                    None => {
-                        self.pawns ^= mov.to;
-                    }
+        self.bb[mov.piece.index()] ^= mov.from;
+
+        if let Some(piece) = mov.captured {
+            if mov.en_passant {
+                self.bb[Piece::Pawn.index()] ^= mov.to.backward(unmaking_white_move, 1);
+                if !unmaking_white_move {
+                    self.color ^= mov.to.backward(unmaking_white_move, 1);
                 }
-            }
-            Piece::Knight => {
-                self.knights ^= mov.to;
-                self.knights |= mov.from;
-            }
-            Piece::Bishop => {
-                self.bishops ^= mov.to;
-                self.bishops |= mov.from;
-            }
-            Piece::Rook => {
-                self.rooks ^= mov.to;
-                self.rooks |= mov.from;
-            }
-            Piece::Queen => {
-                self.queens ^= mov.to;
-                self.queens |= mov.from;
-            }
-            Piece::King => {
-                self.kings ^= mov.to;
-                self.kings |= mov.from;
+            } else {
+                self.bb[piece.index()] ^= mov.to;
+                if !unmaking_white_move {
+                    self.color ^= mov.to;
+                }
             }
         }
 
-        match mov.captured {
-            Some(Piece::Pawn) => {
-                if mov.en_passant {
-                    self.pawns |= mov.to.backward(unmaking_white_move, 1);
-                    if !unmaking_white_move {
-                        self.color |= mov.to.backward(unmaking_white_move, 1);
-                    }
-                } else {
-                    self.pawns |= mov.to;
-                    if !unmaking_white_move {
-                        self.color |= mov.to;
-                    }
-                }
-            }
-            Some(Piece::Knight) => {
-                self.knights |= mov.to;
-                if !unmaking_white_move {
-                    self.color |= mov.to;
-                }
-            }
-            Some(Piece::Bishop) => {
-                self.bishops |= mov.to;
-                if !unmaking_white_move {
-                    self.color |= mov.to;
-                }
-            }
-            Some(Piece::Rook) => {
-                self.rooks |= mov.to;
-                if !unmaking_white_move {
-                    self.color |= mov.to;
-                }
-            }
-            Some(Piece::Queen) => {
-                self.queens |= mov.to;
-                if !unmaking_white_move {
-                    self.color |= mov.to;
-                }
-            }
-            Some(Piece::King) => {
-                self.kings |= mov.to;
-                if !unmaking_white_move {
-                    self.color |= mov.to;
-                }
-            }
-            _ => {}
+        if let Some(piece) = mov.promoted {
+            self.bb[piece.index()] ^= mov.to;
+        } else {
+            self.bb[mov.piece.index()] ^= mov.to;
         }
 
-        self.all_pieces =
-            self.pawns | self.knights | self.bishops | self.rooks | self.queens | self.kings;
+        self.all_pieces = self.pawns()
+            | self.knights()
+            | self.bishops()
+            | self.rooks()
+            | self.queens()
+            | self.kings();
         self.white_pieces = self.all_pieces & self.color;
         self.black_pieces = self.all_pieces & !self.white_pieces;
     }
@@ -365,7 +253,8 @@ impl Position {
         } else {
             self.black_pieces
         };
-        if !(self.kings & us).is_empty() {
+
+        if !(self.kings() & us).is_empty() {
             mg.king(targets, &mut captures);
         }
         captures
@@ -380,33 +269,37 @@ impl Position {
 
         let mg = MoveGenerator::from(self);
         let bishop_attacks: Bitboard =
-            get_bishop_attacks_from(sq, self.all_pieces) & (self.bishops | self.queens) & them;
+            get_bishop_attacks_from(sq, self.all_pieces) & (self.bishops() | self.queens()) & them;
         if !bishop_attacks.is_empty() {
             return true;
         }
 
         let rook_attacks: Bitboard =
-            get_rook_attacks_from(sq, self.all_pieces) & (self.rooks | self.queens) & them;
+            get_rook_attacks_from(sq, self.all_pieces) & (self.rooks() | self.queens()) & them;
         if !rook_attacks.is_empty() {
             return true;
         }
 
-        let knight_attacks: Bitboard = mg.knight_from(sq) & self.knights & them;
+        let knight_attacks: Bitboard = mg.knight_from(sq) & self.knights() & them;
         if !knight_attacks.is_empty() {
             return true;
         }
 
-        let pawn_right: bool = (self.pawns & them).backward(self.white_to_move, 1).left(1) & sq;
+        let pawn_right: bool = (self.pawns() & them)
+            .backward(self.white_to_move, 1)
+            .left(1) & sq;
         if pawn_right {
             return true;
         }
 
-        let pawn_left: bool = (self.pawns & them).backward(self.white_to_move, 1).right(1) & sq;
+        let pawn_left: bool = (self.pawns() & them)
+            .backward(self.white_to_move, 1)
+            .right(1) & sq;
         if pawn_left {
             return true;
         }
 
-        if !(mg.king_from(sq) & self.kings & them).is_empty() {
+        if !(mg.king_from(sq) & self.kings() & them).is_empty() {
             return true;
         }
 
@@ -420,7 +313,7 @@ impl Position {
         } else {
             self.black_pieces
         };
-        let king = (us & self.kings).squares().nth(0).unwrap();
+        let king = (us & self.kings()).squares().nth(0).unwrap();
         self.is_attacked(king)
     }
 
@@ -463,124 +356,59 @@ impl Position {
         let rank4 = if self.white_to_move { RANK_4 } else { RANK_5 };
 
         self.details.en_passant = 255;
-        if self.pawns & rank2 & mov.from
+        if self.pawns() & rank2 & mov.from
             && rank4 & mov.to
-            && ((them & self.pawns).left(1) | (them & self.pawns).right(1)) & mov.to
+            && ((them & self.pawns()).left(1) | (them & self.pawns()).right(1)) & mov.to
         {
             self.details.en_passant = mov.from.file();
         }
 
         self.details.halfmove += 1;
 
-        match mov.captured {
-            Some(Piece::Pawn) => {
-                if mov.en_passant {
-                    self.pawns ^= mov.to.backward(self.white_to_move, 1);
-                    if !self.white_to_move {
-                        self.color ^= mov.to.backward(self.white_to_move, 1)
-                    }
-                } else {
-                    self.pawns ^= mov.to;
+        self.bb[mov.piece.index()] ^= mov.from;
+
+        if let Some(piece) = mov.captured {
+            self.details.halfmove = 0;
+
+            if mov.en_passant {
+                self.bb[Piece::Pawn.index()] ^= mov.to.backward(self.white_to_move, 1);
+                if !self.white_to_move {
+                    self.color ^= mov.to.backward(self.white_to_move, 1);
                 }
-                self.details.halfmove = 0;
+            } else {
+                self.bb[piece.index()] ^= mov.to;
+                if !self.white_to_move {
+                    self.color ^= mov.to;
+                }
             }
-            Some(Piece::Knight) => {
-                self.knights ^= mov.to;
-                self.details.halfmove = 0;
-            }
-            Some(Piece::Bishop) => {
-                self.bishops ^= mov.to;
-                self.details.halfmove = 0;
-            }
-            Some(Piece::Rook) => {
-                self.rooks ^= mov.to;
-                self.details.halfmove = 0;
-            }
-            Some(Piece::Queen) => {
-                self.queens ^= mov.to;
-                self.details.halfmove = 0;
-            }
-            _ => {}
+        }
+
+        if let Some(piece) = mov.promoted {
+            self.bb[piece.index()] ^= mov.to;
+        } else {
+            self.bb[mov.piece.index()] ^= mov.to;
         }
 
         match mov.piece {
             Piece::Pawn => {
-                self.pawns ^= mov.from;
                 self.details.halfmove = 0;
-                match mov.promoted {
-                    Some(Piece::Queen) => {
-                        self.queens |= mov.to;
-                    }
-                    Some(Piece::Knight) => {
-                        self.knights |= mov.to;
-                    }
-                    Some(Piece::Rook) => {
-                        self.rooks |= mov.to;
-                    }
-                    Some(Piece::Bishop) => {
-                        self.bishops |= mov.to;
-                    }
-                    Some(x) => {
-                        panic!("Invalid promotion: {:?}", x);
-                    }
-                    None => {
-                        self.pawns |= mov.to;
-                    }
-                }
-            }
-            Piece::Knight => {
-                self.knights ^= mov.from;
-                self.knights |= mov.to;
-            }
-            Piece::Bishop => {
-                self.bishops ^= mov.from;
-                self.bishops |= mov.to;
-            }
-            Piece::Rook => {
-                self.rooks ^= mov.from;
-                self.rooks |= mov.to;
-
-                if self.white_to_move {
-                    if mov.from.0 == 0 {
-                        // A1
-                        self.details.castling &= !CASTLE_WHITE_QSIDE;
-                    } else if mov.from.0 == 7 {
-                        // H1
-                        self.details.castling &= !CASTLE_WHITE_KSIDE;
-                    }
-                } else {
-                    if mov.from.0 == 56 {
-                        // A8
-                        self.details.castling &= !CASTLE_BLACK_QSIDE;
-                    } else if mov.from.0 == 63 {
-                        // H8
-                        self.details.castling &= !CASTLE_BLACK_KSIDE;
-                    }
-                }
-            }
-            Piece::Queen => {
-                self.queens ^= mov.from;
-                self.queens |= mov.to;
             }
             Piece::King => {
-                self.kings ^= mov.from;
-                self.kings |= mov.to;
-
                 if mov.to.0 == mov.from.0 + 2 {
                     // castle kingside
-                    self.rooks ^= mov.to.right(1);
-                    self.rooks |= mov.to.left(1);
+                    self.bb[Piece::Rook.index()] ^= mov.to.right(1);
+                    self.bb[Piece::Rook.index()] ^= mov.to.left(1);
                     if self.white_to_move {
                         self.color ^= mov.to.right(1);
-                        self.color |= mov.to.left(1);
+                        self.color ^= mov.to.left(1);
                     }
                 } else if mov.from.0 == mov.to.0 + 2 {
                     // castle queenside
-                    self.rooks ^= mov.to.left(2);
-                    self.rooks |= mov.to.right(1);
+                    self.bb[Piece::Rook.index()] ^= mov.to.left(2);
+                    self.bb[Piece::Rook.index()] ^= mov.to.right(1);
                     if self.white_to_move {
                         self.color ^= mov.to.left(2);
-                        self.color |= mov.to.right(1);
+                        self.color ^= mov.to.right(1);
                     }
                 }
 
@@ -590,21 +418,39 @@ impl Position {
                     self.details.castling &= !(CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE);
                 }
             }
+            _ => {}
+        }
+
+        if mov.from.0 == 0 || mov.to.0 == 0 {
+            self.details.castling &= !CASTLE_WHITE_QSIDE;
+        }
+
+        if mov.from.0 == 7 || mov.to.0 == 7 {
+            self.details.castling &= !CASTLE_WHITE_KSIDE;
+        }
+
+        if mov.from.0 == 56 || mov.to.0 == 56 {
+            self.details.castling &= !CASTLE_BLACK_QSIDE;
+        }
+
+        if mov.from.0 == 63 || mov.to.0 == 63 {
+            self.details.castling &= !CASTLE_BLACK_KSIDE;
         }
 
         if self.white_to_move {
-            self.color |= mov.to;
+            self.color ^= mov.to;
             self.color ^= mov.from;
         } else {
-            if self.color & mov.to {
-                self.color ^= mov.to;
-            }
-
             self.fullmove += 1;
         }
+
         self.white_to_move = !self.white_to_move;
-        self.all_pieces =
-            self.pawns | self.knights | self.bishops | self.rooks | self.queens | self.kings;
+        self.all_pieces = self.pawns()
+            | self.knights()
+            | self.bishops()
+            | self.rooks()
+            | self.queens()
+            | self.kings();
         self.white_pieces = self.all_pieces & self.color;
         self.black_pieces = self.all_pieces & !self.white_pieces;
     }
@@ -616,119 +462,60 @@ impl Position {
         let unmaking_white_move = self.white_to_move;
 
         if unmaking_white_move {
-            self.color |= mov.from;
+            self.color ^= mov.from;
             self.color ^= mov.to;
         } else {
             self.fullmove -= 1;
         }
 
-        match mov.piece {
-            Piece::Pawn => {
-                self.pawns |= mov.from;
-                match mov.promoted {
-                    Some(Piece::Queen) => {
-                        self.queens ^= mov.to;
-                    }
-                    Some(Piece::Knight) => {
-                        self.knights ^= mov.to;
-                    }
-                    Some(Piece::Rook) => {
-                        self.rooks ^= mov.to;
-                    }
-                    Some(Piece::Bishop) => {
-                        self.bishops ^= mov.to;
-                    }
-                    Some(x) => {
-                        panic!("Invalid promotion: {:?}", x);
-                    }
-                    None => {
-                        self.pawns ^= mov.to;
-                    }
-                }
-            }
-            Piece::Knight => {
-                self.knights ^= mov.to;
-                self.knights |= mov.from;
-            }
-            Piece::Bishop => {
-                self.bishops ^= mov.to;
-                self.bishops |= mov.from;
-            }
-            Piece::Rook => {
-                self.rooks ^= mov.to;
-                self.rooks |= mov.from;
-            }
-            Piece::Queen => {
-                self.queens ^= mov.to;
-                self.queens |= mov.from;
-            }
-            Piece::King => {
-                self.kings ^= mov.to;
-                self.kings |= mov.from;
+        self.bb[mov.piece.index()] ^= mov.from;
 
-                if mov.to.0 == mov.from.0 + 2 {
-                    // castle kingside
-                    self.rooks |= mov.to.right(1);
-                    self.rooks ^= mov.to.left(1);
-                    if unmaking_white_move {
-                        self.color |= mov.to.right(1);
-                        self.color ^= mov.to.left(1);
-                    }
-                } else if mov.from.0 == mov.to.0 + 2 {
-                    // castle queenside
-                    self.rooks |= mov.to.left(2);
-                    self.rooks ^= mov.to.right(1);
-                    if unmaking_white_move {
-                        self.color |= mov.to.left(2);
-                        self.color ^= mov.to.right(1);
-                    }
+        if let Some(piece) = mov.captured {
+            if mov.en_passant {
+                self.bb[Piece::Pawn.index()] ^= mov.to.backward(unmaking_white_move, 1);
+                if !unmaking_white_move {
+                    self.color ^= mov.to.backward(unmaking_white_move, 1);
+                }
+            } else {
+                self.bb[piece.index()] ^= mov.to;
+                if !unmaking_white_move {
+                    self.color ^= mov.to;
                 }
             }
         }
 
-        match mov.captured {
-            Some(Piece::Pawn) => {
-                if mov.en_passant {
-                    self.pawns |= mov.to.backward(unmaking_white_move, 1);
-                    if !unmaking_white_move {
-                        self.color |= mov.to.backward(unmaking_white_move, 1);
-                    }
-                } else {
-                    self.pawns |= mov.to;
-                    if !unmaking_white_move {
-                        self.color |= mov.to;
-                    }
-                }
-            }
-            Some(Piece::Knight) => {
-                self.knights |= mov.to;
-                if !unmaking_white_move {
-                    self.color |= mov.to;
-                }
-            }
-            Some(Piece::Bishop) => {
-                self.bishops |= mov.to;
-                if !unmaking_white_move {
-                    self.color |= mov.to;
-                }
-            }
-            Some(Piece::Rook) => {
-                self.rooks |= mov.to;
-                if !unmaking_white_move {
-                    self.color |= mov.to;
-                }
-            }
-            Some(Piece::Queen) => {
-                self.queens |= mov.to;
-                if !unmaking_white_move {
-                    self.color |= mov.to;
-                }
-            }
-            _ => {}
+        if let Some(piece) = mov.promoted {
+            self.bb[piece.index()] ^= mov.to;
+        } else {
+            self.bb[mov.piece.index()] ^= mov.to;
         }
 
-        self.all_pieces =
-            self.pawns | self.knights | self.bishops | self.rooks | self.queens | self.kings;
+        if mov.piece == Piece::King {
+            if mov.to.0 == mov.from.0 + 2 {
+                // castle kingside
+                self.bb[Piece::Rook.index()] ^= mov.to.right(1);
+                self.bb[Piece::Rook.index()] ^= mov.to.left(1);
+                if unmaking_white_move {
+                    self.color ^= mov.to.right(1);
+                    self.color ^= mov.to.left(1);
+                }
+            } else if mov.from.0 == mov.to.0 + 2 {
+                // castle queenside
+                self.bb[Piece::Rook.index()] ^= mov.to.left(2);
+                self.bb[Piece::Rook.index()] ^= mov.to.right(1);
+                if unmaking_white_move {
+                    self.color ^= mov.to.left(2);
+                    self.color ^= mov.to.right(1);
+                }
+            }
+        }
+
+        self.all_pieces = self.pawns()
+            | self.knights()
+            | self.bishops()
+            | self.rooks()
+            | self.queens()
+            | self.kings();
         self.white_pieces = self.all_pieces & self.color;
         self.black_pieces = self.all_pieces & !self.white_pieces;
     }
@@ -749,17 +536,17 @@ impl Position {
 
     /// Finds the piece type occupying `at`.
     pub fn find_piece(&self, at: Square) -> Option<Piece> {
-        if self.pawns & at {
+        if self.pawns() & at {
             Some(Piece::Pawn)
-        } else if self.knights & at {
+        } else if self.knights() & at {
             Some(Piece::Knight)
-        } else if self.bishops & at {
+        } else if self.bishops() & at {
             Some(Piece::Bishop)
-        } else if self.rooks & at {
+        } else if self.rooks() & at {
             Some(Piece::Rook)
-        } else if self.queens & at {
+        } else if self.queens() & at {
             Some(Piece::Queen)
-        } else if self.kings & at {
+        } else if self.kings() & at {
             Some(Piece::King)
         } else {
             None
@@ -867,12 +654,7 @@ impl<'a> From<&'a str> for Position {
     fn from(fen: &'a str) -> Position {
         let mut pos = Position {
             color: Bitboard::from(0x0),
-            pawns: Bitboard::from(0x0),
-            bishops: Bitboard::from(0x0),
-            knights: Bitboard::from(0x0),
-            rooks: Bitboard::from(0x0),
-            queens: Bitboard::from(0x0),
-            kings: Bitboard::from(0x0),
+            bb: [Bitboard::from(0x0); 6],
             details: IrreversibleDetails {
                 en_passant: 255,
                 castling: CASTLE_WHITE_KSIDE
@@ -895,104 +677,117 @@ impl<'a> From<&'a str> for Position {
         let mut rank = 7;
         for c in split.next().unwrap().chars() {
             let sq = Square::file_rank(file, rank);
+            let piece;
+            let white;
             match c {
                 'P' => {
-                    pos.pawns |= sq;
-                    pos.color |= sq;
-                    pos.white_pieces |= sq;
+                    piece = Piece::Pawn;
+                    white = true;
                     file += 1;
                 }
                 'N' => {
-                    pos.knights |= sq;
-                    pos.color |= sq;
-                    pos.white_pieces |= sq;
+                    piece = Piece::Knight;
+                    white = true;
                     file += 1;
                 }
                 'B' => {
-                    pos.bishops |= sq;
-                    pos.color |= sq;
-                    pos.white_pieces |= sq;
+                    piece = Piece::Bishop;
+                    white = true;
                     file += 1;
                 }
                 'R' => {
-                    pos.rooks |= sq;
-                    pos.color |= sq;
-                    pos.white_pieces |= sq;
+                    piece = Piece::Rook;
+                    white = true;
                     file += 1;
                 }
                 'Q' => {
-                    pos.queens |= sq;
-                    pos.color |= sq;
-                    pos.white_pieces |= sq;
+                    piece = Piece::Queen;
+                    white = true;
                     file += 1;
                 }
                 'K' => {
-                    pos.kings |= sq;
-                    pos.color |= sq;
-                    pos.white_pieces |= sq;
+                    piece = Piece::King;
+                    white = true;
                     file += 1;
                 }
                 'p' => {
-                    pos.pawns |= sq;
-                    pos.black_pieces |= sq;
+                    piece = Piece::Pawn;
+                    white = false;
                     file += 1;
                 }
                 'n' => {
-                    pos.knights |= sq;
-                    pos.black_pieces |= sq;
+                    piece = Piece::Knight;
+                    white = false;
                     file += 1;
                 }
                 'b' => {
-                    pos.bishops |= sq;
-                    pos.black_pieces |= sq;
+                    piece = Piece::Bishop;
+                    white = false;
                     file += 1;
                 }
                 'r' => {
-                    pos.rooks |= sq;
-                    pos.black_pieces |= sq;
+                    piece = Piece::Rook;
+                    white = false;
                     file += 1;
                 }
                 'q' => {
-                    pos.queens |= sq;
-                    pos.black_pieces |= sq;
+                    piece = Piece::Queen;
+                    white = false;
                     file += 1;
                 }
                 'k' => {
-                    pos.kings |= sq;
-                    pos.black_pieces |= sq;
+                    piece = Piece::King;
+                    white = false;
                     file += 1;
                 }
                 '/' => {
                     file = 0;
                     rank -= 1;
+                    continue;
                 }
                 '1' => {
                     file += 1;
+                    continue;
                 }
                 '2' => {
                     file += 2;
+                    continue;
                 }
                 '3' => {
                     file += 3;
+                    continue;
                 }
                 '4' => {
                     file += 4;
+                    continue;
                 }
                 '5' => {
                     file += 5;
+                    continue;
                 }
                 '6' => {
                     file += 6;
+                    continue;
                 }
                 '7' => {
                     file += 7;
+                    continue;
                 }
                 '8' => {
                     file += 8;
+                    continue;
                 }
                 x => {
                     panic!("Unexpected character in fen position: {}", x);
                 }
+            }
+
+            pos.bb[piece.index()] ^= sq;
+            if white {
+                pos.color ^= sq;
+                pos.white_pieces ^= sq;
+            } else {
+                pos.black_pieces ^= sq;
             }
         }
 
@@ -1044,12 +839,14 @@ impl<'a> From<&'a str> for Position {
 /// The starting position in standadrd chess.
 pub const STARTING_POSITION: Position = Position {
     color: STARTING_COLOR,
-    pawns: STARTING_PAWNS,
-    bishops: STARTING_BISHOPS,
-    knights: STARTING_KNIGHTS,
-    rooks: STARTING_ROOKS,
-    queens: STARTING_QUEENS,
-    kings: STARTING_KINGS,
+    bb: [
+        STARTING_PAWNS,
+        STARTING_KNIGHTS,
+        STARTING_BISHOPS,
+        STARTING_ROOKS,
+        STARTING_QUEENS,
+        STARTING_KINGS,
+    ],
     details: IrreversibleDetails {
         en_passant: 255,
         castling: CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE | CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE,

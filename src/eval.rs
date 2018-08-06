@@ -62,19 +62,19 @@ impl Eval {
         let mut white_bishop_mobility = 0;
         let mut white_rook_mobility = 0;
         pos.white_to_move = true;
-        for knight in (pos.knights & pos.white_pieces).squares() {
+        for knight in (pos.knights() & pos.white_pieces).squares() {
             white_knight_mobility += KNIGHT_MOBILITY
                 [KNIGHT_ATTACKS[knight.0 as usize].popcount() as usize]
                 - KNIGHT_MOBILITY_AVG;
         }
 
-        for bishop in (pos.bishops & pos.white_pieces).squares() {
+        for bishop in (pos.bishops() & pos.white_pieces).squares() {
             white_bishop_mobility += BISHOP_MOBILITY
                 [get_bishop_attacks_from(bishop, pos.all_pieces).popcount() as usize]
                 - BISHOP_MOBILITY_AVG;
         }
 
-        for rook in (pos.rooks & pos.white_pieces).squares() {
+        for rook in (pos.rooks() & pos.white_pieces).squares() {
             white_rook_mobility += ROOK_MOBILITY
                 [get_rook_attacks_from(rook, pos.all_pieces).popcount() as usize]
                 - ROOK_MOBILITY_AVG;
@@ -82,21 +82,21 @@ impl Eval {
 
         pos.white_to_move = false;
         let mut black_knight_mobility = 0;
-        for knight in (pos.knights & pos.black_pieces).squares() {
+        for knight in (pos.knights() & pos.black_pieces).squares() {
             black_knight_mobility += KNIGHT_MOBILITY
                 [KNIGHT_ATTACKS[knight.0 as usize].popcount() as usize]
                 - KNIGHT_MOBILITY_AVG;
         }
 
         let mut black_bishop_mobility = 0;
-        for bishop in (pos.bishops & pos.black_pieces).squares() {
+        for bishop in (pos.bishops() & pos.black_pieces).squares() {
             black_bishop_mobility += BISHOP_MOBILITY
                 [get_bishop_attacks_from(bishop, pos.all_pieces).popcount() as usize]
                 - BISHOP_MOBILITY_AVG;
         }
 
         let mut black_rook_mobility = 0;
-        for rook in (pos.rooks & pos.black_pieces).squares() {
+        for rook in (pos.rooks() & pos.black_pieces).squares() {
             black_rook_mobility += ROOK_MOBILITY
                 [get_rook_attacks_from(rook, pos.all_pieces).popcount() as usize]
                 - ROOK_MOBILITY_AVG;
@@ -148,12 +148,12 @@ impl Eval {
 
         let mut mg = 0;
         let mut eg = 0;
-        for pawn in (pos.pawns & us).squares() {
+        for pawn in (pos.pawns() & us).squares() {
             let sq = pawn.0 as usize;
             let corridor = PAWN_CORRIDOR[side][sq];
             let file_forward = corridor & !(corridor.left(2) | corridor.right(2));
-            let passed = (corridor & them & pos.pawns).is_empty();
-            let doubled = !(file_forward & us & pos.pawns).is_empty();
+            let passed = (corridor & them & pos.pawns()).is_empty();
+            let doubled = !(file_forward & us & pos.pawns()).is_empty();
 
             if passed && !doubled {
                 let mut relative_rank = if white {
@@ -582,69 +582,69 @@ impl Material {
 impl<'p> From<&'p Position> for Material {
     fn from(pos: &Position) -> Material {
         Material {
-            white_pawns: (pos.white_pieces & pos.pawns).popcount() as usize,
-            white_knights: (pos.white_pieces & pos.knights).popcount() as usize,
-            white_bishops: (pos.white_pieces & pos.bishops).popcount() as usize,
-            white_rooks: (pos.white_pieces & pos.rooks).popcount() as usize,
-            white_queens: (pos.white_pieces & pos.queens).popcount() as usize,
-            black_pawns: (pos.black_pieces & pos.pawns).popcount() as usize,
-            black_knights: (pos.black_pieces & pos.knights).popcount() as usize,
-            black_bishops: (pos.black_pieces & pos.bishops).popcount() as usize,
-            black_rooks: (pos.black_pieces & pos.rooks).popcount() as usize,
-            black_queens: (pos.black_pieces & pos.queens).popcount() as usize,
+            white_pawns: (pos.white_pieces & pos.pawns()).popcount() as usize,
+            white_knights: (pos.white_pieces & pos.knights()).popcount() as usize,
+            white_bishops: (pos.white_pieces & pos.bishops()).popcount() as usize,
+            white_rooks: (pos.white_pieces & pos.rooks()).popcount() as usize,
+            white_queens: (pos.white_pieces & pos.queens()).popcount() as usize,
+            black_pawns: (pos.black_pieces & pos.pawns()).popcount() as usize,
+            black_knights: (pos.black_pieces & pos.knights()).popcount() as usize,
+            black_bishops: (pos.black_pieces & pos.bishops()).popcount() as usize,
+            black_rooks: (pos.black_pieces & pos.rooks()).popcount() as usize,
+            black_queens: (pos.black_pieces & pos.queens()).popcount() as usize,
         }
     }
 }
 
 fn init_pst_score(pos: &Position) -> [Score; 2] {
     let mut white = 0;
-    white += (pos.white_pieces & pos.pawns)
+    white += (pos.white_pieces & pos.pawns())
         .squares()
         .map(|sq| pst(&PST[Piece::Pawn.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.knights)
+    white += (pos.white_pieces & pos.knights())
         .squares()
         .map(|sq| pst(&PST[Piece::Knight.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.bishops)
+    white += (pos.white_pieces & pos.bishops())
         .squares()
         .map(|sq| pst(&PST[Piece::Bishop.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.rooks)
+    white += (pos.white_pieces & pos.rooks())
         .squares()
         .map(|sq| pst(&PST[Piece::Rook.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.queens)
+    white += (pos.white_pieces & pos.queens())
         .squares()
         .map(|sq| pst(&PST[Piece::Queen.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.kings)
+    white += (pos.white_pieces & pos.kings())
         .squares()
         .map(|sq| pst(&PST[Piece::King.index()], true, sq))
         .sum::<Score>();
 
     let mut black = 0;
-    black += (pos.black_pieces & pos.pawns)
+    black += (pos.black_pieces & pos.pawns())
         .squares()
         .map(|sq| pst(&PST[Piece::Pawn.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.knights)
+    black += (pos.black_pieces & pos.knights())
         .squares()
         .map(|sq| pst(&PST[Piece::Knight.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.bishops)
+    black += (pos.black_pieces & pos.bishops())
         .squares()
         .map(|sq| pst(&PST[Piece::Bishop.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.rooks)
+    black += (pos.black_pieces & pos.rooks())
         .squares()
         .map(|sq| pst(&PST[Piece::Rook.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.queens)
+    black += (pos.black_pieces & pos.queens())
         .squares()
         .map(|sq| pst(&PST[Piece::Queen.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.kings)
+    black += (pos.black_pieces & pos.kings())
         .squares()
         .map(|sq| pst(&PST[Piece::King.index()], false, sq))
         .sum::<Score>();
@@ -780,7 +780,7 @@ impl Positional {
 
         let mut index = 0;
 
-        let king = pos.kings & us;
+        let king = pos.kings() & us;
         let king_sq = king.squares().nth(0).unwrap();
         let file = king_sq.file();
         let king_file = FILES[file as usize];
@@ -788,23 +788,23 @@ impl Positional {
         let front = adjacent_files.forward(white, 1);
         let distant_front = adjacent_files.forward(white, 2);
 
-        index += (3 - (front & pos.pawns & us).popcount()) * 2;
-        index += 3 - (distant_front & pos.pawns & us).popcount();
-        index += (front & pos.pawns & them).popcount();
-        index += (distant_front & pos.pawns & them).popcount();
+        index += (3 - (front & pos.pawns() & us).popcount()) * 2;
+        index += 3 - (distant_front & pos.pawns() & us).popcount();
+        index += (front & pos.pawns() & them).popcount();
+        index += (distant_front & pos.pawns() & them).popcount();
 
         // is king on open file
-        if (king_file & pos.pawns).is_empty() {
+        if (king_file & pos.pawns()).is_empty() {
             index += 2;
         }
 
         // is king on half-open file
-        if (king_file & pos.pawns).popcount() == 1 {
+        if (king_file & pos.pawns()).popcount() == 1 {
             index += 1;
         }
 
         // on same file as opposing rook
-        if !(king_file & pos.rooks & them).is_empty() {
+        if !(king_file & pos.rooks() & them).is_empty() {
             index += 1;
         }
 
@@ -819,11 +819,11 @@ impl<'p> From<&'p Position> for Positional {
         let mut white_pawns_per_file = [0; 8];
         let mut black_pawns_per_file = [0; 8];
 
-        for pawn in (pos.pawns & pos.white_pieces).squares() {
+        for pawn in (pos.pawns() & pos.white_pieces).squares() {
             white_pawns_per_file[pawn.file() as usize] += 1;
         }
 
-        for pawn in (pos.pawns & pos.black_pieces).squares() {
+        for pawn in (pos.pawns() & pos.black_pieces).squares() {
             black_pawns_per_file[pawn.file() as usize] += 1;
         }
 

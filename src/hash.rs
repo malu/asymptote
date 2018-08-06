@@ -119,9 +119,9 @@ impl Hasher {
         if pos.details.en_passant != 255 {
             self.hash ^= self.en_passant[pos.details.en_passant as usize];
         }
-        if pos.pawns & rank2 & mov.from
+        if pos.pawns() & rank2 & mov.from
             && rank4 & mov.to
-            && ((pos.pawns & them).right(1) & mov.to || (pos.pawns & them).left(1) & mov.to)
+            && ((pos.pawns() & them).right(1) & mov.to || (pos.pawns() & them).left(1) & mov.to)
         {
             self.hash ^= self.en_passant[mov.from.file() as usize];
         }
@@ -190,24 +190,6 @@ impl Hasher {
             Piece::Rook => {
                 self.hash ^= self.rooks[mov.from.0 as usize];
                 self.hash ^= self.rooks[mov.to.0 as usize];
-
-                if pos.white_to_move {
-                    if mov.from.0 == 0 {
-                        // A1
-                        castling &= CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE | CASTLE_WHITE_KSIDE;
-                    } else if mov.from.0 == 7 {
-                        // H1
-                        castling &= CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE | CASTLE_WHITE_QSIDE;
-                    }
-                } else {
-                    if mov.from.0 == 56 {
-                        // A8
-                        castling &= CASTLE_BLACK_KSIDE | CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE;
-                    } else if mov.from.0 == 63 {
-                        // H8
-                        castling &= CASTLE_BLACK_QSIDE | CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE;
-                    }
-                }
             }
             Piece::Queen => {
                 self.hash ^= self.queens[mov.from.0 as usize];
@@ -241,6 +223,22 @@ impl Hasher {
                     castling &= CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE;
                 }
             }
+        }
+
+        if mov.from.0 == 0 || mov.to.0 == 0 {
+            castling &= !CASTLE_WHITE_QSIDE;
+        }
+
+        if mov.from.0 == 7 || mov.to.0 == 7 {
+            castling &= !CASTLE_WHITE_KSIDE;
+        }
+
+        if mov.from.0 == 56 || mov.to.0 == 56 {
+            castling &= !CASTLE_BLACK_QSIDE;
+        }
+
+        if mov.from.0 == 63 || mov.to.0 == 63 {
+            castling &= !CASTLE_BLACK_KSIDE;
         }
 
         if pos.white_to_move {

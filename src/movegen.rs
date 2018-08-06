@@ -516,7 +516,7 @@ impl<'p> MoveGenerator<'p> {
 
         let wtm = self.position.white_to_move;
 
-        let pawns = self.position.pawns & us;
+        let pawns = self.position.pawns() & us;
         let single_step_targets = pawns.forward(wtm, 1) & !self.position.all_pieces & targets;
         let double_step_targets =
             (single_step_targets & rank3).forward(wtm, 1) & !self.position.all_pieces & targets;
@@ -571,7 +571,7 @@ impl<'p> MoveGenerator<'p> {
                 Square::file_rank(self.position.details.en_passant, 2)
             };
             let capturers = us
-                & self.position.pawns
+                & self.position.pawns()
                 & EN_PASSANT_FILES[self.position.details.en_passant as usize]
                 & en_passant_capturers_rank;
 
@@ -655,7 +655,7 @@ impl<'p> MoveGenerator<'p> {
             self.position.black_pieces
         };
 
-        for from in (self.position.knights & us).squares() {
+        for from in (self.position.knights() & us).squares() {
             for to in (targets & self.knight_from(from)).squares() {
                 moves.push(Move {
                     from,
@@ -680,7 +680,7 @@ impl<'p> MoveGenerator<'p> {
             self.position.black_pieces
         };
 
-        for from in (self.position.bishops & us).squares() {
+        for from in (self.position.bishops() & us).squares() {
             for to in (targets & get_bishop_attacks_from(from, self.position.all_pieces)).squares()
             {
                 moves.push(Move {
@@ -702,7 +702,7 @@ impl<'p> MoveGenerator<'p> {
             self.position.black_pieces
         };
 
-        for from in (self.position.rooks & us).squares() {
+        for from in (self.position.rooks() & us).squares() {
             for to in (targets & get_rook_attacks_from(from, self.position.all_pieces)).squares() {
                 moves.push(Move {
                     from,
@@ -723,7 +723,7 @@ impl<'p> MoveGenerator<'p> {
             self.position.black_pieces
         };
 
-        for from in (self.position.queens & us).squares() {
+        for from in (self.position.queens() & us).squares() {
             for to in (targets
                 & (get_bishop_attacks_from(from, self.position.all_pieces)
                     | get_rook_attacks_from(from, self.position.all_pieces)))
@@ -749,21 +749,21 @@ impl<'p> MoveGenerator<'p> {
             us = self.position.white_pieces;
             castle_kside = (self.position.details.castling & CASTLE_WHITE_KSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60)).is_empty()
-                && (self.position.rooks & us & Square(7));
+                && (self.position.rooks() & us & Square(7));
             castle_qside = (self.position.details.castling & CASTLE_WHITE_QSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_0E)).is_empty()
-                && (self.position.rooks & us & Square(0));
+                && (self.position.rooks() & us & Square(0));
         } else {
             us = self.position.black_pieces;
             castle_kside = (self.position.details.castling & CASTLE_BLACK_KSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x60_00_00_00_00_00_00_00)).is_empty()
-                && (self.position.rooks & us & Square(63));
+                && (self.position.rooks() & us & Square(63));
             castle_qside = (self.position.details.castling & CASTLE_BLACK_QSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x0E_00_00_00_00_00_00_00)).is_empty()
-                && (self.position.rooks & us & Square(56));
+                && (self.position.rooks() & us & Square(56));
         }
 
-        let from: Square = (self.position.kings & us).squares().nth(0).unwrap();
+        let from: Square = (self.position.kings() & us).squares().nth(0).unwrap();
         for to in (targets & self.king_from(from)).squares() {
             moves.push(Move {
                 from,
