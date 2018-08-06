@@ -217,7 +217,9 @@ impl UCI {
             } else if line == "d" {
                 self.search.position.print("");
             } else if line == "tt" {
-                let tt = self.search
+                println!("Current hash: 0x{:0>64x}", self.search.hasher.get_hash());
+                let tt = self
+                    .search
                     .tt
                     .borrow_mut()
                     .get(self.search.hasher.get_hash());
@@ -236,6 +238,8 @@ impl UCI {
                     } else {
                         println!("No TT entry.");
                     }
+                } else {
+                    println!("No TT entry.");
                 }
             } else if line.starts_with("perft") {
                 self.search
