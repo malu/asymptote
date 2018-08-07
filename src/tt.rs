@@ -36,12 +36,37 @@ pub const LOWER_BOUND: Bound = 1;
 pub const UPPER_BOUND: Bound = 2;
 pub const EXACT_BOUND: Bound = LOWER_BOUND | UPPER_BOUND;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct TTScore(Score);
+
+impl TTScore {
+    pub fn to_score(self, ply: Ply) -> Score {
+        if self.0 < -MATE_SCORE + MAX_PLY {
+            self.0 + ply
+        } else if self.0 > MATE_SCORE - MAX_PLY {
+            self.0 - ply
+        } else {
+            self.0
+        }
+    }
+
+    pub fn from_score(score: Score, ply: Ply) -> TTScore {
+        if score < -MATE_SCORE + MAX_PLY {
+            TTScore(score - ply)
+        } else if score > MATE_SCORE - MAX_PLY {
+            TTScore(score + ply)
+        } else {
+            TTScore(score)
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct TTEntry {
     key: Hash,             // 8 byte
     pub best_move: TTMove, // 2 byte
     pub depth: Depth,      // 2 byte
-    pub score: Score,      // 2 byte
+    pub score: TTScore,    // 2 byte
     pub bound: Bound,      // 1 byte
     generation: u8,        // 1 byte
 }
@@ -51,7 +76,7 @@ impl Default for TTEntry {
         TTEntry {
             key: 0,
             depth: 0,
-            score: 0,
+            score: TTScore(0),
             best_move: TTMove { from: 0, to: 0 },
             bound: 0,
             generation: 0,
@@ -173,7 +198,7 @@ impl TT {
         &mut self,
         hash: Hash,
         depth: Depth,
-        score: Score,
+        score: TTScore,
         best_move: Move,
         bound: Bound,
     ) {
@@ -182,13 +207,6 @@ impl TT {
         let mut replace_depth = None;
         let mut lowest_depth = 255;
         let mut replace = NUM_CLUSTERS - 1;
-
-        let mut score = score;
-        if score > MATE_SCORE - MAX_PLY {
-            score = MATE_SCORE;
-        } else if score < -MATE_SCORE + MAX_PLY {
-            score = -MATE_SCORE;
-        }
 
         {
             let entries = unsafe { self.table.get_unchecked((hash & self.bitmask) as usize).0 };

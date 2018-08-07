@@ -228,11 +228,11 @@ impl UCI {
                         println!("Best move: {}", best_move.to_algebraic());
                         print!("Score:     ");
                         if tt.bound == EXACT_BOUND {
-                            println!("= {}", tt.score);
+                            println!("= {:?}", tt.score);
                         } else if tt.bound & LOWER_BOUND > 0 {
-                            println!("> {}", tt.score);
+                            println!("> {:?}", tt.score);
                         } else {
-                            println!("< {}", tt.score);
+                            println!("< {:?}", tt.score);
                         }
                         println!("Depth:     {} ({} plies)", tt.depth, tt.depth / INC_PLY);
                     } else {

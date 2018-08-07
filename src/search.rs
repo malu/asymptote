@@ -25,7 +25,7 @@ use movepick::*;
 use position::*;
 use tt::*;
 
-type Ply = i16;
+pub type Ply = i16;
 pub type Depth = i16;
 pub type History = [[[i32; 64]; 64]; 2];
 
@@ -254,7 +254,7 @@ impl Search {
         self.tt.borrow_mut().insert(
             self.hasher.get_hash(),
             max_depth,
-            alpha,
+            TTScore::from_score(alpha, 0),
             moves[0].0,
             EXACT_BOUND,
         );
@@ -358,7 +358,7 @@ impl Search {
                         self.tt.borrow_mut().insert(
                             self.hasher.get_hash(),
                             depth,
-                            alpha,
+                            TTScore::from_score(alpha, ply),
                             best_move.unwrap(),
                             LOWER_BOUND,
                         );
@@ -384,7 +384,7 @@ impl Search {
                                 self.tt.borrow_mut().insert(
                                     self.hasher.get_hash(),
                                     depth,
-                                    value,
+                                    TTScore::from_score(value, ply),
                                     mov,
                                     LOWER_BOUND,
                                 );
@@ -413,7 +413,7 @@ impl Search {
         self.tt.borrow_mut().insert(
             self.hasher.get_hash(),
             depth,
-            best_score,
+            TTScore::from_score(best_score, ply),
             best_move.unwrap(),
             tt_bound,
         );
@@ -454,12 +454,7 @@ impl Search {
                     .expand(&self.position)
                     .map_or(false, check_move_legality)
             {
-                let mut score = ttentry.score;
-                if score == MATE_SCORE {
-                    score = MATE_SCORE - ply;
-                } else if score == -MATE_SCORE {
-                    score = -MATE_SCORE + ply;
-                }
+                let score = ttentry.score.to_score(ply);
 
                 if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
                     return Some(score);
@@ -615,7 +610,7 @@ impl Search {
                     self.tt.borrow_mut().insert(
                         self.hasher.get_hash(),
                         depth,
-                        best_score,
+                        TTScore::from_score(best_score, ply),
                         mov,
                         LOWER_BOUND,
                     );
@@ -637,7 +632,7 @@ impl Search {
         self.tt.borrow_mut().insert(
             self.hasher.get_hash(),
             depth,
-            best_score,
+            TTScore::from_score(best_score, ply),
             best_move.unwrap(),
             UPPER_BOUND,
         );
