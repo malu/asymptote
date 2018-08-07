@@ -57,11 +57,9 @@ pub const QUEEN_SCORE: Score = 900;
 
 impl Eval {
     fn mobility(&mut self, pos: &Position) -> Score {
-        let mut pos = pos.clone();
         let mut white_knight_mobility = 0;
         let mut white_bishop_mobility = 0;
         let mut white_rook_mobility = 0;
-        pos.white_to_move = true;
         for knight in (pos.knights() & pos.white_pieces).squares() {
             white_knight_mobility += KNIGHT_MOBILITY
                 [KNIGHT_ATTACKS[knight.0 as usize].popcount() as usize]
@@ -80,7 +78,6 @@ impl Eval {
                 - ROOK_MOBILITY_AVG;
         }
 
-        pos.white_to_move = false;
         let mut black_knight_mobility = 0;
         for knight in (pos.knights() & pos.black_pieces).squares() {
             black_knight_mobility += KNIGHT_MOBILITY
