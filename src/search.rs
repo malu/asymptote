@@ -798,18 +798,11 @@ impl Search {
 
         let killers = &mut self.stack[ply as usize].borrow_mut().killers_moves;
 
-        if killers[0] == None {
+        if killers[0] != Some(mov) {
+            killers[1] = killers[0];
             killers[0] = Some(mov);
             return;
         }
-
-        // If this move is also the most recently added killer move, do nothing.
-        if killers[0] == Some(mov) {
-            return;
-        }
-
-        killers[1] = killers[0];
-        killers[0] = Some(mov);
     }
 
     fn update_history(&mut self, depth: Depth, mov: Move) {
