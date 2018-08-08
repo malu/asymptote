@@ -52,6 +52,7 @@ pub struct Search {
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
     past_position: Vec<Vec<Hash>>,
+    past_position_index: usize,
     pub made_moves: Vec<Move>,
     searching_for_white: bool,
 }
@@ -115,9 +116,11 @@ impl Search {
     pub fn new(position: Position) -> Self {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         let mut stack = Vec::with_capacity(MAX_PLY as usize);
+        let mut past_position = Vec::with_capacity(MAX_PLY as usize);
         for i in 0..MAX_PLY as usize {
             pv.push(vec![None; MAX_PLY as usize - i + 1]);
             stack.push(Rc::new(RefCell::new(PlyDetails::default())));
+            past_position.push(Vec::with_capacity(100));
         }
 
         Search {
@@ -133,7 +136,8 @@ impl Search {
             stats: Statistics::default(),
             pv,
             max_ply_searched: 0,
-            past_position: vec![Vec::new()],
+            past_position,
+            past_position_index: 0,
             made_moves: Vec::new(),
             searching_for_white: true,
         }
@@ -914,7 +918,7 @@ impl Search {
         if last_move.and_then(|mov| mov.captured).is_some() {
             self.eval.material.is_draw()
         } else if last_move.is_some() && last_move.unwrap().piece != Piece::Pawn {
-            let possible_repetitions = self.past_position.last().unwrap();
+            let possible_repetitions = &self.past_position[self.past_position_index];
             possible_repetitions
                 .iter()
                 .take(possible_repetitions.len() - 1)
@@ -986,13 +990,12 @@ impl Search {
         self.position.make_move(mov);
 
         if self.position.details.halfmove == 0 {
-            self.past_position.push(vec![self.hasher.get_hash()]);
-        } else {
-            self.past_position
-                .last_mut()
-                .unwrap()
-                .push(self.hasher.get_hash());
+            self.past_position_index += 1;
+            if self.past_position_index >= self.past_position.len() {
+                self.past_position.push(Vec::with_capacity(100));
+            }
         }
+        self.past_position[self.past_position_index].push(self.hasher.get_hash());
     }
 
     fn internal_make_nullmove(&mut self, ply: Ply) {
@@ -1021,10 +1024,9 @@ impl Search {
     */
 
     pub fn internal_unmake_move(&mut self, mov: Move) {
+        self.past_position[self.past_position_index].pop();
         if self.position.details.halfmove == 0 {
-            self.past_position.pop();
-        } else {
-            self.past_position.last_mut().unwrap().pop();
+            self.past_position_index -= 1;
         }
 
         let irreversible = self.details.pop().unwrap();
