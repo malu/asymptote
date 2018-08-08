@@ -177,10 +177,10 @@ impl Eval {
         let mut eg = 0;
         for pawn in (pos.pawns() & us).squares() {
             let sq = pawn.0 as usize;
-            let corridor = PAWN_CORRIDOR[side][sq];
-            let file_forward = corridor & !(corridor.left(2) | corridor.right(2));
-            let passed = (corridor & them & pos.pawns()).is_empty();
-            let doubled = !(file_forward & us & pos.pawns()).is_empty();
+            let corridor_bb = PAWN_CORRIDOR[side][sq];
+            let file_forward_bb = corridor_bb & FILES[pawn.file() as usize];
+            let passed = (corridor_bb & them & pos.pawns()).is_empty();
+            let doubled = !(file_forward_bb & us & pos.pawns()).is_empty();
 
             if passed && !doubled {
                 let mut relative_rank = if white {
