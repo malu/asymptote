@@ -15,6 +15,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use bitboard::*;
+use hash::*;
 use movegen::*;
 use position::*;
 
@@ -23,6 +24,7 @@ pub struct Eval {
     pub material: Material,
     pst: [Score; 2],
     positional: Positional,
+    pawn_table: Vec<PawnHashEntry>,
 }
 
 #[derive(Debug)]
@@ -43,6 +45,16 @@ pub struct Material {
 struct Positional {
     white_pawns_per_file: [usize; 8],
     black_pawns_per_file: [usize; 8],
+}
+
+const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
+
+#[derive(Debug, Default)]
+struct PawnHashEntry {
+    pawns: Bitboard,
+    color: Bitboard,
+    mg: Score,
+    eg: Score,
 }
 
 pub type Score = i16;
@@ -105,7 +117,7 @@ impl Eval {
         white_mobility - black_mobility
     }
 
-    pub fn score(&mut self, pos: &Position) -> Score {
+    pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
         let mut score = 0;
         score += self.material.score();
         score += self.pst[1] - self.pst[0];
@@ -115,7 +127,7 @@ impl Eval {
         let phase = self.phase();
         let (king_mg, king_eg) = self.positional.king_safety(pos);
         score += (king_mg * phase + king_eg * (62 - phase)) / 62;
-        let (pawns_mg, pawns_eg) = self.pawns(pos);
+        let (pawns_mg, pawns_eg) = self.pawns(pos, pawn_hash);
         score += (pawns_mg * phase + pawns_eg * (62 - phase)) / 62;
 
         if pos.white_to_move {
@@ -125,9 +137,27 @@ impl Eval {
         }
     }
 
-    fn pawns(&mut self, pos: &Position) -> (Score, Score) {
+    fn pawns(&mut self, pos: &Position, pawn_hash: Hash) -> (Score, Score) {
+        let pawns = pos.bb[Piece::Pawn.index()];
+
+        {
+            let pawn_hash_entry = &self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
+            if pawn_hash_entry.pawns == pawns && pawn_hash_entry.color == pos.color & pawns {
+                return (pawn_hash_entry.mg, pawn_hash_entry.eg);
+            }
+        }
+
         let (wmg, weg) = self.pawns_for_side(pos, true);
         let (bmg, beg) = self.pawns_for_side(pos, false);
+
+        let pawn_hash_entry = self
+            .pawn_table
+            .get_mut(pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES)
+            .unwrap();
+        pawn_hash_entry.pawns = pawns;
+        pawn_hash_entry.color = pos.color & pawns;
+        pawn_hash_entry.mg = wmg - bmg;
+        pawn_hash_entry.eg = weg - beg;
         (wmg - bmg, weg - beg)
     }
 
@@ -479,10 +509,16 @@ impl Eval {
 
 impl<'p> From<&'p Position> for Eval {
     fn from(pos: &Position) -> Eval {
+        let mut pawn_table = Vec::with_capacity(PAWN_TABLE_NUM_ENTRIES);
+        for _ in 0..PAWN_TABLE_NUM_ENTRIES {
+            pawn_table.push(PawnHashEntry::default());
+        }
+
         Eval {
             material: Material::from(pos),
             pst: init_pst_score(pos),
             positional: Positional::from(pos),
+            pawn_table,
         }
     }
 }

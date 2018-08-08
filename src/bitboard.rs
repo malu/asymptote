@@ -16,7 +16,7 @@
 */
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, Shr};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub struct Bitboard(pub u64);
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

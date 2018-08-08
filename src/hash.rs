@@ -30,6 +30,7 @@ pub struct Hasher {
     castle: [Hash; 16],
 
     hash: Hash,
+    pawn_hash: Hash,
 }
 
 impl Hasher {
@@ -77,6 +78,7 @@ impl Hasher {
             castle: [0; 16],
 
             hash: 0,
+            pawn_hash: 0,
         };
 
         rng.fill(&mut hasher.color);
@@ -97,6 +99,10 @@ impl Hasher {
         self.hash
     }
 
+    pub fn get_pawn_hash(&self) -> Hash {
+        self.pawn_hash
+    }
+
     pub fn make_move(&mut self, pos: &Position, mov: Move) {
         let rank2 = if pos.white_to_move { RANK_2 } else { RANK_7 };
         let rank4 = if pos.white_to_move { RANK_4 } else { RANK_5 };
@@ -114,6 +120,37 @@ impl Hasher {
             && ((pos.pawns() & them).right(1) & mov.to || (pos.pawns() & them).left(1) & mov.to)
         {
             self.hash ^= self.en_passant[mov.from.file() as usize];
+        }
+
+        // Update Pawn Hash
+        if mov.captured == Some(Piece::Pawn) {
+            if mov.en_passant {
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()]
+                    [mov.to.backward(pos.white_to_move, 1).0 as usize];
+                if !pos.white_to_move {
+                    self.pawn_hash ^= self.color[mov.to.backward(pos.white_to_move, 1).0 as usize];
+                }
+            } else {
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to.0 as usize];
+
+                if !pos.white_to_move {
+                    self.pawn_hash ^= self.color[mov.to.0 as usize];
+                }
+            }
+        }
+
+        if mov.piece == Piece::Pawn {
+            self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.from.0 as usize];
+            if pos.white_to_move {
+                self.pawn_hash ^= self.color[mov.from.0 as usize];
+            }
+
+            if mov.promoted.is_none() {
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to.0 as usize];
+                if pos.white_to_move {
+                    self.pawn_hash ^= self.color[mov.to.0 as usize];
+                }
+            }
         }
 
         let mut castling = pos.details.castling;
@@ -209,6 +246,37 @@ impl Hasher {
         self.hash ^= self.castle[pos.details.castling as usize];
         self.hash ^= self.castle[irreversible_details.castling as usize];
         let unmaking_white_move = !pos.white_to_move;
+
+        // Update Pawn Hash
+        if mov.captured == Some(Piece::Pawn) {
+            if mov.en_passant {
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()]
+                    [mov.to.backward(unmaking_white_move, 1).0 as usize];
+                if !unmaking_white_move {
+                    self.pawn_hash ^= self.color[mov.to.backward(unmaking_white_move, 1).0 as usize];
+                }
+            } else {
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to.0 as usize];
+
+                if !unmaking_white_move {
+                    self.pawn_hash ^= self.color[mov.to.0 as usize];
+                }
+            }
+        }
+
+        if mov.piece == Piece::Pawn {
+            self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.from.0 as usize];
+            if unmaking_white_move {
+                self.pawn_hash ^= self.color[mov.from.0 as usize];
+            }
+
+            if mov.promoted.is_none() {
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to.0 as usize];
+                if unmaking_white_move {
+                    self.pawn_hash ^= self.color[mov.to.0 as usize];
+                }
+            }
+        }
 
         if unmaking_white_move {
             self.hash ^= self.color[mov.from.0 as usize];

@@ -291,7 +291,7 @@ impl Search {
         }
 
         if ply == MAX_PLY {
-            return Some(self.eval.score(&self.position));
+            return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
         if MATE_SCORE - ply < alpha {
@@ -440,7 +440,7 @@ impl Search {
         }
 
         if ply == MAX_PLY {
-            return Some(self.eval.score(&self.position));
+            return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
         let alpha = beta - 1;
@@ -478,7 +478,7 @@ impl Search {
             return self.qsearch(ply, alpha, beta, depth);
         }
 
-        let eval = self.eval.score(&self.position);
+        let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
         // Nullmove
         if depth >= 5 * INC_PLY && !in_check && self.eval.material.non_pawn_material() > 0 {
             if eval >= beta {
@@ -657,7 +657,7 @@ impl Search {
 
         let mut alpha = alpha;
         if !in_check {
-            let eval = self.eval.score(&self.position);
+            let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
             if eval >= beta {
                 return Some(eval);
             }
