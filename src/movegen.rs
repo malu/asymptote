@@ -344,7 +344,7 @@ pub struct MoveGenerator<'p> {
 }
 
 impl<'p> MoveGenerator<'p> {
-    pub fn good_captures(&mut self) -> (Vec<Move>, Vec<i16>) {
+    pub fn good_captures(&mut self, moves: &mut Vec<Move>, scores: &mut Vec<i16>) {
         let all_pieces = self.position.all_pieces;
         let ep = if self.position.details.en_passant != 255 {
             if self.position.white_to_move {
@@ -367,47 +367,46 @@ impl<'p> MoveGenerator<'p> {
             RANK_1
         };
 
-        let mut moves = Vec::with_capacity(64);
-        self.pawn(them & all_pieces | promotion_rank | ep, &mut moves);
-        self.knight(them & all_pieces, &mut moves);
-        self.bishop(them & all_pieces, &mut moves);
-        self.rook(them & all_pieces, &mut moves);
-        self.queen(them & all_pieces, &mut moves);
-        self.king(them & all_pieces, &mut moves);
+        moves.clear();
+        scores.clear();
+        self.pawn(them & all_pieces | promotion_rank | ep, moves);
+        self.knight(them & all_pieces, moves);
+        self.bishop(them & all_pieces, moves);
+        self.rook(them & all_pieces, moves);
+        self.queen(them & all_pieces, moves);
+        self.king(them & all_pieces, moves);
 
-        let mut result = Vec::with_capacity(64);
-        let mut see = Vec::with_capacity(64);
         let mut pos = self.position.clone();
-        for mov in moves {
+        let mut i = 0;
+        while i < moves.len() {
+            let mov = moves[i];
             let score = pos.see(mov);
             if score >= 0 {
-                result.push(mov);
-                see.push(score);
+                scores.push(score);
+                i += 1;
+            } else {
+                moves.swap_remove(i);
             }
         }
-
-        (result, see)
     }
 
-    pub fn quiet_moves(&self) -> Vec<Move> {
+    pub fn quiet_moves(&self, moves: &mut Vec<Move>) {
         let promotion_rank = if self.position.white_to_move {
             RANK_8
         } else {
             RANK_1
         };
 
-        let mut moves = Vec::with_capacity(64);
-        self.pawn(!self.position.all_pieces & !promotion_rank, &mut moves);
-        self.knight(!self.position.all_pieces, &mut moves);
-        self.bishop(!self.position.all_pieces, &mut moves);
-        self.rook(!self.position.all_pieces, &mut moves);
-        self.queen(!self.position.all_pieces, &mut moves);
-        self.king(!self.position.all_pieces, &mut moves);
-
-        moves
+        moves.clear();
+        self.pawn(!self.position.all_pieces & !promotion_rank, moves);
+        self.knight(!self.position.all_pieces, moves);
+        self.bishop(!self.position.all_pieces, moves);
+        self.rook(!self.position.all_pieces, moves);
+        self.queen(!self.position.all_pieces, moves);
+        self.king(!self.position.all_pieces, moves);
     }
 
-    pub fn bad_captures(&mut self) -> (Vec<Move>, Vec<i16>) {
+    pub fn bad_captures(&mut self, moves: &mut Vec<Move>, scores: &mut Vec<i16>) {
         let all_pieces = self.position.all_pieces;
 
         let them = if self.position.white_to_move {
@@ -416,25 +415,26 @@ impl<'p> MoveGenerator<'p> {
             self.position.white_pieces
         };
 
-        let mut moves = Vec::with_capacity(64);
-        self.knight(them & all_pieces, &mut moves);
-        self.bishop(them & all_pieces, &mut moves);
-        self.rook(them & all_pieces, &mut moves);
-        self.queen(them & all_pieces, &mut moves);
-        self.king(them & all_pieces, &mut moves);
+        moves.clear();
+        scores.clear();
+        self.knight(them & all_pieces, moves);
+        self.bishop(them & all_pieces, moves);
+        self.rook(them & all_pieces, moves);
+        self.queen(them & all_pieces, moves);
+        self.king(them & all_pieces, moves);
 
-        let mut result = Vec::with_capacity(64);
-        let mut see = Vec::with_capacity(64);
         let mut pos = self.position.clone();
-        for mov in moves {
+        let mut i = 0;
+        while i < moves.len() {
+            let mov = moves[i];
             let score = pos.see(mov);
             if score < 0 {
-                result.push(mov);
-                see.push(score);
+                scores.push(score);
+                i += 1;
+            } else {
+                moves.swap_remove(i);
             }
         }
-
-        (result, see)
     }
 
     pub fn all_moves(&self) -> Vec<Move> {
