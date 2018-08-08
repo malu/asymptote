@@ -480,10 +480,11 @@ impl Search {
 
         let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
         // Nullmove
-        if depth >= 5 * INC_PLY && !in_check && self.eval.material.non_pawn_material() > 0 {
-            if eval >= beta {
+        if !in_check && self.eval.material.non_pawn_material() > 0 {
+            if eval >= beta + Piece::Pawn.value() {
+                let r = 2;
                 self.internal_make_nullmove(ply);
-                let score = self.search_zw(ply + 1, -alpha, depth - 2 * INC_PLY)
+                let score = self.search_zw(ply + 1, -alpha, depth - r * INC_PLY)
                     .map(|v| -v);
                 self.internal_unmake_nullmove();
                 match score {
