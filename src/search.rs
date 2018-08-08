@@ -377,10 +377,9 @@ impl Search {
                             self.add_pv_move(mov, ply);
                             if value >= beta {
                                 self.stats.beta_cutoff(ply, num_moves);
-                                if mov.captured.is_none() {
-                                    self.update_history(depth, mov);
+                                if mov.captured.is_none() && mov.promoted.is_none() {
+                                    self.update_quiet_stats(mov, ply, depth);
                                 }
-                                self.add_killer_move(mov, ply);
                                 self.tt.borrow_mut().insert(
                                     self.hasher.get_hash(),
                                     depth,
@@ -602,10 +601,9 @@ impl Search {
                 best_move = Some(mov);
                 if value.unwrap() >= beta {
                     self.stats.beta_cutoff(ply, num_moves);
-                    if mov.captured.is_none() {
-                        self.update_history(depth, mov);
+                    if mov.captured.is_none() && mov.promoted.is_none() {
+                        self.update_quiet_stats(mov, ply, depth);
                     }
-                    self.add_killer_move(mov, ply);
 
                     self.tt.borrow_mut().insert(
                         self.hasher.get_hash(),
@@ -784,29 +782,21 @@ impl Search {
         println!();
     }
 
-    fn add_killer_move(&mut self, mov: Move, ply: Ply) {
-        // Captures are sorted to the front (and less likely to be legal in sibling nodes). Hence
-        // we do not track captures as killer moves.
-        if mov.captured.is_some() {
-            return;
-        }
+    fn update_quiet_stats(&mut self, mov: Move, ply: Ply, depth: Depth) {
+        assert!(mov.captured.is_none());
+        assert!(mov.promoted.is_none());
 
-        let killers = &mut self.stack[ply as usize].borrow_mut().killers_moves;
-
-        if killers[0] != Some(mov) {
-            killers[1] = killers[0];
-            killers[0] = Some(mov);
-            return;
-        }
-    }
-
-    fn update_history(&mut self, depth: Depth, mov: Move) {
         let d = i32::from(depth / INC_PLY);
-        self.history.borrow_mut()[self.position.white_to_move as usize][mov.from.0 as usize]
-            [mov.to.0 as usize] += d * d;
-        if self.history.borrow()[self.position.white_to_move as usize][mov.from.0 as usize]
-            [mov.to.0 as usize] > i32::from(Score::max_value())
+        let rescale;
+
         {
+            let history_entry = &mut self.history.borrow_mut()
+                [self.position.white_to_move as usize][mov.from.0 as usize][mov.to.0 as usize];
+            *history_entry += d * d;
+            rescale = *history_entry > i32::from(Score::max_value());
+        }
+
+        if rescale {
             let mut history = self.history.borrow_mut();
             for stm in history.iter_mut() {
                 for from in stm.iter_mut() {
@@ -815,6 +805,13 @@ impl Search {
                     }
                 }
             }
+        }
+
+        let killers = &mut self.stack[ply as usize].borrow_mut().killers_moves;
+
+        if killers[0] != Some(mov) {
+            killers[1] = killers[0];
+            killers[0] = Some(mov);
         }
     }
 
