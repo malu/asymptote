@@ -33,7 +33,6 @@ pub const INC_PLY: Depth = 64;
 pub const MAX_PLY: Ply = 128 - 1;
 
 const FUTILITY_POSITIONAL_MARGIN: Score = 300;
-const FUTILITY_MAX_EXPECTED_GAIN: Score = 2 * QUEEN_SCORE - PAWN_SCORE;
 
 const LMR_MAX_DEPTH: Depth = 6 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [0, 3, 3, 5, 5, 9, 9];
@@ -545,17 +544,10 @@ impl Search {
         let mut best_move = None;
 
         let mut pruned;
-        let futility_prune = !in_check && depth < 2 * INC_PLY && alpha > -MATE_SCORE + MAX_PLY;
-
-        let futility_limit = alpha - (eval + FUTILITY_POSITIONAL_MARGIN);
-        let futility_skip_quiets;
-        if futility_limit > FUTILITY_MAX_EXPECTED_GAIN {
-            return Some(alpha);
-        }
 
         // If the futility limit is positive, a move has to gain material or else it gets pruned.
         // Therefore we can skip all quiet moves since they don't change material.
-        futility_skip_quiets = futility_limit > 0;
+        let futility_skip_quiets = !in_check && depth < 3*INC_PLY && alpha > -MATE_SCORE + MAX_PLY && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
 
         let nullmove_reply = self.stack[ply as usize - 1].borrow().current_move == None;
 
@@ -584,12 +576,13 @@ impl Search {
 
             let check = self.position.in_check();
 
-            if futility_prune && !check {
+            // Futility pruning
+            if !check {
                 let capture_value = mov.captured.map_or(0, Piece::value);
                 let promotion_value = mov.promoted
                     .map_or(0, |piece| piece.value() - Piece::Pawn.value());
 
-                if futility_limit > capture_value + promotion_value {
+                if eval + 200*((depth / INC_PLY + 1) / 2) + capture_value + promotion_value < alpha {
                     pruned = true;
                     self.internal_unmake_move(mov);
                     continue;
