@@ -38,6 +38,53 @@ const FUTILITY_MAX_EXPECTED_GAIN: Score = 2 * QUEEN_SCORE - PAWN_SCORE;
 const LMR_MAX_DEPTH: Depth = 6 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [0, 3, 3, 5, 5, 9, 9];
 
+struct Repetitions {
+    past_positions: Vec<Vec<Hash>>,
+    index: usize,
+}
+
+impl Repetitions {
+    fn new() -> Self {
+        let mut past_positions = Vec::with_capacity(MAX_PLY as usize);
+        for _ in 0..MAX_PLY as usize {
+            past_positions.push(Vec::with_capacity(100));
+        }
+
+        past_positions[0].push(0);
+
+        Repetitions {
+            past_positions,
+            index: 0,
+        }
+    }
+
+    fn irreversible_move(&mut self) {
+        self.index += 1;
+        if self.index >= self.past_positions.len() {
+            self.past_positions.push(Vec::with_capacity(100));
+        }
+    }
+
+    fn push_position(&mut self, hash: Hash) {
+        self.past_positions[self.index].push(hash);
+    }
+
+    fn pop_position(&mut self) {
+        self.past_positions[self.index].pop();
+        if self.past_positions[self.index].is_empty() {
+            self.index -= 1;
+        }
+    }
+
+    fn has_repeated(&self) -> bool {
+        let current = self.past_positions[self.index].last().unwrap();
+        self.past_positions[self.index]
+            .iter()
+            .take(self.past_positions[self.index].len() - 1)
+            .any(|h| h == current)
+    }
+}
+
 pub struct Search {
     details: Vec<IrreversibleDetails>,
     stack: Vec<Rc<RefCell<PlyDetails>>>,
@@ -51,8 +98,7 @@ pub struct Search {
     pub tt: Rc<RefCell<TT>>,
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
-    past_position: Vec<Vec<Hash>>,
-    past_position_index: usize,
+    repetitions: Repetitions,
     pub made_moves: Vec<Move>,
     searching_for_white: bool,
 }
@@ -116,11 +162,9 @@ impl Search {
     pub fn new(position: Position) -> Self {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         let mut stack = Vec::with_capacity(MAX_PLY as usize);
-        let mut past_position = Vec::with_capacity(MAX_PLY as usize);
         for i in 0..MAX_PLY as usize {
             pv.push(vec![None; MAX_PLY as usize - i + 1]);
             stack.push(Rc::new(RefCell::new(PlyDetails::default())));
-            past_position.push(Vec::with_capacity(100));
         }
 
         Search {
@@ -136,8 +180,7 @@ impl Search {
             stats: Statistics::default(),
             pv,
             max_ply_searched: 0,
-            past_position,
-            past_position_index: 0,
+            repetitions: Repetitions::new(),
             made_moves: Vec::new(),
             searching_for_white: true,
         }
@@ -919,11 +962,7 @@ impl Search {
         if last_move.and_then(|mov| mov.captured).is_some() {
             self.eval.material.is_draw()
         } else if last_move.is_some() && last_move.unwrap().piece != Piece::Pawn {
-            let possible_repetitions = &self.past_position[self.past_position_index];
-            possible_repetitions
-                .iter()
-                .take(possible_repetitions.len() - 1)
-                .any(|&h| h == self.hasher.get_hash())
+            self.repetitions.has_repeated()
         } else {
             false
         }
@@ -991,12 +1030,9 @@ impl Search {
         self.position.make_move(mov);
 
         if self.position.details.halfmove == 0 {
-            self.past_position_index += 1;
-            if self.past_position_index >= self.past_position.len() {
-                self.past_position.push(Vec::with_capacity(100));
-            }
+            self.repetitions.irreversible_move();
         }
-        self.past_position[self.past_position_index].push(self.hasher.get_hash());
+        self.repetitions.push_position(self.hasher.get_hash());
     }
 
     fn internal_make_nullmove(&mut self, ply: Ply) {
@@ -1025,13 +1061,9 @@ impl Search {
     */
 
     pub fn internal_unmake_move(&mut self, mov: Move) {
-        self.past_position[self.past_position_index].pop();
-        if self.position.details.halfmove == 0 {
-            self.past_position_index -= 1;
-        }
-
         let irreversible = self.details.pop().unwrap();
         self.hasher.unmake_move(&self.position, mov, irreversible);
+        self.repetitions.pop_position();
         self.eval.unmake_move(mov, &self.position);
         self.position.unmake_move(mov, irreversible);
     }
