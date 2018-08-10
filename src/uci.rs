@@ -31,7 +31,7 @@ struct PersistentOptions {
 
 impl Default for PersistentOptions {
     fn default() -> Self {
-        PersistentOptions { hash_bits: 17 }
+        PersistentOptions { hash_bits: 14 }
     }
 }
 
