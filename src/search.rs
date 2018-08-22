@@ -368,7 +368,7 @@ impl Search {
         let mut best_score = -Score::max_value();
 
         let mut num_moves = 0;
-        for (_mtype, mov) in moves {
+        for (mtype, mov) in moves {
             self.internal_make_move(mov, ply);
             if !self.position.move_was_legal(mov) {
                 self.internal_unmake_move(mov);
@@ -378,6 +378,10 @@ impl Search {
             num_moves += 1;
 
             let mut extension = 0;
+            if mtype == MoveType::TTMove && ply < 80 {
+                extension += INC_PLY / 4;
+            }
+
             let check = self.position.in_check();
             if check {
                 extension += INC_PLY;
@@ -526,7 +530,7 @@ impl Search {
             if eval >= beta + Piece::Pawn.value() {
                 let r = 2;
                 self.internal_make_nullmove(ply);
-                let score = self.search_zw(ply + 1, -alpha, depth - r * INC_PLY)
+                let score = self.search_zw(ply + 1, -alpha, depth - INC_PLY - r * INC_PLY)
                     .map(|v| -v);
                 self.internal_unmake_nullmove();
                 match score {
