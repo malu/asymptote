@@ -100,6 +100,7 @@ pub struct Search {
     repetitions: Repetitions,
     pub made_moves: Vec<Move>,
     searching_for_white: bool,
+    pub show_pv_board: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -182,6 +183,7 @@ impl Search {
             repetitions: Repetitions::new(),
             made_moves: Vec::new(),
             searching_for_white: true,
+            show_pv_board: false,
         }
     }
 
@@ -812,6 +814,7 @@ impl Search {
         } else {
             format!("cp {}", alpha)
         };
+        let mut pos = self.position.clone();
         print!(
             "info depth {} seldepth {} nodes {} score {} time {} hashfull {} pv ",
             d / INC_PLY,
@@ -823,8 +826,13 @@ impl Search {
         );
         for mov in self.pv[0].iter().take_while(|o| o.is_some()) {
             print!("{} ", mov.unwrap().to_algebraic());
+            pos.make_move(mov.unwrap());
         }
         println!();
+
+        if self.show_pv_board {
+            pos.print("info string ");
+        }
     }
 
     fn update_quiet_stats(&mut self, mov: Move, ply: Ply, depth: Depth) {

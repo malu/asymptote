@@ -136,7 +136,7 @@ impl UCI {
                     .into_iter()
                     .fold(String::new(), |name, part| name + part);
                 name.make_ascii_lowercase();
-                let value = value_parts
+                let mut value = value_parts
                     .into_iter()
                     .fold(String::new(), |name, part| name + part);
 
@@ -152,6 +152,10 @@ impl UCI {
                             eprintln!("Unable to parse value '{}' as integer", value);
                         }
                     }
+                    "showpvboard" => {
+                        value.make_ascii_lowercase();
+                        self.search.show_pv_board = value == "true";
+                    }
                     _ => {
                         eprintln!("Unrecognized option {}", name);
                     }
@@ -161,6 +165,7 @@ impl UCI {
                 println!("id name Asymptote");
                 println!("id author M. Lupke");
                 println!("option name Hash type spin default 1 min 0 max 2048");
+                println!("option name ShowPVBoard type check default false");
                 println!("uciok");
             } else if line.starts_with("isready") {
                 println!("readyok");
