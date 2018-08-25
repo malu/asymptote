@@ -207,11 +207,15 @@ impl Search {
             .map(|mov| (mov, 0))
             .collect::<Vec<_>>();
 
+        let mut last_score = 0;
         if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
             let mut swap_with = 0;
             let ttmove = ttentry.best_move.expand(&self.position);
             for (i, &mov) in moves.iter().enumerate() {
                 if Some(mov.0) == ttmove {
+                    if ttentry.bound == EXACT_BOUND {
+                        last_score = ttentry.score.to_score(0);
+                    }
                     swap_with = i;
                     break;
                 }
@@ -221,6 +225,7 @@ impl Search {
         }
 
         let mut alpha = -Score::max_value();
+        let mut beta;
         let mut max_depth = 0;
         'deepening: for d in 1_i16.. {
             if !self.start_another_iteration(d) {
@@ -231,70 +236,99 @@ impl Search {
 
             self.max_ply_searched = 0;
             let mut increased_alpha = false;
-            alpha = -Score::max_value();
-            let beta = Score::max_value();
-            let mut best_move_index = 0;
+            let mut best_move_index;
+            let mut num_moves;
 
-            let mut num_moves = 0;
-            'try_moves: for (i, &mut (mov, ref mut subtree_size)) in moves.iter_mut().enumerate() {
-                self.internal_make_move(mov, 0);
-                if !self.position.move_was_legal(mov) {
-                    self.internal_unmake_move(mov);
-                    continue;
-                }
+            let mut delta = 50;
+            alpha = ::std::cmp::max(last_score - delta, -MATE_SCORE);
+            beta = ::std::cmp::min(last_score + delta, MATE_SCORE);
+            'aspiration: loop {
+                let mut best_score = -Score::max_value();
+                best_move_index = 0;
+                num_moves = 0;
+                let mut beta_cutoff = false;
+                'try_moves: for (i, &mut (mov, ref mut subtree_size)) in moves.iter_mut().enumerate() {
+                    self.internal_make_move(mov, 0);
+                    if !self.position.move_was_legal(mov) {
+                        self.internal_unmake_move(mov);
+                        continue;
+                    }
 
-                num_moves += 1;
+                    num_moves += 1;
 
-                let mut new_depth = depth - INC_PLY;
-                if self.position.in_check() {
-                    new_depth += INC_PLY;
-                }
+                    let mut new_depth = depth - INC_PLY;
+                    if self.position.in_check() {
+                        new_depth += INC_PLY;
+                    }
 
-                let num_nodes_before = self.stats.nodes;
-                let value;
-                if !increased_alpha {
-                    value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
-                } else {
-                    let value_zw = self.search_zw(1, -alpha, new_depth).map(|v| -v);
-                    if value_zw.is_some() && value_zw.unwrap() > alpha {
+                    let num_nodes_before = self.stats.nodes;
+                    let value;
+                    if num_moves == 1 {
                         value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
                     } else {
-                        value = value_zw;
-                    }
-                }
-
-                *subtree_size = ((self.stats.nodes - num_nodes_before) / 2) as i64;
-
-                self.internal_unmake_move(mov);
-
-                match value {
-                    None => {
-                        if increased_alpha {
-                            break 'try_moves;
+                        let value_zw = self.search_zw(1, -alpha, new_depth).map(|v| -v);
+                        if value_zw.is_some() && value_zw.unwrap() > alpha {
+                            value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
                         } else {
-                            break 'deepening;
+                            value = value_zw;
                         }
                     }
-                    Some(value) => {
-                        if value > alpha {
-                            increased_alpha = true;
-                            alpha = value;
-                            best_move_index = i;
-                            self.add_pv_move(mov, 0);
 
-                            if depth > 5 * INC_PLY {
-                                self.uci_info(depth, alpha);
+                    *subtree_size = ((self.stats.nodes - num_nodes_before) / 2) as i64;
+
+                    self.internal_unmake_move(mov);
+
+                    match value {
+                        None => {
+                            if increased_alpha {
+                                break 'try_moves;
+                            } else {
+                                break 'deepening;
+                            }
+                        }
+                        Some(value) => {
+                            if value > best_score {
+                                best_score = value;
+                                if value > alpha {
+                                    increased_alpha = true;
+                                    alpha = value;
+                                    best_move_index = i;
+
+                                    if value >= beta {
+                                        beta_cutoff = true;
+                                        delta += delta / 2;
+                                        beta = ::std::cmp::min(beta + delta, MATE_SCORE);
+                                        break 'try_moves;
+                                    }
+
+                                    self.add_pv_move(mov, 0);
+
+                                    if depth > 5 * INC_PLY {
+                                        self.uci_info(depth, alpha);
+                                    }
+                                }
                             }
                         }
                     }
                 }
+
+                if best_move_index > 0 {
+                    let best_move = moves[best_move_index];
+                    moves.insert(0, best_move);
+                    moves.remove(best_move_index + 1);
+                }
+
+                if !increased_alpha {
+                    delta += delta / 2;
+                    alpha = ::std::cmp::max(best_score - delta, -MATE_SCORE);
+                } else if beta_cutoff {
+                    continue 'aspiration;
+                } else {
+                    last_score = alpha;
+                    break 'aspiration;
+                }
             }
 
-            if best_move_index > 0 {
-                let best_move = moves[best_move_index];
-                moves.insert(0, best_move);
-                moves.remove(best_move_index + 1);
-            }
             let num_pseudo_legal_moves = moves.len();
             moves[1..num_pseudo_legal_moves].sort_by_key(|&(_, subtree_size)| -subtree_size);
             self.uci_info(depth, alpha);
@@ -397,7 +431,7 @@ impl Search {
             let mut new_depth = depth - INC_PLY + extension;
 
             let mut value;
-            if !increased_alpha {
+            if num_moves == 1 {
                 value = self.search_pv(ply + 1, -beta, -alpha, new_depth)
                     .map(|v| -v);
             } else {
