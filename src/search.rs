@@ -196,6 +196,17 @@ impl Search {
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
 
+        {
+            let mut history = self.history.borrow_mut();
+            for stm in history.iter_mut() {
+                for from in stm.iter_mut() {
+                    for to in from.iter_mut() {
+                        *to = 0;
+                    }
+                }
+            }
+        }
+
         let mut moves = MoveGenerator::from(&self.position)
             .all_moves()
             .into_iter()
