@@ -19,6 +19,7 @@ use std::rc::Rc;
 
 use eval::*;
 use hash::*;
+use history::*;
 use movegen::*;
 use position::*;
 use search::*;
@@ -274,12 +275,12 @@ impl Iterator for MovePicker {
 
                 MoveGenerator::from(&self.position).quiet_moves(&mut self.moves);
                 {
-                    let wtm = self.position.white_to_move as usize;
                     let history = self.history.borrow();
+                    let wtm = self.position.white_to_move;
                     self.scores.clear();
                     self.scores.extend(
-                        self.moves.iter().map(|mov| {
-                            history[wtm][mov.from.0 as usize][mov.to.0 as usize] as Score
+                        self.moves.iter().map(|&mov| {
+                            history.get_score(wtm, mov) as Score
                         }),
                     );
                 }

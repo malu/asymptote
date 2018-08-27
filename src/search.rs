@@ -20,6 +20,7 @@ use std::time;
 
 use eval::*;
 use hash::*;
+use history::*;
 use movegen::*;
 use movepick::*;
 use position::*;
@@ -27,7 +28,6 @@ use tt::*;
 
 pub type Ply = i16;
 pub type Depth = i16;
-pub type History = [[[i32; 64]; 64]; 2];
 
 pub const INC_PLY: Depth = 64;
 pub const MAX_PLY: Ply = 128 - 1;
@@ -169,7 +169,7 @@ impl Search {
 
         Search {
             details: Vec::with_capacity(16),
-            history: Rc::new(RefCell::new([[[0; 64]; 64]; 2])),
+            history: Rc::new(RefCell::new(History::default())),
             stack,
             eval: Eval::from(&position),
             position,
@@ -198,13 +198,7 @@ impl Search {
 
         {
             let mut history = self.history.borrow_mut();
-            for stm in history.iter_mut() {
-                for from in stm.iter_mut() {
-                    for to in from.iter_mut() {
-                        *to = 0;
-                    }
-                }
-            }
+            *history = History::default();
         }
 
         let mut moves = MoveGenerator::from(&self.position)
@@ -443,6 +437,7 @@ impl Search {
                                 if mov.captured.is_none() && mov.promoted.is_none() {
                                     self.update_quiet_stats(mov, ply, depth);
                                 }
+
                                 self.tt.borrow_mut().insert(
                                     self.hasher.get_hash(),
                                     depth,
@@ -850,26 +845,7 @@ impl Search {
         assert!(mov.captured.is_none());
         assert!(mov.promoted.is_none());
 
-        let d = i32::from(depth / INC_PLY);
-        let rescale;
-
-        {
-            let history_entry = &mut self.history.borrow_mut()
-                [self.position.white_to_move as usize][mov.from.0 as usize][mov.to.0 as usize];
-            *history_entry += d * d;
-            rescale = *history_entry > i32::from(Score::max_value());
-        }
-
-        if rescale {
-            let mut history = self.history.borrow_mut();
-            for stm in history.iter_mut() {
-                for from in stm.iter_mut() {
-                    for to in from.iter_mut() {
-                        *to /= 4;
-                    }
-                }
-            }
-        }
+        self.history.borrow_mut().increase_score(self.position.white_to_move, mov, depth);
 
         let killers = &mut self.stack[ply as usize].borrow_mut().killers_moves;
 

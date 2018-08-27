@@ -31,6 +31,7 @@ extern crate rand;
 mod bitboard;
 mod eval;
 mod hash;
+mod history;
 mod movegen;
 mod movepick;
 pub mod position;
