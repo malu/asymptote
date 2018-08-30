@@ -468,7 +468,7 @@ impl Search {
                             self.add_pv_move(mov, ply);
                             if value >= beta {
                                 self.stats.beta_cutoff(ply, num_moves);
-                                if mov.captured.is_none() && mov.promoted.is_none() {
+                                if mov.is_quiet() {
                                     self.update_quiet_stats(mov, ply, depth);
                                 }
 
@@ -688,7 +688,7 @@ impl Search {
                 best_move = Some(mov);
                 if value.unwrap() >= beta {
                     self.stats.beta_cutoff(ply, num_moves);
-                    if mov.captured.is_none() && mov.promoted.is_none() {
+                    if mov.is_quiet() {
                         self.update_quiet_stats(mov, ply, depth);
                     }
 
@@ -876,8 +876,7 @@ impl Search {
     }
 
     fn update_quiet_stats(&mut self, mov: Move, ply: Ply, depth: Depth) {
-        assert!(mov.captured.is_none());
-        assert!(mov.promoted.is_none());
+        assert!(mov.is_quiet());
 
         self.history.borrow_mut().increase_score(self.position.white_to_move, mov, depth);
 

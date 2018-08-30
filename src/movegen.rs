@@ -811,6 +811,10 @@ impl<'p> From<&'p Position> for MoveGenerator<'p> {
 }
 
 impl Move {
+    pub fn is_quiet(&self) -> bool {
+        self.captured.is_none() && self.promoted.is_none()
+    }
+
     pub fn from_algebraic(pos: &Position, alg: &str) -> Move {
         let mut from_rank = 0;
         let mut from_file = 0;
