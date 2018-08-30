@@ -1,6 +1,6 @@
 [[package]]
 name = "asymptote"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "lazy_static 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
