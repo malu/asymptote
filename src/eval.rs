@@ -67,47 +67,60 @@ pub const BISHOP_SCORE: Score = 320;
 pub const ROOK_SCORE: Score = 500;
 pub const QUEEN_SCORE: Score = 900;
 
+const KNIGHT_MOBILITY: [Score; 9] = [0, 40, 80, 120, 130, 140, 150, 160, 170];
+const KNIGHT_MOBILITY_AVG: Score = 110;
+
+const BISHOP_MOBILITY: [Score; 14] = [
+    0, 40, 80, 100, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155
+];
+const BISHOP_MOBILITY_AVG: Score = 110;
+
+const ROOK_MOBILITY: [Score; 15] = [
+    0, 40, 80, 90, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150
+];
+const ROOK_MOBILITY_AVG: Score = 105;
+
 impl Eval {
     fn mobility(&mut self, pos: &Position) -> Score {
         let mut white_knight_mobility = 0;
         let mut white_bishop_mobility = 0;
         let mut white_rook_mobility = 0;
         for knight in (pos.knights() & pos.white_pieces).squares() {
-            white_knight_mobility += KNIGHT_MOBILITY
-                [KNIGHT_ATTACKS[knight.0 as usize].popcount() as usize]
+            let mobility = KNIGHT_ATTACKS[knight.0 as usize];
+            white_knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
                 - KNIGHT_MOBILITY_AVG;
         }
 
         for bishop in (pos.bishops() & pos.white_pieces).squares() {
-            white_bishop_mobility += BISHOP_MOBILITY
-                [get_bishop_attacks_from(bishop, pos.all_pieces).popcount() as usize]
+            let mobility = get_bishop_attacks_from(bishop, pos.all_pieces);
+            white_bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize]
                 - BISHOP_MOBILITY_AVG;
         }
 
         for rook in (pos.rooks() & pos.white_pieces).squares() {
-            white_rook_mobility += ROOK_MOBILITY
-                [get_rook_attacks_from(rook, pos.all_pieces).popcount() as usize]
+            let mobility = get_rook_attacks_from(rook, pos.all_pieces);
+            white_rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize]
                 - ROOK_MOBILITY_AVG;
         }
 
         let mut black_knight_mobility = 0;
         for knight in (pos.knights() & pos.black_pieces).squares() {
-            black_knight_mobility += KNIGHT_MOBILITY
-                [KNIGHT_ATTACKS[knight.0 as usize].popcount() as usize]
+            let mobility = KNIGHT_ATTACKS[knight.0 as usize];
+            black_knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
                 - KNIGHT_MOBILITY_AVG;
         }
 
         let mut black_bishop_mobility = 0;
         for bishop in (pos.bishops() & pos.black_pieces).squares() {
-            black_bishop_mobility += BISHOP_MOBILITY
-                [get_bishop_attacks_from(bishop, pos.all_pieces).popcount() as usize]
+            let mobility = get_bishop_attacks_from(bishop, pos.all_pieces);
+            black_bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize]
                 - BISHOP_MOBILITY_AVG;
         }
 
         let mut black_rook_mobility = 0;
         for rook in (pos.rooks() & pos.black_pieces).squares() {
-            black_rook_mobility += ROOK_MOBILITY
-                [get_rook_attacks_from(rook, pos.all_pieces).popcount() as usize]
+            let mobility = get_rook_attacks_from(rook, pos.all_pieces);
+            black_rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize]
                 - ROOK_MOBILITY_AVG;
         }
 
@@ -866,16 +879,3 @@ impl<'p> From<&'p Position> for Positional {
         }
     }
 }
-
-const KNIGHT_MOBILITY: [Score; 9] = [-200, -90, 0, 40, 70, 90, 100, 105, 108];
-const KNIGHT_MOBILITY_AVG: Score = 25;
-
-const BISHOP_MOBILITY: [Score; 14] = [
-    -200, -90, 0, 40, 70, 90, 100, 105, 108, 110, 112, 114, 116, 118,
-];
-const BISHOP_MOBILITY_AVG: Score = 57;
-
-const ROOK_MOBILITY: [Score; 15] = [
-    -200, -90, 0, 40, 70, 90, 100, 105, 108, 110, 112, 114, 116, 118, 120,
-];
-const ROOK_MOBILITY_AVG: Score = 61;
