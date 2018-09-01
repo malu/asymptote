@@ -376,11 +376,10 @@ impl<'p> MoveGenerator<'p> {
         self.queen(them & all_pieces, moves);
         self.king(them & all_pieces, moves);
 
-        let mut pos = self.position.clone();
         let mut i = 0;
         while i < moves.len() {
             let mov = moves[i];
-            let score = pos.see(mov);
+            let score = self.position.see(mov);
             if score >= 0 {
                 scores.push(score);
                 i += 1;
@@ -423,11 +422,10 @@ impl<'p> MoveGenerator<'p> {
         self.queen(them & all_pieces, moves);
         self.king(them & all_pieces, moves);
 
-        let mut pos = self.position.clone();
         let mut i = 0;
         while i < moves.len() {
             let mov = moves[i];
-            let score = pos.see(mov);
+            let score = self.position.see(mov);
             if score < 0 {
                 scores.push(score);
                 i += 1;

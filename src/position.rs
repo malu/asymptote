@@ -107,28 +107,22 @@ impl Position {
     }
 
     /// Static exchange evaluation
-    pub fn see(&mut self, mov: Move) -> i16 {
-        let ep = self.details.en_passant;
-        self.make_capture(mov);
+    pub fn see(&self, mov: Move) -> i16 {
+        let allowed_pieces = self.all_pieces ^ mov.from.to_bb() & !mov.to.to_bb();
         let piece_value = mov.captured.map_or(0, Piece::value);
         let piece_after_move = mov.promoted.unwrap_or(mov.piece);
-        let value = piece_value - self.see_square(mov.to, piece_after_move);
-        self.unmake_capture(mov);
-        self.details.en_passant = ep;
+        let value = piece_value - self.see_square(mov.to, piece_after_move, allowed_pieces, !self.white_to_move);
 
         value
     }
 
-    fn see_square(&mut self, sq: Square, occupier: Piece) -> i16 {
+    fn see_square(&self, sq: Square, occupier: Piece, allowed_pieces: Bitboard, white: bool) -> i16 {
         let mut value = 0;
-        let captures = self.get_cheapest_captures(sq);
+        let (piece, from_bb) = self.get_cheapest_captures(sq, allowed_pieces, white);
 
         let capture_value = occupier.value();
-        for capture in captures {
-            self.make_capture(capture);
-
-            value = ::std::cmp::max(value, capture_value - self.see_square(sq, capture.piece));
-            self.unmake_capture(capture);
+        for from in from_bb.squares() {
+            value = ::std::cmp::max(value, capture_value - self.see_square(sq, piece, allowed_pieces ^ from.to_bb(), !white));
 
             if value >= capture_value {
                 break;
@@ -138,126 +132,45 @@ impl Position {
         value
     }
 
-    fn make_capture(&mut self, mov: Move) {
-        self.details.en_passant = 255;
-        self.bb[mov.piece.index()] ^= mov.from;
-
-        if let Some(piece) = mov.captured {
-            if mov.en_passant {
-                self.bb[Piece::Pawn.index()] ^= mov.to.backward(self.white_to_move, 1);
-                if !self.white_to_move {
-                    self.color ^= mov.to.backward(self.white_to_move, 1);
-                }
-            } else {
-                self.bb[piece.index()] ^= mov.to;
-                if !self.white_to_move {
-                    self.color ^= mov.to;
-                }
-            }
-        }
-
-        if let Some(piece) = mov.promoted {
-            self.bb[piece.index()] ^= mov.to;
+    fn get_cheapest_captures(&self, sq: Square, allowed_pieces: Bitboard, white: bool) -> (Piece, Bitboard) {
+        let us = if white {
+            self.white_pieces & allowed_pieces
         } else {
-            self.bb[mov.piece.index()] ^= mov.to;
-        }
-
-        if self.white_to_move {
-            self.color ^= mov.to;
-            self.color ^= mov.from;
-        }
-
-        self.white_to_move = !self.white_to_move;
-        self.all_pieces = self.pawns()
-            | self.knights()
-            | self.bishops()
-            | self.rooks()
-            | self.queens()
-            | self.kings();
-        self.white_pieces = self.all_pieces & self.color;
-        self.black_pieces = self.all_pieces & !self.white_pieces;
-    }
-
-    fn unmake_capture(&mut self, mov: Move) {
-        self.white_to_move = !self.white_to_move;
-        let unmaking_white_move = self.white_to_move;
-
-        if unmaking_white_move {
-            self.color ^= mov.from;
-            self.color ^= mov.to;
-        }
-
-        self.bb[mov.piece.index()] ^= mov.from;
-
-        if let Some(piece) = mov.captured {
-            if mov.en_passant {
-                self.bb[Piece::Pawn.index()] ^= mov.to.backward(unmaking_white_move, 1);
-                if !unmaking_white_move {
-                    self.color ^= mov.to.backward(unmaking_white_move, 1);
-                }
-            } else {
-                self.bb[piece.index()] ^= mov.to;
-                if !unmaking_white_move {
-                    self.color ^= mov.to;
-                }
-            }
-        }
-
-        if let Some(piece) = mov.promoted {
-            self.bb[piece.index()] ^= mov.to;
-        } else {
-            self.bb[mov.piece.index()] ^= mov.to;
-        }
-
-        self.all_pieces = self.pawns()
-            | self.knights()
-            | self.bishops()
-            | self.rooks()
-            | self.queens()
-            | self.kings();
-        self.white_pieces = self.all_pieces & self.color;
-        self.black_pieces = self.all_pieces & !self.white_pieces;
-    }
-
-    fn get_cheapest_captures(&mut self, sq: Square) -> Vec<Move> {
-        let mg = MoveGenerator::from(self as &Position);
-        let mut captures = Vec::with_capacity(8);
-        let targets = sq.to_bb();
-        mg.pawn(targets, &mut captures);
-        if !captures.is_empty() {
-            return captures;
-        }
-
-        mg.knight(targets, &mut captures);
-        if !captures.is_empty() {
-            return captures;
-        }
-
-        mg.bishop(targets, &mut captures);
-        if !captures.is_empty() {
-            return captures;
-        }
-
-        mg.rook(targets, &mut captures);
-        if !captures.is_empty() {
-            return captures;
-        }
-
-        mg.queen(targets, &mut captures);
-        if !captures.is_empty() {
-            return captures;
-        }
-
-        let us = if self.white_to_move {
-            self.white_pieces
-        } else {
-            self.black_pieces
+            self.black_pieces & allowed_pieces
         };
 
-        if !(self.kings() & us).is_empty() {
-            mg.king(targets, &mut captures);
+        let mut capturers;
+
+        // TODO currently doesn't account for en passant moves.
+        capturers = self.pawns() & us & (sq.to_bb().backward(white, 1).left(1) | sq.to_bb().backward(white, 1).right(1));
+        if !capturers.is_empty() {
+            return (Piece::Pawn, capturers);
         }
-        captures
+
+        capturers = self.knights() & us & KNIGHT_ATTACKS[sq.0 as usize];
+        if !capturers.is_empty() {
+            return (Piece::Knight, capturers);
+        }
+
+        let bishop_attacker_squares = us & get_bishop_attacks_from(sq, allowed_pieces);
+        capturers = self.bishops() & bishop_attacker_squares;
+        if !capturers.is_empty() {
+            return (Piece::Bishop, capturers);
+        }
+
+        let rook_attacker_squares = us & get_rook_attacks_from(sq, allowed_pieces);
+        capturers = self.rooks() & rook_attacker_squares;
+        if !capturers.is_empty() {
+            return (Piece::Rook, capturers);
+        }
+
+        capturers = self.queens() & us & (bishop_attacker_squares | rook_attacker_squares);
+        if !capturers.is_empty() {
+            return (Piece::Queen, capturers);
+        }
+
+        capturers = self.kings() & us & KING_ATTACKS[sq.0 as usize];
+        (Piece::King, capturers)
     }
 
     fn is_attacked(&self, sq: Square) -> bool {
