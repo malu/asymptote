@@ -185,6 +185,8 @@ impl Eval {
 
         const PASSER_ON_RANK_BONUS_EG: [Score; 8] = [0, 160, 80, 40, 20, 10, 10, 0];
         const PASSER_ON_RANK_BONUS_MG: [Score; 8] = [0, 60, 50, 40, 30, 20, 10, 0];
+        const ISOLATED_PAWN_PENALTY_EG: Score = 10;
+        const ISOLATED_PAWN_PENALTY_MG: Score = 10;
 
         let mut mg = 0;
         let mut eg = 0;
@@ -204,6 +206,14 @@ impl Eval {
 
                 mg += PASSER_ON_RANK_BONUS_MG[relative_rank];
                 eg += PASSER_ON_RANK_BONUS_EG[relative_rank];
+            }
+
+            if ((FILES[pawn.file() as usize].left(1) | FILES[pawn.file() as usize].right(1)) & pos.pawns() & us).is_empty() {
+                mg -= ISOLATED_PAWN_PENALTY_MG;
+
+                if !passed {
+                    eg -= ISOLATED_PAWN_PENALTY_EG;
+                }
             }
         }
 
