@@ -405,6 +405,7 @@ impl Search {
         let mut alpha = alpha;
         let mut increased_alpha = false;
 
+        let previous_move = self.stack[ply as usize - 1].borrow().current_move;
         let mut best_move = None;
         let mut best_score = -Score::max_value();
 
@@ -426,6 +427,12 @@ impl Search {
             let check = self.position.in_check();
             if check {
                 extension += INC_PLY;
+            }
+
+            if let Some(previous_move) = previous_move {
+                if previous_move.to == mov.to {
+                    extension += INC_PLY;
+                }
             }
 
             let mut new_depth = depth - INC_PLY + extension;
@@ -595,7 +602,8 @@ impl Search {
         // Therefore we can skip all quiet moves since they don't change material.
         let futility_skip_quiets = !in_check && depth < 3*INC_PLY && alpha > -MATE_SCORE + MAX_PLY && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
 
-        let nullmove_reply = self.stack[ply as usize - 1].borrow().current_move == None;
+        let previous_move = self.stack[ply as usize - 1].borrow().current_move;
+        let nullmove_reply = previous_move == None;
 
         let mut moves = MovePicker::new(
             self.position.clone(),
@@ -642,6 +650,12 @@ impl Search {
 
             if check {
                 extension += INC_PLY;
+            }
+
+            if let Some(previous_move) = previous_move {
+                if previous_move.to == mov.to {
+                    extension += INC_PLY / 2;
+                }
             }
 
             // Reduce quiet responses to a null move one ply. They are unlikely to produce a
