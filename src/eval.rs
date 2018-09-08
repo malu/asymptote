@@ -82,9 +82,14 @@ const ROOK_MOBILITY_AVG: Score = 105;
 
 impl Eval {
     fn mobility(&mut self, pos: &Position) -> Score {
+        let mut white_pawn_mobility = 0;
         let mut white_knight_mobility = 0;
         let mut white_bishop_mobility = 0;
         let mut white_rook_mobility = 0;
+
+        white_pawn_mobility += ((pos.pawns() & pos.white_pieces).forward(true, 1) & !pos.all_pieces).popcount();
+        white_pawn_mobility += ((pos.pawns() & pos.white_pieces & RANK_2).forward(true, 2) & !pos.all_pieces & !pos.all_pieces.backward(true, 1)).popcount();
+
         for knight in (pos.knights() & pos.white_pieces).squares() {
             let mobility = KNIGHT_ATTACKS[knight.0 as usize];
             white_knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
@@ -103,29 +108,34 @@ impl Eval {
                 - ROOK_MOBILITY_AVG;
         }
 
+        let mut black_pawn_mobility = 0;
         let mut black_knight_mobility = 0;
+        let mut black_bishop_mobility = 0;
+        let mut black_rook_mobility = 0;
+
+        black_pawn_mobility += ((pos.pawns() & pos.black_pieces).forward(false, 1) & !pos.all_pieces).popcount();
+        black_pawn_mobility += ((pos.pawns() & pos.black_pieces & RANK_7).forward(false, 2) & !pos.all_pieces & !pos.all_pieces.backward(false, 1)).popcount();
+
         for knight in (pos.knights() & pos.black_pieces).squares() {
             let mobility = KNIGHT_ATTACKS[knight.0 as usize];
             black_knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
                 - KNIGHT_MOBILITY_AVG;
         }
 
-        let mut black_bishop_mobility = 0;
         for bishop in (pos.bishops() & pos.black_pieces).squares() {
             let mobility = get_bishop_attacks_from(bishop, pos.all_pieces);
             black_bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize]
                 - BISHOP_MOBILITY_AVG;
         }
 
-        let mut black_rook_mobility = 0;
         for rook in (pos.rooks() & pos.black_pieces).squares() {
             let mobility = get_rook_attacks_from(rook, pos.all_pieces);
             black_rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize]
                 - ROOK_MOBILITY_AVG;
         }
 
-        let white_mobility = white_knight_mobility + white_bishop_mobility + white_rook_mobility;
-        let black_mobility = black_knight_mobility + black_bishop_mobility + black_rook_mobility;
+        let white_mobility = 4*white_pawn_mobility as Score + white_knight_mobility + white_bishop_mobility + white_rook_mobility;
+        let black_mobility = 4*black_pawn_mobility as Score + black_knight_mobility + black_bishop_mobility + black_rook_mobility;
 
         white_mobility - black_mobility
     }
