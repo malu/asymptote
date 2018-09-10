@@ -34,8 +34,8 @@ pub const MAX_PLY: Ply = 128 - 1;
 
 const FUTILITY_POSITIONAL_MARGIN: Score = 300;
 
-const LMR_MAX_DEPTH: Depth = 6 * INC_PLY;
-const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [0, 3, 3, 5, 5, 9, 9];
+const LMR_MAX_DEPTH: Depth = 8 * INC_PLY;
+const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [0, 3, 3, 5, 5, 7, 7, 9, 9];
 
 struct Repetitions {
     past_positions: Vec<Vec<Hash>>,
