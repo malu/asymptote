@@ -575,19 +575,17 @@ impl Search {
 
         let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
         // Nullmove
-        if !in_check && self.eval.material.non_pawn_material() > 0 {
-            if eval >= beta + Piece::Pawn.value() {
-                let r = 2;
-                self.internal_make_nullmove(ply);
-                let score = self.search_zw(ply + 1, -alpha, depth - INC_PLY - r * INC_PLY)
-                    .map(|v| -v);
-                self.internal_unmake_nullmove();
-                match score {
-                    None => return None,
-                    Some(score) => {
-                        if score >= beta {
-                            return Some(beta);
-                        }
+        if !in_check && self.eval.material.non_pawn_material() > 0 && eval >= beta {
+            let r = 2;
+            self.internal_make_nullmove(ply);
+            let score = self.search_zw(ply + 1, -alpha, depth - INC_PLY - r * INC_PLY)
+                .map(|v| -v);
+            self.internal_unmake_nullmove();
+            match score {
+                None => return None,
+                Some(score) => {
+                    if score >= beta {
+                        return Some(beta);
                     }
                 }
             }
