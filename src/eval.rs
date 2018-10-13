@@ -67,8 +67,8 @@ pub const BISHOP_SCORE: Score = 320;
 pub const ROOK_SCORE: Score = 500;
 pub const QUEEN_SCORE: Score = 900;
 
-const KNIGHT_MOBILITY: [Score; 9] = [0, 40, 80, 120, 130, 140, 150, 160, 170];
-const KNIGHT_MOBILITY_AVG: Score = 110;
+const KNIGHT_MOBILITY: [Score; 9] = [-20, 40, 80, 120, 130, 140, 150, 160, 170];
+const KNIGHT_MOBILITY_AVG: Score = 108;
 
 const BISHOP_MOBILITY: [Score; 14] = [
     0, 40, 80, 100, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155
@@ -90,8 +90,10 @@ impl Eval {
         white_pawn_mobility += ((pos.pawns() & pos.white_pieces).forward(true, 1) & !pos.all_pieces).popcount();
         white_pawn_mobility += ((pos.pawns() & pos.white_pieces & RANK_2).forward(true, 2) & !pos.all_pieces & !pos.all_pieces.backward(true, 1)).popcount();
 
+        let black_pawns = pos.pawns() & pos.black_pieces;
+        let black_pawn_attacks = black_pawns.forward(false, 1).left(1) | black_pawns.forward(false, 1).right(1);
         for knight in (pos.knights() & pos.white_pieces).squares() {
-            let mobility = KNIGHT_ATTACKS[knight.0 as usize];
+            let mobility = KNIGHT_ATTACKS[knight.0 as usize] & !black_pawn_attacks;
             white_knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
                 - KNIGHT_MOBILITY_AVG;
         }
@@ -116,8 +118,10 @@ impl Eval {
         black_pawn_mobility += ((pos.pawns() & pos.black_pieces).forward(false, 1) & !pos.all_pieces).popcount();
         black_pawn_mobility += ((pos.pawns() & pos.black_pieces & RANK_7).forward(false, 2) & !pos.all_pieces & !pos.all_pieces.backward(false, 1)).popcount();
 
+        let white_pawns = pos.pawns() & pos.white_pieces;
+        let white_pawn_attacks = white_pawns.forward(true, 1).left(1) | white_pawns.forward(true, 1).right(1);
         for knight in (pos.knights() & pos.black_pieces).squares() {
-            let mobility = KNIGHT_ATTACKS[knight.0 as usize];
+            let mobility = KNIGHT_ATTACKS[knight.0 as usize] & !white_pawn_attacks;
             black_knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
                 - KNIGHT_MOBILITY_AVG;
         }
