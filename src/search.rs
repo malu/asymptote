@@ -614,8 +614,8 @@ impl Search {
         pruned = futility_skip_quiets;
 
         // Internal deepening
-        if depth >= 4 * INC_PLY && !moves.has_tt_move() {
-            self.search_zw(ply, beta, depth - 2 * INC_PLY);
+        if depth >= 6 * INC_PLY && !moves.has_tt_move() {
+            self.search_zw(ply, beta, depth / 2);
         }
 
         let mut num_moves = 0;
