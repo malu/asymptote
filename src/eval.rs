@@ -65,7 +65,7 @@ pub const PAWN_SCORE: Score = 100;
 pub const KNIGHT_SCORE: Score = 300;
 pub const BISHOP_SCORE: Score = 320;
 pub const ROOK_SCORE: Score = 500;
-pub const QUEEN_SCORE: Score = 900;
+pub const QUEEN_SCORE: Score = 1000;
 
 const KNIGHT_MOBILITY: [Score; 9] = [-20, 40, 80, 120, 130, 140, 150, 160, 170];
 const KNIGHT_MOBILITY_AVG: Score = 108;
