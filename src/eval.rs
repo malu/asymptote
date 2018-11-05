@@ -152,7 +152,7 @@ impl Eval {
         score += self.mobility(pos);
 
         let phase = self.phase();
-        let (king_mg, king_eg) = self.positional.king_safety(pos);
+        let (king_mg, king_eg) = self.king_safety(pos);
         score += (king_mg * phase + king_eg * (62 - phase)) / 62;
         let (pawns_mg, pawns_eg) = self.pawns(pos, pawn_hash);
         score += (pawns_mg * phase + pawns_eg * (62 - phase)) / 62;
@@ -232,6 +232,74 @@ impl Eval {
         }
 
         (mg, eg)
+    }
+
+    pub fn king_safety(&self, pos: &Position) -> (Score, Score) {
+        let (wmg, weg) = self.king_safety_for_side(pos, true);
+        let (bmg, beg) = self.king_safety_for_side(pos, false);
+        (wmg - bmg, weg - beg)
+    }
+
+    fn king_safety_for_side(&self, pos: &Position, white: bool) -> (Score, Score) {
+        let us = if white {
+            pos.white_pieces
+        } else {
+            pos.black_pieces
+        };
+        let them = !us;
+
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        const CENTER_DISTANCE: [Score; 64] = [
+            3, 3, 3, 3, 3, 3, 3, 3,
+            3, 2, 2, 2, 2, 2, 2, 3,
+            3, 2, 1, 1, 1, 1, 2, 3,
+            3, 2, 1, 0, 0, 1, 2, 3,
+            3, 2, 1, 0, 0, 1, 2, 3,
+            3, 2, 1, 1, 1, 1, 2, 3,
+            3, 2, 2, 2, 2, 2, 2, 3,
+            3, 3, 3, 3, 3, 3, 3, 3,
+        ];
+
+        let mut index = 0;
+
+        let king = pos.kings() & us;
+        let king_sq = king.squares().nth(0).unwrap();
+        let file = king_sq.file();
+        let king_file = FILES[file as usize];
+        let adjacent_files = king.left(1) | king | king.right(1);
+        let front = adjacent_files.forward(white, 1);
+        let distant_front = adjacent_files.forward(white, 2);
+
+        let eg_penalty = CENTER_DISTANCE[king_sq.0 as usize];
+
+        if white && self.material.black_queens == 0 && self.material.black_rooks <= 1 {
+            return (0, -5 * eg_penalty);
+        } else if !white && self.material.white_queens == 0 && self.material.white_rooks <= 1 {
+            return (0, -5 * eg_penalty);
+        }
+
+        index += (3 - (front & pos.pawns() & us).popcount()) * 2;
+        index += 3 - (distant_front & pos.pawns() & us).popcount();
+        index += (front & pos.pawns() & them).popcount();
+        index += (distant_front & pos.pawns() & them).popcount();
+
+        // is king on open file
+        if (king_file & pos.pawns()).is_empty() {
+            index += 2;
+        }
+
+        // is king on half-open file
+        if (king_file & pos.pawns()).popcount() == 1 {
+            index += 1;
+        }
+
+        // on same file as opposing rook
+        if !(king_file & pos.rooks() & them).is_empty() {
+            index += 1;
+        }
+
+        let mg_penalty = (index * index) as Score;
+        (-mg_penalty, -5 * eg_penalty)
     }
 
     fn phase(&self) -> i16 {
@@ -820,67 +888,6 @@ impl Positional {
         }
 
         score
-    }
-
-    pub fn king_safety(&self, pos: &Position) -> (Score, Score) {
-        let (wmg, weg) = self.king_safety_for_side(pos, true);
-        let (bmg, beg) = self.king_safety_for_side(pos, false);
-        (wmg - bmg, weg - beg)
-    }
-
-    fn king_safety_for_side(&self, pos: &Position, white: bool) -> (Score, Score) {
-        let us = if white {
-            pos.white_pieces
-        } else {
-            pos.black_pieces
-        };
-        let them = !us;
-
-        #[cfg_attr(rustfmt, rustfmt_skip)]
-        const CENTER_DISTANCE: [Score; 64] = [
-            3, 3, 3, 3, 3, 3, 3, 3,
-            3, 2, 2, 2, 2, 2, 2, 3,
-            3, 2, 1, 1, 1, 1, 2, 3,
-            3, 2, 1, 0, 0, 1, 2, 3,
-            3, 2, 1, 0, 0, 1, 2, 3,
-            3, 2, 1, 1, 1, 1, 2, 3,
-            3, 2, 2, 2, 2, 2, 2, 3,
-            3, 3, 3, 3, 3, 3, 3, 3,
-        ];
-
-        let mut index = 0;
-
-        let king = pos.kings() & us;
-        let king_sq = king.squares().nth(0).unwrap();
-        let file = king_sq.file();
-        let king_file = FILES[file as usize];
-        let adjacent_files = king.left(1) | king | king.right(1);
-        let front = adjacent_files.forward(white, 1);
-        let distant_front = adjacent_files.forward(white, 2);
-
-        index += (3 - (front & pos.pawns() & us).popcount()) * 2;
-        index += 3 - (distant_front & pos.pawns() & us).popcount();
-        index += (front & pos.pawns() & them).popcount();
-        index += (distant_front & pos.pawns() & them).popcount();
-
-        // is king on open file
-        if (king_file & pos.pawns()).is_empty() {
-            index += 2;
-        }
-
-        // is king on half-open file
-        if (king_file & pos.pawns()).popcount() == 1 {
-            index += 1;
-        }
-
-        // on same file as opposing rook
-        if !(king_file & pos.rooks() & them).is_empty() {
-            index += 1;
-        }
-
-        let mg_penalty = (index * index) as Score;
-        let eg_penalty = CENTER_DISTANCE[king_sq.0 as usize];
-        (-mg_penalty, -5 * eg_penalty)
     }
 }
 
