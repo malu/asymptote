@@ -94,6 +94,7 @@ branches:
   only:
     # Release tags
     - /^v\d+\.\d+\.\d+.*$/
+    - /^v\d+\.\d+.*$/
     - master
 
 notifications:
