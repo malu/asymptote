@@ -25,14 +25,14 @@ use position::*;
 use search::*;
 use tt::*;
 
-pub struct MovePicker {
+pub struct MovePicker<'a> {
     tt: Rc<RefCell<TT>>,
     hash: Hash,
     position: Position,
-    excluded: Vec<Move>,
+    excluded: &'a mut Vec<Move>,
     stage: usize,
-    moves: Vec<Move>,
-    scores: Vec<Score>,
+    moves: &'a mut Vec<Move>,
+    scores: &'a mut Vec<Score>,
     index: usize,
     ply_details: Rc<RefCell<PlyDetails>>,
     history: Rc<RefCell<History>>,
@@ -88,23 +88,30 @@ pub enum MoveType {
     BadCapture,
 }
 
-impl MovePicker {
+impl<'a> MovePicker<'a> {
     pub fn new(
         position: Position,
         tt: Rc<RefCell<TT>>,
         hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
+        excluded: &'a mut Vec<Move>,
+        moves: &'a mut Vec<Move>,
+        scores: &'a mut Vec<Score>,
     ) -> Self {
+        excluded.clear();
+        moves.clear();
+        scores.clear();
+
         MovePicker {
             history,
             tt,
             hash,
             position,
-            excluded: Vec::with_capacity(8),
+            excluded,
             stage: 0,
-            moves: Vec::with_capacity(128),
-            scores: Vec::with_capacity(128),
+            moves,
+            scores,
             index: 0,
             ply_details,
             skip_quiets: false,
@@ -117,16 +124,23 @@ impl MovePicker {
         hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
+        excluded: &'a mut Vec<Move>,
+        moves: &'a mut Vec<Move>,
+        scores: &'a mut Vec<Score>,
     ) -> Self {
+        excluded.clear();
+        moves.clear();
+        scores.clear();
+
         MovePicker {
             history,
             tt,
             hash,
             position,
-            excluded: Vec::with_capacity(8),
+            excluded,
             stage: 10,
-            moves: Vec::with_capacity(128),
-            scores: Vec::with_capacity(128),
+            moves,
+            scores,
             index: 0,
             ply_details,
             skip_quiets: false,
@@ -139,16 +153,23 @@ impl MovePicker {
         hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
+        excluded: &'a mut Vec<Move>,
+        moves: &'a mut Vec<Move>,
+        scores: &'a mut Vec<Score>,
     ) -> Self {
+        excluded.clear();
+        moves.clear();
+        scores.clear();
+
         MovePicker {
             history,
             tt,
             hash,
             position,
-            excluded: Vec::with_capacity(8),
+            excluded,
             stage: 13,
-            moves: Vec::with_capacity(128),
-            scores: Vec::with_capacity(128),
+            moves,
+            scores,
             index: 0,
             ply_details,
             skip_quiets: false,
@@ -177,7 +198,7 @@ impl MovePicker {
     }
 }
 
-impl Iterator for MovePicker {
+impl<'a> Iterator for MovePicker<'a> {
     type Item = (MoveType, Move);
 
     fn next(&mut self) -> Option<Self::Item> {
