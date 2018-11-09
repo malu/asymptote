@@ -390,6 +390,11 @@ impl Search {
             return self.qsearch(ply, alpha, beta, depth);
         }
 
+        if depth >= 4 * INC_PLY && !self.has_tt_move() {
+            self.search_pv(ply, alpha, beta, depth - 2 * INC_PLY);
+            self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
+        }
+
         let moves = MovePicker::new(
             self.position.clone(),
             Rc::clone(&self.tt),
@@ -397,10 +402,6 @@ impl Search {
             Rc::clone(&self.stack[ply as usize]),
             Rc::clone(&self.history),
         );
-        if depth >= 4 * INC_PLY && !moves.has_tt_move() {
-            self.search_pv(ply, alpha, beta, depth - 2 * INC_PLY);
-            self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
-        }
 
         let mut alpha = alpha;
         let mut increased_alpha = false;
@@ -603,6 +604,11 @@ impl Search {
         let previous_move = self.stack[ply as usize - 1].borrow().current_move;
         let nullmove_reply = previous_move == None;
 
+        // Internal deepening
+        if depth >= 6 * INC_PLY && !self.has_tt_move() {
+            self.search_zw(ply, beta, depth / 2);
+        }
+
         let mut moves = MovePicker::new(
             self.position.clone(),
             Rc::clone(&self.tt),
@@ -612,11 +618,6 @@ impl Search {
         );
         moves.skip_quiets(futility_skip_quiets);
         pruned = futility_skip_quiets;
-
-        // Internal deepening
-        if depth >= 6 * INC_PLY && !moves.has_tt_move() {
-            self.search_zw(ply, beta, depth / 2);
-        }
 
         let mut num_moves = 0;
         for (mtype, mov) in moves {
@@ -852,6 +853,16 @@ impl Search {
         }
 
         true
+    }
+
+    pub fn has_tt_move(&self) -> bool {
+        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
+            if let Some(mov) = ttentry.best_move.expand(&self.position) {
+                return MoveGenerator::from(&self.position).is_legal(mov);
+            }
+        }
+
+        false
     }
 
     fn uci_info(&self, d: Depth, alpha: Score) {

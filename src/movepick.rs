@@ -155,16 +155,6 @@ impl MovePicker {
         }
     }
 
-    pub fn has_tt_move(&self) -> bool {
-        if let Some(ttentry) = self.tt.borrow_mut().get(self.hash) {
-            if let Some(mov) = ttentry.best_move.expand(&self.position) {
-                return MoveGenerator::from(&self.position).is_legal(mov);
-            }
-        }
-
-        false
-    }
-
     pub fn skip_quiets(&mut self, skip_quiets: bool) {
         self.skip_quiets = skip_quiets;
     }
