@@ -216,7 +216,7 @@ impl UCI {
                     if self.search.position.move_was_legal(mov) {
                         print!("{} ", mov.to_algebraic());
                     }
-                    self.search.internal_unmake_move(mov);
+                    self.search.internal_unmake_move(mov, 0);
                 }
                 println!();
             } else if line == "d" {

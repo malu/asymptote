@@ -66,7 +66,7 @@ pub struct Position {
 ///
 /// Some details (en passant, castling rights and current halfmove clock) whose changes can not
 /// be undone easily and therefore are kept in a stack of past values.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub struct IrreversibleDetails {
     /// Number of moves of both players since the last capture or pawn moves. Used for checking for
     /// a draw by the 50 moves rule (draw if halfmove = 100 and side to move has at least one legal

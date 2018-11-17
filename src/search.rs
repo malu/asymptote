@@ -39,7 +39,6 @@ const LMR_MAX_DEPTH: Depth = 8 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
 
 pub struct Search {
-    details: Vec<IrreversibleDetails>,
     stack: Vec<Rc<RefCell<PlyDetails>>>,
     history: Rc<RefCell<History>>,
     pub position: Position,
@@ -80,6 +79,7 @@ pub enum StopCondition {
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct PlyDetails {
+    irreversible_details: IrreversibleDetails,
     current_move: Option<Move>,
     pub killers_moves: [Option<Move>; 2],
 }
@@ -100,7 +100,6 @@ impl Search {
         }
 
         Search {
-            details: Vec::with_capacity(16),
             history: Rc::new(RefCell::new(History::default())),
             stack,
             eval: Eval::from(&position),
@@ -186,7 +185,7 @@ impl Search {
                 'try_moves: for (i, &mut (mov, ref mut subtree_size)) in moves.iter_mut().enumerate() {
                     self.internal_make_move(mov, 0);
                     if !self.position.move_was_legal(mov) {
-                        self.internal_unmake_move(mov);
+                        self.internal_unmake_move(mov, 0);
                         continue;
                     }
 
@@ -212,7 +211,7 @@ impl Search {
 
                     *subtree_size = ((self.visited_nodes - num_nodes_before) / 2) as i64;
 
-                    self.internal_unmake_move(mov);
+                    self.internal_unmake_move(mov, 0);
 
                     match value {
                         None => {
@@ -359,7 +358,7 @@ impl Search {
         for (mtype, mov) in moves {
             self.internal_make_move(mov, ply);
             if !self.position.move_was_legal(mov) {
-                self.internal_unmake_move(mov);
+                self.internal_unmake_move(mov, ply);
                 continue;
             }
 
@@ -394,7 +393,7 @@ impl Search {
                         .map(|v| -v);
                 }
             }
-            self.internal_unmake_move(mov);
+            self.internal_unmake_move(mov, ply);
 
             match value {
                 None => {
@@ -525,7 +524,7 @@ impl Search {
             self.internal_make_nullmove(ply);
             let score = self.search_zw(ply + 1, -alpha, depth - INC_PLY - r * INC_PLY)
                 .map(|v| -v);
-            self.internal_unmake_nullmove();
+            self.internal_unmake_nullmove(ply);
             match score {
                 None => return None,
                 Some(score) => {
@@ -577,7 +576,7 @@ impl Search {
         for (mtype, mov) in moves {
             self.internal_make_move(mov, ply);
             if !self.position.move_was_legal(mov) {
-                self.internal_unmake_move(mov);
+                self.internal_unmake_move(mov, ply);
                 continue;
             }
 
@@ -591,7 +590,7 @@ impl Search {
 
                 if eval + 200*((depth / INC_PLY + 1) / 2) + capture_value + promotion_value < alpha {
                     pruned = true;
-                    self.internal_unmake_move(mov);
+                    self.internal_unmake_move(mov, ply);
                     continue;
                 }
             }
@@ -644,7 +643,7 @@ impl Search {
                 }
             }
 
-            self.internal_unmake_move(mov);
+            self.internal_unmake_move(mov, ply);
 
             if value == None {
                 return None;
@@ -751,14 +750,14 @@ impl Search {
         for (_mtype, mov) in moves {
             self.internal_make_move(mov, ply);
             if !self.position.move_was_legal(mov) {
-                self.internal_unmake_move(mov);
+                self.internal_unmake_move(mov, ply);
                 continue;
             }
             num_moves += 1;
 
             let value = self.qsearch(ply + 1, -beta, -alpha, depth - INC_PLY)
                 .map(|v| -v);
-            self.internal_unmake_move(mov);
+            self.internal_unmake_move(mov, ply);
 
             match value {
                 None => return None,
@@ -822,10 +821,10 @@ impl Search {
         for (_, mov) in moves {
             self.internal_make_move(mov, MAX_PLY - 1);
             if self.position.move_was_legal(mov) {
-                self.internal_unmake_move(mov);
+                self.internal_unmake_move(mov, MAX_PLY - 1);
                 return false;
             }
-            self.internal_unmake_move(mov);
+            self.internal_unmake_move(mov, MAX_PLY - 1);
         }
 
         true
@@ -1000,13 +999,13 @@ impl Search {
 
         if depth > 0 {
             for mov in moves {
-                self.internal_make_move(mov, 0);
+                self.internal_make_move(mov, depth as Ply);
                 if self.position.move_was_legal(mov) {
                     let perft = self.internal_perft(depth - 1);
                     num_moves += perft;
                     println!("{}: {}", mov.to_algebraic(), perft);
                 }
-                self.internal_unmake_move(mov);
+                self.internal_unmake_move(mov, depth as Ply);
             }
         }
 
@@ -1030,11 +1029,11 @@ impl Search {
         let moves = MoveGenerator::from(&self.position).all_moves();
 
         for mov in moves {
-            self.internal_make_move(mov, 0);
+            self.internal_make_move(mov, depth as Ply);
             if self.position.move_was_legal(mov) {
                 num_moves += self.internal_perft(depth - 1);
             }
-            self.internal_unmake_move(mov);
+            self.internal_unmake_move(mov, depth as Ply);
         }
 
         num_moves
@@ -1046,7 +1045,7 @@ impl Search {
     }
 
     pub fn internal_make_move(&mut self, mov: Move, ply: Ply) {
-        self.details.push(self.position.details);
+        self.stack[ply as usize].borrow_mut().irreversible_details = self.position.details;
         self.stack[ply as usize].borrow_mut().current_move = Some(mov);
 
         self.hasher.make_move(&self.position, mov);
@@ -1060,15 +1059,15 @@ impl Search {
     }
 
     fn internal_make_nullmove(&mut self, ply: Ply) {
-        self.details.push(self.position.details);
+        self.stack[ply as usize].borrow_mut().irreversible_details = self.position.details;
         self.stack[ply as usize].borrow_mut().current_move = None;
 
         self.hasher.make_nullmove(&self.position);
         self.position.make_nullmove();
     }
 
-    fn internal_unmake_nullmove(&mut self) {
-        let irreversible = self.details.pop().unwrap();
+    fn internal_unmake_nullmove(&mut self, ply: Ply) {
+        let irreversible = self.stack[ply as usize].borrow().irreversible_details;
         self.hasher.unmake_nullmove(&self.position, irreversible);
         self.position.unmake_nullmove(irreversible);
     }
@@ -1084,8 +1083,8 @@ impl Search {
     }
     */
 
-    pub fn internal_unmake_move(&mut self, mov: Move) {
-        let irreversible = self.details.pop().unwrap();
+    pub fn internal_unmake_move(&mut self, mov: Move, ply: Ply) {
+        let irreversible = self.stack[ply as usize].borrow().irreversible_details;
         self.hasher.unmake_move(&self.position, mov, irreversible);
         self.repetitions.pop_position();
         self.eval.unmake_move(mov, &self.position);
