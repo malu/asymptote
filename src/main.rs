@@ -35,6 +35,7 @@ mod history;
 mod movegen;
 mod movepick;
 pub mod position;
+mod repetitions;
 mod search;
 mod tt;
 mod uci;

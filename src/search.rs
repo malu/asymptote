@@ -24,6 +24,7 @@ use history::*;
 use movegen::*;
 use movepick::*;
 use position::*;
+use repetitions::Repetitions;
 use tt::*;
 
 pub type Ply = i16;
@@ -36,53 +37,6 @@ const FUTILITY_POSITIONAL_MARGIN: Score = 300;
 
 const LMR_MAX_DEPTH: Depth = 8 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
-
-struct Repetitions {
-    past_positions: Vec<Vec<Hash>>,
-    index: usize,
-}
-
-impl Repetitions {
-    fn new() -> Self {
-        let mut past_positions = Vec::with_capacity(MAX_PLY as usize);
-        for _ in 0..MAX_PLY as usize {
-            past_positions.push(Vec::with_capacity(100));
-        }
-
-        past_positions[0].push(0);
-
-        Repetitions {
-            past_positions,
-            index: 0,
-        }
-    }
-
-    fn irreversible_move(&mut self) {
-        self.index += 1;
-        if self.index >= self.past_positions.len() {
-            self.past_positions.push(Vec::with_capacity(100));
-        }
-    }
-
-    fn push_position(&mut self, hash: Hash) {
-        self.past_positions[self.index].push(hash);
-    }
-
-    fn pop_position(&mut self) {
-        self.past_positions[self.index].pop();
-        if self.past_positions[self.index].is_empty() {
-            self.index -= 1;
-        }
-    }
-
-    fn has_repeated(&self) -> bool {
-        let current = self.past_positions[self.index].last().unwrap();
-        self.past_positions[self.index]
-            .iter()
-            .take(self.past_positions[self.index].len() - 1)
-            .any(|h| h == current)
-    }
-}
 
 pub struct Search {
     details: Vec<IrreversibleDetails>,
@@ -190,7 +144,7 @@ impl Search {
             stats: Statistics::default(),
             pv,
             max_ply_searched: 0,
-            repetitions: Repetitions::new(),
+            repetitions: Repetitions::new(100),
             made_moves: Vec::new(),
             searching_for_white: true,
             show_pv_board: false,
