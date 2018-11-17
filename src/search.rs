@@ -47,7 +47,7 @@ pub struct Search {
     started_at: time::Instant,
     pub stop_condition: StopCondition,
     pub hasher: Hasher,
-    stats: Statistics,
+    visited_nodes: u64,
     pub tt: Rc<RefCell<TT>>,
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
@@ -76,38 +76,6 @@ pub enum StopCondition {
         binc: Option<u64>,
         movestogo: Option<u64>,
     },
-}
-
-#[derive(Copy, Clone)]
-struct Statistics {
-    nodes: u64,
-    beta_cutoff: [usize; MAX_PLY as usize],
-    beta_cutoff_on_first_move: [usize; MAX_PLY as usize],
-}
-
-impl Default for Statistics {
-    fn default() -> Self {
-        Statistics {
-            nodes: 0,
-            beta_cutoff: [0; MAX_PLY as usize],
-            beta_cutoff_on_first_move: [0; MAX_PLY as usize],
-        }
-    }
-}
-
-impl Statistics {
-    fn reset(&mut self) {
-        self.nodes = 0;
-        self.beta_cutoff = [0; MAX_PLY as usize];
-        self.beta_cutoff_on_first_move = [0; MAX_PLY as usize];
-    }
-
-    fn beta_cutoff(&mut self, ply: Ply, move_number: usize) {
-        if move_number == 0 {
-            self.beta_cutoff_on_first_move[ply as usize] += 1;
-        }
-        self.beta_cutoff[ply as usize] += 1;
-    }
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -141,7 +109,7 @@ impl Search {
             stop_condition: StopCondition::Infinite,
             hasher: Hasher::new(),
             tt: Rc::new(RefCell::new(TT::new(14))),
-            stats: Statistics::default(),
+            visited_nodes: 0,
             pv,
             max_ply_searched: 0,
             repetitions: Repetitions::new(100),
@@ -158,7 +126,7 @@ impl Search {
     pub fn root(&mut self) -> Move {
         self.searching_for_white = self.position.white_to_move;
         self.started_at = time::Instant::now();
-        self.stats.reset();
+        self.visited_nodes = 0;
         self.tt.borrow_mut().next_generation();
         self.pv
             .iter_mut()
@@ -229,7 +197,7 @@ impl Search {
                         new_depth += INC_PLY;
                     }
 
-                    let num_nodes_before = self.stats.nodes;
+                    let num_nodes_before = self.visited_nodes;
                     let value;
                     if num_moves == 1 {
                         value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
@@ -242,7 +210,7 @@ impl Search {
                         }
                     }
 
-                    *subtree_size = ((self.stats.nodes - num_nodes_before) / 2) as i64;
+                    *subtree_size = ((self.visited_nodes - num_nodes_before) / 2) as i64;
 
                     self.internal_unmake_move(mov);
 
@@ -328,7 +296,7 @@ impl Search {
             return None;
         }
 
-        self.stats.nodes += 1;
+        self.visited_nodes += 1;
         self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
 
         // Check if there is a draw by insufficient mating material or threefold repetition.
@@ -354,7 +322,7 @@ impl Search {
         }
 
         if depth < INC_PLY {
-            self.stats.nodes -= 1;
+            self.visited_nodes -= 1;
             return self.qsearch(ply, alpha, beta, depth);
         }
 
@@ -452,7 +420,6 @@ impl Search {
                             alpha = value;
                             self.add_pv_move(mov, ply);
                             if value >= beta {
-                                self.stats.beta_cutoff(ply, num_moves);
                                 if mov.is_quiet() {
                                     self.update_quiet_stats(mov, ply, depth);
                                 }
@@ -517,7 +484,7 @@ impl Search {
         }
 
         let alpha = beta - 1;
-        self.stats.nodes += 1;
+        self.visited_nodes += 1;
         self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
 
         let in_check = self.position.in_check();
@@ -547,7 +514,7 @@ impl Search {
         }
 
         if depth < INC_PLY {
-            self.stats.nodes -= 1;
+            self.visited_nodes -= 1;
             return self.qsearch(ply, alpha, beta, depth);
         }
 
@@ -687,7 +654,6 @@ impl Search {
                 best_score = value.unwrap();
                 best_move = Some(mov);
                 if value.unwrap() >= beta {
-                    self.stats.beta_cutoff(ply, num_moves);
                     if mov.is_quiet() {
                         self.update_quiet_stats(mov, ply, depth);
                     }
@@ -729,7 +695,7 @@ impl Search {
             return None;
         }
 
-        self.stats.nodes += 1;
+        self.visited_nodes += 1;
 
         let in_check = self.position.in_check();
         let mut depth = depth;
@@ -892,7 +858,7 @@ impl Search {
             "info depth {} seldepth {} nodes {} score {} time {} hashfull {} pv ",
             d / INC_PLY,
             self.max_ply_searched,
-            self.stats.nodes,
+            self.visited_nodes,
             score_str,
             millis,
             self.tt.borrow().usage()
@@ -976,10 +942,10 @@ impl Search {
     fn should_stop(&mut self) -> bool {
         match self.stop_condition {
             StopCondition::Infinite => false,
-            StopCondition::Nodes(nodes) => self.stats.nodes >= nodes,
+            StopCondition::Nodes(nodes) => self.visited_nodes >= nodes,
             StopCondition::Depth(_) => false, /* handled in start_another_iteration */
             StopCondition::TimePerMove { millis } => {
-                if self.stats.nodes & 0x7F == 0 {
+                if self.visited_nodes & 0x7F == 0 {
                     let now = time::Instant::now();
                     let elapsed = now - self.started_at;
                     let elapsed_millis =
@@ -995,7 +961,7 @@ impl Search {
                 binc,
                 movestogo,
             } => {
-                if self.stats.nodes & 0x7F == 0 {
+                if self.visited_nodes & 0x7F == 0 {
                     let now = time::Instant::now();
                     let elapsed = now - self.started_at;
                     let elapsed_millis =
