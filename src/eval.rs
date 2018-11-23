@@ -150,6 +150,7 @@ impl Eval {
         score += self.pst[1] - self.pst[0];
         score += self.positional.score(pos);
         score += self.mobility(pos);
+        score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
 
         let phase = self.phase();
         let (king_mg, king_eg) = self.king_safety(pos);
@@ -232,6 +233,29 @@ impl Eval {
         }
 
         (mg, eg)
+    }
+
+    pub fn rooks_for_side(&self, pos: &Position, white: bool) -> Score {
+        let us = if white {
+            pos.white_pieces
+        } else {
+            pos.black_pieces
+        };
+
+	const OPEN_FILE_BONUS: Score = 15;
+	const HALF_OPEN_FILE_BONUS: Score = 5;
+        let mut score = 0;
+
+	for rook in (pos.rooks() & us).squares() {
+    	    let file_bb = FILES[rook.file() as usize];
+    	    if (pos.pawns() & file_bb).is_empty() {
+        	score += OPEN_FILE_BONUS;
+    	    } else if (pos.pawns() & us & file_bb).is_empty() {
+        	score += HALF_OPEN_FILE_BONUS;
+    	    }
+	}
+
+        score
     }
 
     pub fn king_safety(&self, pos: &Position) -> (Score, Score) {
