@@ -320,6 +320,30 @@ impl Search {
             return Some(beta);
         }
 
+        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
+            let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
+            if depth < INC_PLY
+                && ttentry
+                    .best_move
+                    .expand(&self.position)
+                    .map_or(false, check_move_legality)
+            {
+                let score = ttentry.score.to_score(ply);
+
+                if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
+                    return Some(score);
+                }
+
+                if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
+                    return Some(score);
+                }
+
+                if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
+                    return Some(score);
+                }
+            }
+        }
+
         if depth < INC_PLY {
             self.visited_nodes -= 1;
             return self.qsearch(ply, alpha, beta, depth);
@@ -490,7 +514,7 @@ impl Search {
 
         if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
             let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
-            if ttentry.depth >= depth
+            if (ttentry.depth >= depth || depth < INC_PLY)
                 && ttentry
                     .best_move
                     .expand(&self.position)
@@ -514,7 +538,7 @@ impl Search {
 
         if depth < INC_PLY {
             self.visited_nodes -= 1;
-            return self.qsearch(ply, alpha, beta, depth);
+            return self.qsearch(ply, alpha, beta, 0);
         }
 
         let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
@@ -697,13 +721,8 @@ impl Search {
         self.visited_nodes += 1;
 
         let in_check = self.position.in_check();
-        let mut depth = depth;
-
-        if in_check {
-            depth += INC_PLY;
-        }
-
         let mut alpha = alpha;
+
         if !in_check {
             let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
             if eval >= beta {
@@ -713,6 +732,37 @@ impl Search {
             if alpha < eval {
                 alpha = eval;
             }
+        }
+
+        if depth == 0 {
+            if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
+                let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
+                if ttentry
+                       .best_move
+                       .expand(&self.position)
+                       .map_or(false, check_move_legality)
+                {
+                    let score = ttentry.score.to_score(ply);
+
+                    if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
+                        return Some(score);
+                    }
+
+                    if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
+                        return Some(score);
+                    }
+
+                    if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
+                        return Some(score);
+                    }
+                }
+            }
+        }
+
+        let mut depth = depth;
+
+        if in_check {
+            depth += INC_PLY;
         }
 
         let mp_excluded = Rc::clone(&self.mp_excluded[ply as usize]);
@@ -746,6 +796,9 @@ impl Search {
             )
         };
 
+        let mut best_move = None;
+        let mut best_score = -MATE_SCORE;
+
         let mut num_moves = 0;
         for (_mtype, mov) in moves {
             self.internal_make_move(mov, ply);
@@ -762,20 +815,46 @@ impl Search {
             match value {
                 None => return None,
                 Some(score) => {
-                    if score > alpha {
-                        alpha = score;
-                        if score >= beta {
-                            return value;
+                    if score > best_score {
+                        best_score = score;
+                        best_move = Some(mov);
+                        if score > alpha {
+                            alpha = score;
+                            if score >= beta {
+                                if depth == 0 || depth == INC_PLY && in_check {
+                                    self.tt.borrow_mut().insert(
+                                        self.hasher.get_hash(),
+                                        0,
+                                        TTScore::from_score(score, ply),
+                                        mov,
+                                        LOWER_BOUND,
+                                    );
+                                }
+                                return value;
+                            }
                         }
                     }
                 }
             }
         }
 
-        if num_moves == 0 && in_check {
-            return Some(-MATE_SCORE + ply);
+        if num_moves == 0 {
+            if in_check {
+                return Some(-MATE_SCORE + ply);
+            } else {
+                return Some(alpha);
+            }
         }
 
+        if depth == 0 || depth == INC_PLY && in_check  {
+            self.tt.borrow_mut().insert(
+                self.hasher.get_hash(),
+                0,
+                TTScore::from_score(best_score, ply),
+                best_move.unwrap(),
+                UPPER_BOUND,
+            );
+        }
         Some(alpha)
     }
 
