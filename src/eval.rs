@@ -87,20 +87,18 @@ impl Eval {
         } else {
             pos.black_pieces
         };
-        let double_step_rank = if white {
-            RANK_2
+        let rank3 = if white {
+            RANK_3
         } else {
-            RANK_7
+            RANK_6
         };
 
-        let mut pawn_mobility = 0;
+        let pawn_stop_squares = (pos.pawns() & us).forward(white, 1);
+        let mut pawn_mobility = pawn_stop_squares & !pos.all_pieces;
+        pawn_mobility |= (pawn_mobility & rank3).forward(white, 1) & !pos.all_pieces;
+        pawn_mobility |= pos.all_pieces & !us & (pawn_stop_squares.left(1) | pawn_stop_squares.right(1));
+
         let mut knight_mobility = 0;
-        let mut bishop_mobility = 0;
-        let mut rook_mobility = 0;
-
-        pawn_mobility += ((pos.pawns() & us).forward(white, 1) & !pos.all_pieces).popcount();
-        pawn_mobility += ((pos.pawns() & us & double_step_rank).forward(white, 2) & !pos.all_pieces & !pos.all_pieces.backward(white, 1)).popcount();
-
         let their_pawns = pos.pawns() & !us;
         let their_pawn_attacks = their_pawns.forward(!white, 1).left(1) | their_pawns.forward(!white, 1).right(1);
         for knight in (pos.knights() & us).squares() {
@@ -109,19 +107,21 @@ impl Eval {
                 - KNIGHT_MOBILITY_AVG;
         }
 
+        let mut bishop_mobility = 0;
         for bishop in (pos.bishops() & us).squares() {
             let mobility = get_bishop_attacks_from(bishop, pos.all_pieces);
             bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize]
                 - BISHOP_MOBILITY_AVG;
         }
 
+        let mut rook_mobility = 0;
         for rook in (pos.rooks() & us).squares() {
             let mobility = get_rook_attacks_from(rook, pos.all_pieces);
             rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize]
                 - ROOK_MOBILITY_AVG;
         }
 
-	4*pawn_mobility as Score + knight_mobility + bishop_mobility + rook_mobility
+	6*pawn_mobility.popcount() as Score + knight_mobility + bishop_mobility + rook_mobility
     }
 
     pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
