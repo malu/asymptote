@@ -25,6 +25,22 @@ use position::*;
 use search::*;
 use tt::*;
 
+pub struct MovePickerAllocations {
+    excluded: Vec<Move>,
+    moves: Vec<Move>,
+    scores: Vec<Score>,
+}
+
+impl Default for MovePickerAllocations {
+    fn default() -> Self {
+        MovePickerAllocations {
+            excluded: Vec::with_capacity(8),
+            moves: Vec::with_capacity(128),
+            scores: Vec::with_capacity(128),
+        }
+    }
+}
+
 pub struct MovePicker<'a> {
     tt: Rc<RefCell<TT>>,
     hash: Hash,
@@ -95,23 +111,21 @@ impl<'a> MovePicker<'a> {
         hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
-        excluded: &'a mut Vec<Move>,
-        moves: &'a mut Vec<Move>,
-        scores: &'a mut Vec<Score>,
+        allocations: &'a mut MovePickerAllocations,
     ) -> Self {
-        excluded.clear();
-        moves.clear();
-        scores.clear();
+        allocations.excluded.clear();
+        allocations.moves.clear();
+        allocations.scores.clear();
 
         MovePicker {
             history,
             tt,
             hash,
             position,
-            excluded,
+            excluded: &mut allocations.excluded,
             stage: 0,
-            moves,
-            scores,
+            moves: &mut allocations.moves,
+            scores: &mut allocations.scores,
             index: 0,
             ply_details,
             skip_quiets: false,
@@ -124,23 +138,21 @@ impl<'a> MovePicker<'a> {
         hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
-        excluded: &'a mut Vec<Move>,
-        moves: &'a mut Vec<Move>,
-        scores: &'a mut Vec<Score>,
+        allocations: &'a mut MovePickerAllocations,
     ) -> Self {
-        excluded.clear();
-        moves.clear();
-        scores.clear();
+        allocations.excluded.clear();
+        allocations.moves.clear();
+        allocations.scores.clear();
 
         MovePicker {
             history,
             tt,
             hash,
             position,
-            excluded,
+            excluded: &mut allocations.excluded,
             stage: 10,
-            moves,
-            scores,
+            moves: &mut allocations.moves,
+            scores: &mut allocations.scores,
             index: 0,
             ply_details,
             skip_quiets: false,
@@ -153,23 +165,21 @@ impl<'a> MovePicker<'a> {
         hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
-        excluded: &'a mut Vec<Move>,
-        moves: &'a mut Vec<Move>,
-        scores: &'a mut Vec<Score>,
+        allocations: &'a mut MovePickerAllocations,
     ) -> Self {
-        excluded.clear();
-        moves.clear();
-        scores.clear();
+        allocations.excluded.clear();
+        allocations.moves.clear();
+        allocations.scores.clear();
 
         MovePicker {
             history,
             tt,
             hash,
             position,
-            excluded,
+            excluded: &mut allocations.excluded,
             stage: 13,
-            moves,
-            scores,
+            moves: &mut allocations.moves,
+            scores: &mut allocations.scores,
             index: 0,
             ply_details,
             skip_quiets: false,

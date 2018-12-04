@@ -55,9 +55,7 @@ pub struct Search {
     searching_for_white: bool,
     pub show_pv_board: bool,
 
-    mp_excluded: Vec<Rc<RefCell<Vec<Move>>>>,
-    mp_moves: Vec<Rc<RefCell<Vec<Move>>>>,
-    mp_scores: Vec<Rc<RefCell<Vec<Score>>>>,
+    mp_allocations: Vec<Rc<RefCell<MovePickerAllocations>>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -88,15 +86,13 @@ impl Search {
     pub fn new(position: Position) -> Self {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         let mut stack = Vec::with_capacity(MAX_PLY as usize);
-        let mut mp_excluded = Vec::with_capacity(MAX_PLY as usize);
-        let mut mp_moves = Vec::with_capacity(MAX_PLY as usize);
-        let mut mp_scores = Vec::with_capacity(MAX_PLY as usize);
+        let mut mp_allocations = Vec::with_capacity(MAX_PLY as usize);
         for i in 0..MAX_PLY as usize {
             pv.push(vec![None; MAX_PLY as usize - i + 1]);
             stack.push(Rc::new(RefCell::new(PlyDetails::default())));
-            mp_excluded.push(Rc::new(RefCell::new(Vec::with_capacity(8))));
-            mp_moves.push(Rc::new(RefCell::new(Vec::with_capacity(128))));
-            mp_scores.push(Rc::new(RefCell::new(Vec::with_capacity(128))));
+            mp_allocations.push(Rc::new(RefCell::new(
+                MovePickerAllocations::default()
+            )));
         }
 
         Search {
@@ -116,9 +112,7 @@ impl Search {
             searching_for_white: true,
             show_pv_board: false,
 
-            mp_excluded,
-            mp_moves,
-            mp_scores,
+            mp_allocations,
         }
     }
 
@@ -354,21 +348,16 @@ impl Search {
             self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
         }
 
-        let mp_excluded = Rc::clone(&self.mp_excluded[ply as usize]);
-        let mut mp_excluded = mp_excluded.borrow_mut();
-        let mp_moves = Rc::clone(&self.mp_moves[ply as usize]);
-        let mut mp_moves = mp_moves.borrow_mut();
-        let mp_scores = Rc::clone(&self.mp_scores[ply as usize]);
-        let mut mp_scores = mp_scores.borrow_mut();
+        let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
+        let mut mp_allocations = mp_allocations.borrow_mut();
+
         let moves = MovePicker::new(
             self.position.clone(),
             Rc::clone(&self.tt),
             self.hasher.get_hash(),
             Rc::clone(&self.stack[ply as usize]),
             Rc::clone(&self.history),
-            &mut mp_excluded,
-            &mut mp_moves,
-            &mut mp_scores,
+            &mut mp_allocations,
         );
 
         let mut alpha = alpha;
@@ -576,12 +565,8 @@ impl Search {
             self.search_zw(ply, beta, depth / 2);
         }
 
-        let mp_excluded = Rc::clone(&self.mp_excluded[ply as usize]);
-        let mut mp_excluded = mp_excluded.borrow_mut();
-        let mp_moves = Rc::clone(&self.mp_moves[ply as usize]);
-        let mut mp_moves = mp_moves.borrow_mut();
-        let mp_scores = Rc::clone(&self.mp_scores[ply as usize]);
-        let mut mp_scores = mp_scores.borrow_mut();
+        let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
+        let mut mp_allocations = mp_allocations.borrow_mut();
 
         let mut moves = MovePicker::new(
             self.position.clone(),
@@ -589,9 +574,7 @@ impl Search {
             self.hasher.get_hash(),
             Rc::clone(&self.stack[ply as usize]),
             Rc::clone(&self.history),
-            &mut mp_excluded,
-            &mut mp_moves,
-            &mut mp_scores,
+            &mut mp_allocations,
         );
         moves.skip_quiets(futility_skip_quiets);
         pruned = futility_skip_quiets;
@@ -765,12 +748,8 @@ impl Search {
             depth += INC_PLY;
         }
 
-        let mp_excluded = Rc::clone(&self.mp_excluded[ply as usize]);
-        let mut mp_excluded = mp_excluded.borrow_mut();
-        let mp_moves = Rc::clone(&self.mp_moves[ply as usize]);
-        let mut mp_moves = mp_moves.borrow_mut();
-        let mp_scores = Rc::clone(&self.mp_scores[ply as usize]);
-        let mut mp_scores = mp_scores.borrow_mut();
+        let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
+        let mut mp_allocations = mp_allocations.borrow_mut();
 
         let moves = if in_check {
             MovePicker::qsearch_in_check(
@@ -779,9 +758,7 @@ impl Search {
                 self.hasher.get_hash(),
                 Rc::clone(&self.stack[ply as usize]),
                 Rc::clone(&self.history),
-                &mut mp_excluded,
-                &mut mp_moves,
-                &mut mp_scores,
+                &mut mp_allocations,
             )
         } else {
             MovePicker::qsearch(
@@ -790,9 +767,7 @@ impl Search {
                 self.hasher.get_hash(),
                 Rc::clone(&self.stack[ply as usize]),
                 Rc::clone(&self.history),
-                &mut mp_excluded,
-                &mut mp_moves,
-                &mut mp_scores,
+                &mut mp_allocations,
             )
         };
 
@@ -879,12 +854,8 @@ impl Search {
             return false;
         }
 
-        let mp_excluded = Rc::clone(&self.mp_excluded[0]);
-        let mut mp_excluded = mp_excluded.borrow_mut();
-        let mp_moves = Rc::clone(&self.mp_moves[0]);
-        let mut mp_moves = mp_moves.borrow_mut();
-        let mp_scores = Rc::clone(&self.mp_scores[0]);
-        let mut mp_scores = mp_scores.borrow_mut();
+        let mp_allocations = Rc::clone(&self.mp_allocations[0]);
+        let mut mp_allocations = mp_allocations.borrow_mut();
 
         let moves = MovePicker::new(
             self.position.clone(),
@@ -892,9 +863,7 @@ impl Search {
             self.hasher.get_hash(),
             Rc::clone(&self.stack[MAX_PLY as usize - 1]),
             Rc::clone(&self.history),
-            &mut mp_excluded,
-            &mut mp_moves,
-            &mut mp_scores,
+            &mut mp_allocations,
         );
 
         for (_, mov) in moves {
