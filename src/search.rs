@@ -314,35 +314,38 @@ impl Search {
         }
 
 
-        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
-            let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
-            if depth < INC_PLY
-                && ttentry
-                    .best_move
-                    .expand(&self.position)
-                    .map_or(false, check_move_legality)
-            {
-                let score = ttentry.score.to_score(ply);
+        if depth < INC_PLY {
+            // In PV nodes we only cutoff on TT hits if we would drop into quiescence search otherwise.
+            // Otherwise we would get shorter principal variations as output.
+            if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
+                let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
+                if ttentry
+                        .best_move
+                        .expand(&self.position)
+                        .map_or(false, check_move_legality)
+                {
+                    let score = ttentry.score.to_score(ply);
 
-                if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
-                    return Some(score);
-                }
+                    if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
+                        return Some(score);
+                    }
 
-                if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
-                    return Some(score);
-                }
+                    if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
+                        return Some(score);
+                    }
 
-                if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
-                    return Some(score);
+                    if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
+                        return Some(score);
+                    }
                 }
             }
-        }
 
-        if depth < INC_PLY {
             self.visited_nodes -= 1;
             return self.qsearch(ply, alpha, beta, depth);
         }
 
+        // Internal iterative deepening
+        // If we don't get a previous best move from the TT, do a reduced-depth search first to get one.
         if depth >= 4 * INC_PLY && !self.has_tt_move() {
             self.search_pv(ply, alpha, beta, depth - 2 * INC_PLY);
             self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
@@ -382,11 +385,13 @@ impl Search {
                 extension += INC_PLY / 4;
             }
 
+            // Check extension
             let check = self.position.in_check();
             if check {
                 extension += INC_PLY;
             }
 
+            // Recapture extension
             if let Some(previous_move) = previous_move {
                 if previous_move.to == mov.to {
                     extension += INC_PLY;
@@ -395,17 +400,17 @@ impl Search {
 
             let mut new_depth = depth - INC_PLY + extension;
 
-            let mut value;
-            if num_moves == 1 {
+            let mut value = Some(-Score::max_value());
+
+            if num_moves > 1 {
+                value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
+            }
+
+            if num_moves == 1 || value.map_or(false, |value| value > alpha) {
                 value = self.search_pv(ply + 1, -beta, -alpha, new_depth)
                     .map(|v| -v);
-            } else {
-                value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
-                if value.is_some() && value.unwrap() > alpha {
-                    value = self.search_pv(ply + 1, -beta, -alpha, new_depth)
-                        .map(|v| -v);
-                }
             }
+
             self.internal_unmake_move(mov, ply);
 
             match value {
@@ -452,28 +457,31 @@ impl Search {
             }
         }
 
-        if num_moves == 0 {
-            if self.position.in_check() {
-                return Some(-MATE_SCORE + ply);
+        if let Some(best_move) = best_move {
+            let tt_bound = if increased_alpha {
+                EXACT_BOUND
             } else {
-                return Some(0);
+                UPPER_BOUND
+            };
+
+            self.tt.borrow_mut().insert(
+                self.hasher.get_hash(),
+                depth,
+                TTScore::from_score(best_score, ply),
+                best_move,
+                tt_bound,
+            );
+
+            Some(best_score)
+        } else {
+            // No best move => no legal moves
+            if self.position.in_check() {
+                Some(-MATE_SCORE + ply)
+            } else {
+                // Stalemate
+                Some(0)
             }
         }
-
-        let tt_bound = if increased_alpha {
-            EXACT_BOUND
-        } else {
-            UPPER_BOUND
-        };
-        self.tt.borrow_mut().insert(
-            self.hasher.get_hash(),
-            depth,
-            TTScore::from_score(best_score, ply),
-            best_move.unwrap(),
-            tt_bound,
-        );
-
-        Some(best_score)
     }
 
     pub fn search_zw(&mut self, ply: Ply, beta: Score, depth: Depth) -> Option<Score> {
