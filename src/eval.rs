@@ -81,67 +81,47 @@ const ROOK_MOBILITY: [Score; 15] = [
 const ROOK_MOBILITY_AVG: Score = 105;
 
 impl Eval {
-    fn mobility(&mut self, pos: &Position) -> Score {
-        let mut white_pawn_mobility = 0;
-        let mut white_knight_mobility = 0;
-        let mut white_bishop_mobility = 0;
-        let mut white_rook_mobility = 0;
+    fn mobility_for_side(&self, white: bool, pos: &Position) -> Score {
+        let us = if white {
+            pos.white_pieces
+        } else {
+            pos.black_pieces
+        };
+        let double_step_rank = if white {
+            RANK_2
+        } else {
+            RANK_7
+        };
 
-        white_pawn_mobility += ((pos.pawns() & pos.white_pieces).forward(true, 1) & !pos.all_pieces).popcount();
-        white_pawn_mobility += ((pos.pawns() & pos.white_pieces & RANK_2).forward(true, 2) & !pos.all_pieces & !pos.all_pieces.backward(true, 1)).popcount();
+        let mut pawn_mobility = 0;
+        let mut knight_mobility = 0;
+        let mut bishop_mobility = 0;
+        let mut rook_mobility = 0;
 
-        let black_pawns = pos.pawns() & pos.black_pieces;
-        let black_pawn_attacks = black_pawns.forward(false, 1).left(1) | black_pawns.forward(false, 1).right(1);
-        for knight in (pos.knights() & pos.white_pieces).squares() {
-            let mobility = KNIGHT_ATTACKS[knight.0 as usize] & !black_pawn_attacks;
-            white_knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
+        pawn_mobility += ((pos.pawns() & us).forward(white, 1) & !pos.all_pieces).popcount();
+        pawn_mobility += ((pos.pawns() & us & double_step_rank).forward(white, 2) & !pos.all_pieces & !pos.all_pieces.backward(white, 1)).popcount();
+
+        let their_pawns = pos.pawns() & !us;
+        let their_pawn_attacks = their_pawns.forward(!white, 1).left(1) | their_pawns.forward(!white, 1).right(1);
+        for knight in (pos.knights() & us).squares() {
+            let mobility = KNIGHT_ATTACKS[knight.0 as usize] & !their_pawn_attacks;
+            knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
                 - KNIGHT_MOBILITY_AVG;
         }
 
-        for bishop in (pos.bishops() & pos.white_pieces).squares() {
+        for bishop in (pos.bishops() & us).squares() {
             let mobility = get_bishop_attacks_from(bishop, pos.all_pieces);
-            white_bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize]
+            bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize]
                 - BISHOP_MOBILITY_AVG;
         }
 
-        for rook in (pos.rooks() & pos.white_pieces).squares() {
+        for rook in (pos.rooks() & us).squares() {
             let mobility = get_rook_attacks_from(rook, pos.all_pieces);
-            white_rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize]
+            rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize]
                 - ROOK_MOBILITY_AVG;
         }
 
-        let mut black_pawn_mobility = 0;
-        let mut black_knight_mobility = 0;
-        let mut black_bishop_mobility = 0;
-        let mut black_rook_mobility = 0;
-
-        black_pawn_mobility += ((pos.pawns() & pos.black_pieces).forward(false, 1) & !pos.all_pieces).popcount();
-        black_pawn_mobility += ((pos.pawns() & pos.black_pieces & RANK_7).forward(false, 2) & !pos.all_pieces & !pos.all_pieces.backward(false, 1)).popcount();
-
-        let white_pawns = pos.pawns() & pos.white_pieces;
-        let white_pawn_attacks = white_pawns.forward(true, 1).left(1) | white_pawns.forward(true, 1).right(1);
-        for knight in (pos.knights() & pos.black_pieces).squares() {
-            let mobility = KNIGHT_ATTACKS[knight.0 as usize] & !white_pawn_attacks;
-            black_knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
-                - KNIGHT_MOBILITY_AVG;
-        }
-
-        for bishop in (pos.bishops() & pos.black_pieces).squares() {
-            let mobility = get_bishop_attacks_from(bishop, pos.all_pieces);
-            black_bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize]
-                - BISHOP_MOBILITY_AVG;
-        }
-
-        for rook in (pos.rooks() & pos.black_pieces).squares() {
-            let mobility = get_rook_attacks_from(rook, pos.all_pieces);
-            black_rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize]
-                - ROOK_MOBILITY_AVG;
-        }
-
-        let white_mobility = 4*white_pawn_mobility as Score + white_knight_mobility + white_bishop_mobility + white_rook_mobility;
-        let black_mobility = 4*black_pawn_mobility as Score + black_knight_mobility + black_bishop_mobility + black_rook_mobility;
-
-        white_mobility - black_mobility
+	4*pawn_mobility as Score + knight_mobility + bishop_mobility + rook_mobility
     }
 
     pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
@@ -149,7 +129,7 @@ impl Eval {
         score += self.material.score();
         score += self.pst[1] - self.pst[0];
         score += self.positional.score(pos);
-        score += self.mobility(pos);
+        score += self.mobility_for_side(true, pos) - self.mobility_for_side(false, pos);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
 
         let phase = self.phase();
