@@ -306,13 +306,13 @@ impl Search {
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
+
+        // Mate Distance Pruning
+        // If we found a shorter mating sequence, do not search this move further.
         if MATE_SCORE - ply < alpha {
             return Some(alpha);
         }
 
-        if -MATE_SCORE + ply > beta {
-            return Some(beta);
-        }
 
         if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
             let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
