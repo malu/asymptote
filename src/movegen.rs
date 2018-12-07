@@ -14,9 +14,9 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use bitboard::*;
-use eval::*;
-use position::*;
+use crate::bitboard::*;
+use crate::eval::*;
+use crate::position::*;
 use rand::{prelude::*, prng::ChaChaRng};
 
 pub fn initialize_magics() {
@@ -57,7 +57,7 @@ fn initialize_bishop_attacks() -> Vec<Magic> {
 
     for sq in 0..64 {
         let from = Square(sq);
-        let mut mask = bishop_from(from, Bitboard::from(0)) & !border;
+        let mask = bishop_from(from, Bitboard::from(0)) & !border;
         let bits = mask.popcount() as u32;
         let shift = 64 - bits;
 
@@ -91,19 +91,19 @@ fn initialize_bishop_attacks() -> Vec<Magic> {
             last_used.push(0);
         }
 
-        let mut try = 1;
+        let mut tries = 1;
 
         'search_magic: loop {
             for i in 0..size {
                 let index = magic.index(occupancy[i]);
-                if magic.table[index] != reference[i] && last_used[index] == try {
+                if magic.table[index] != reference[i] && last_used[index] == tries {
                     // retry
                     magic.magic = sparse_random(&mut rng);
-                    try += 1;
+                    tries += 1;
                     continue 'search_magic;
                 }
                 magic.table[index] = reference[i];
-                last_used[index] = try;
+                last_used[index] = tries;
             }
 
             break;
@@ -183,7 +183,7 @@ fn initialize_rook_attacks() -> Vec<Magic> {
 
     for sq in 0..64 {
         let from = Square(sq);
-        let mut mask = (FILES[from.file() as usize] & !border_ranks)
+        let mask = (FILES[from.file() as usize] & !border_ranks)
             ^ (RANKS[from.rank() as usize] & !border_files);
         let bits = mask.popcount() as u32;
         let shift = 64 - bits;
@@ -218,19 +218,19 @@ fn initialize_rook_attacks() -> Vec<Magic> {
             last_used.push(0);
         }
 
-        let mut try = 1;
+        let mut tries = 1;
 
         'search_magic: loop {
             for i in 0..size {
                 let index = magic.index(occupancy[i]);
-                if magic.table[index] != reference[i] && last_used[index] == try {
+                if magic.table[index] != reference[i] && last_used[index] == tries {
                     // retry
                     magic.magic = sparse_random(&mut rng);
-                    try += 1;
+                    tries += 1;
                     continue 'search_magic;
                 }
                 magic.table[index] = reference[i];
-                last_used[index] = try;
+                last_used[index] = tries;
             }
 
             break;

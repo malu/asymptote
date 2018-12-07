@@ -14,8 +14,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use bitboard::*;
-use movegen::*;
+use crate::bitboard::*;
+use crate::movegen::*;
 
 /// Bit indicating if white can castle kingside.
 pub const CASTLE_WHITE_KSIDE: u8 = 0x1;
@@ -799,7 +799,7 @@ pub const STARTING_POSITION: Position = Position {
 
 #[cfg(test)]
 mod tests {
-    use position::*;
+    use crate::position::*;
     #[test]
     fn test_parse_start_fen() {
         let start_by_fen =

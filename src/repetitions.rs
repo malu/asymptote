@@ -14,7 +14,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use hash::Hash;
+use crate::hash::Hash;
 
 pub struct Repetitions {
     past_positions: Vec<Vec<Hash>>,

@@ -14,10 +14,10 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use movegen::*;
-use position::*;
-use search::*;
-use tt::*;
+use crate::movegen::*;
+use crate::position::*;
+use crate::search::*;
+use crate::tt::*;
 
 use std::io::{self, BufRead};
 pub struct UCI {

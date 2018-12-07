@@ -14,12 +14,12 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use bitboard::*;
-use eval::*;
-use hash::*;
-use movegen::*;
-use position::*;
-use search::*;
+use crate::bitboard::*;
+use crate::eval::*;
+use crate::hash::*;
+use crate::movegen::*;
+use crate::position::*;
+use crate::search::*;
 
 #[repr(align(64))]
 pub struct Bucket([TTEntry; NUM_CLUSTERS]);

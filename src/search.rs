@@ -18,14 +18,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time;
 
-use eval::*;
-use hash::*;
-use history::*;
-use movegen::*;
-use movepick::*;
-use position::*;
-use repetitions::Repetitions;
-use tt::*;
+use crate::eval::*;
+use crate::hash::*;
+use crate::history::*;
+use crate::movegen::*;
+use crate::movepick::*;
+use crate::position::*;
+use crate::repetitions::Repetitions;
+use crate::tt::*;
 
 pub type Ply = i16;
 pub type Depth = i16;
@@ -396,7 +396,7 @@ impl Search {
                 }
             }
 
-            let mut new_depth = depth - INC_PLY + extension;
+            let new_depth = depth - INC_PLY + extension;
 
             let mut value = Some(-Score::max_value());
 

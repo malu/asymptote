@@ -3,6 +3,7 @@ name = "asymptote"
 version = "0.3.0"
 authors = ["Maximilian Lupke <maxlupke@gmail.com>"]
 license = "GPL-3.0-only"
+edition = "2018"
 
 [dependencies]
 rand = "0.5.0"

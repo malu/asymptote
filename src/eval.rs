@@ -14,10 +14,10 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use bitboard::*;
-use hash::*;
-use movegen::*;
-use position::*;
+use crate::bitboard::*;
+use crate::hash::*;
+use crate::movegen::*;
+use crate::position::*;
 
 #[derive(Debug)]
 pub struct Eval {
@@ -188,7 +188,7 @@ impl Eval {
             let doubled = !(file_forward_bb & us & pos.pawns()).is_empty();
 
             if passed && !doubled {
-                let mut relative_rank = if white {
+                let relative_rank = if white {
                     pawn.rank() as usize ^ 7
                 } else {
                     pawn.rank() as usize

@@ -41,9 +41,9 @@ mod uci;
 
 use std::env::args;
 
-use position::STARTING_POSITION;
-use search::Search;
-use uci::*;
+use crate::position::STARTING_POSITION;
+use crate::search::Search;
+use crate::uci::*;
 
 fn main() {
     let mut args = args().skip(1);

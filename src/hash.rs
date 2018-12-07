@@ -16,9 +16,9 @@
 */
 use rand::{prelude::*, prng::ChaChaRng};
 
-use bitboard::*;
-use movegen::*;
-use position::*;
+use crate::bitboard::*;
+use crate::movegen::*;
+use crate::position::*;
 
 pub type Hash = u64;
 

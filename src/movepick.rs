@@ -17,13 +17,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use eval::*;
-use hash::*;
-use history::*;
-use movegen::*;
-use position::*;
-use search::*;
-use tt::*;
+use crate::eval::*;
+use crate::hash::*;
+use crate::history::*;
+use crate::movegen::*;
+use crate::position::*;
+use crate::search::*;
+use crate::tt::*;
 
 pub struct MovePickerAllocations {
     excluded: Vec<Move>,
