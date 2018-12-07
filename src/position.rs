@@ -111,18 +111,33 @@ impl Position {
         let allowed_pieces = self.all_pieces ^ mov.from.to_bb() & !mov.to.to_bb();
         let piece_value = mov.captured.map_or(0, Piece::value);
         let piece_after_move = mov.promoted.unwrap_or(mov.piece);
-        let value = piece_value - self.see_square(mov.to, piece_after_move, allowed_pieces, !self.white_to_move);
+        let value = piece_value
+            - self.see_square(
+                mov.to,
+                piece_after_move,
+                allowed_pieces,
+                !self.white_to_move,
+            );
 
         value
     }
 
-    fn see_square(&self, sq: Square, occupier: Piece, allowed_pieces: Bitboard, white: bool) -> i16 {
+    fn see_square(
+        &self,
+        sq: Square,
+        occupier: Piece,
+        allowed_pieces: Bitboard,
+        white: bool,
+    ) -> i16 {
         let mut value = 0;
         let (piece, from_bb) = self.get_cheapest_captures(sq, allowed_pieces, white);
 
         let capture_value = occupier.value();
         for from in from_bb.squares() {
-            value = ::std::cmp::max(value, capture_value - self.see_square(sq, piece, allowed_pieces ^ from.to_bb(), !white));
+            value = ::std::cmp::max(
+                value,
+                capture_value - self.see_square(sq, piece, allowed_pieces ^ from.to_bb(), !white),
+            );
 
             if value >= capture_value {
                 break;
@@ -132,7 +147,12 @@ impl Position {
         value
     }
 
-    fn get_cheapest_captures(&self, sq: Square, allowed_pieces: Bitboard, white: bool) -> (Piece, Bitboard) {
+    fn get_cheapest_captures(
+        &self,
+        sq: Square,
+        allowed_pieces: Bitboard,
+        white: bool,
+    ) -> (Piece, Bitboard) {
         let us = if white {
             self.white_pieces & allowed_pieces
         } else {
@@ -142,7 +162,9 @@ impl Position {
         let mut capturers;
 
         // TODO currently doesn't account for en passant moves.
-        capturers = self.pawns() & us & (sq.to_bb().backward(white, 1).left(1) | sq.to_bb().backward(white, 1).right(1));
+        capturers = self.pawns()
+            & us
+            & (sq.to_bb().backward(white, 1).left(1) | sq.to_bb().backward(white, 1).right(1));
         if !capturers.is_empty() {
             return (Piece::Pawn, capturers);
         }
@@ -200,14 +222,16 @@ impl Position {
 
         let pawn_right: bool = (self.pawns() & them)
             .backward(self.white_to_move, 1)
-            .left(1) & sq;
+            .left(1)
+            & sq;
         if pawn_right {
             return true;
         }
 
         let pawn_left: bool = (self.pawns() & them)
             .backward(self.white_to_move, 1)
-            .right(1) & sq;
+            .right(1)
+            & sq;
         if pawn_left {
             return true;
         }

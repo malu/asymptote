@@ -260,7 +260,8 @@ impl TT {
 
     pub fn get(&mut self, hash: Hash) -> Option<TTEntry> {
         for entry in unsafe {
-            &mut self.table
+            &mut self
+                .table
                 .get_unchecked_mut((hash & self.bitmask) as usize)
                 .0
         } {

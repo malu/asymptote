@@ -20,7 +20,6 @@
 #![cfg_attr(feature = "cargo-clippy", warn(single_match_else))]
 #![cfg_attr(feature = "cargo-clippy", warn(unseparated_literal_suffix))]
 #![cfg_attr(feature = "cargo-clippy", warn(used_underscore_binding))]
-
 #![cfg_attr(feature = "cargo-clippy", warn(clone_on_ref_ptr))]
 #![cfg_attr(feature = "cargo-clippy", warn(multiple_inherent_impl))]
 

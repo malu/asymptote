@@ -725,7 +725,7 @@ impl<'p> MoveGenerator<'p> {
             for to in (targets
                 & (get_bishop_attacks_from(from, self.position.all_pieces)
                     | get_rook_attacks_from(from, self.position.all_pieces)))
-                .squares()
+            .squares()
             {
                 moves.push(Move {
                     from,
@@ -746,18 +746,22 @@ impl<'p> MoveGenerator<'p> {
         if self.position.white_to_move {
             us = self.position.white_pieces;
             castle_kside = (self.position.details.castling & CASTLE_WHITE_KSIDE) > 0
-                && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60)).is_empty()
+                && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60))
+                    .is_empty()
                 && (self.position.rooks() & us & Square(7));
             castle_qside = (self.position.details.castling & CASTLE_WHITE_QSIDE) > 0
-                && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_0E)).is_empty()
+                && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_0E))
+                    .is_empty()
                 && (self.position.rooks() & us & Square(0));
         } else {
             us = self.position.black_pieces;
             castle_kside = (self.position.details.castling & CASTLE_BLACK_KSIDE) > 0
-                && (self.position.all_pieces & Bitboard::from(0x60_00_00_00_00_00_00_00)).is_empty()
+                && (self.position.all_pieces & Bitboard::from(0x60_00_00_00_00_00_00_00))
+                    .is_empty()
                 && (self.position.rooks() & us & Square(63));
             castle_qside = (self.position.details.castling & CASTLE_BLACK_QSIDE) > 0
-                && (self.position.all_pieces & Bitboard::from(0x0E_00_00_00_00_00_00_00)).is_empty()
+                && (self.position.all_pieces & Bitboard::from(0x0E_00_00_00_00_00_00_00))
+                    .is_empty()
                 && (self.position.rooks() & us & Square(56));
         }
 

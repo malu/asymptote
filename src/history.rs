@@ -41,7 +41,7 @@ impl History {
 
         {
             let entry = &mut self.from_to[white as usize][mov.from.0 as usize][mov.to.0 as usize];
-            *entry += d*d;
+            *entry += d * d;
             rescale = *entry > i32::from(Score::max_value());
         }
 

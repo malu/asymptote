@@ -253,7 +253,8 @@ impl Hasher {
                 self.pawn_hash ^= self.hashes[Piece::Pawn.index()]
                     [mov.to.backward(unmaking_white_move, 1).0 as usize];
                 if !unmaking_white_move {
-                    self.pawn_hash ^= self.color[mov.to.backward(unmaking_white_move, 1).0 as usize];
+                    self.pawn_hash ^=
+                        self.color[mov.to.backward(unmaking_white_move, 1).0 as usize];
                 }
             } else {
                 self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to.0 as usize];

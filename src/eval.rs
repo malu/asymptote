@@ -71,12 +71,12 @@ const KNIGHT_MOBILITY: [Score; 9] = [-20, 40, 80, 120, 130, 140, 150, 160, 170];
 const KNIGHT_MOBILITY_AVG: Score = 108;
 
 const BISHOP_MOBILITY: [Score; 14] = [
-    0, 40, 80, 100, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155
+    0, 40, 80, 100, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155,
 ];
 const BISHOP_MOBILITY_AVG: Score = 110;
 
 const ROOK_MOBILITY: [Score; 15] = [
-    0, 40, 80, 90, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150
+    0, 40, 80, 90, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150,
 ];
 const ROOK_MOBILITY_AVG: Score = 105;
 
@@ -87,41 +87,36 @@ impl Eval {
         } else {
             pos.black_pieces
         };
-        let rank3 = if white {
-            RANK_3
-        } else {
-            RANK_6
-        };
+        let rank3 = if white { RANK_3 } else { RANK_6 };
 
         let pawn_stop_squares = (pos.pawns() & us).forward(white, 1);
         let mut pawn_mobility = pawn_stop_squares & !pos.all_pieces;
         pawn_mobility |= (pawn_mobility & rank3).forward(white, 1) & !pos.all_pieces;
-        pawn_mobility |= pos.all_pieces & !us & (pawn_stop_squares.left(1) | pawn_stop_squares.right(1));
+        pawn_mobility |=
+            pos.all_pieces & !us & (pawn_stop_squares.left(1) | pawn_stop_squares.right(1));
 
         let mut knight_mobility = 0;
         let their_pawns = pos.pawns() & !us;
-        let their_pawn_attacks = their_pawns.forward(!white, 1).left(1) | their_pawns.forward(!white, 1).right(1);
+        let their_pawn_attacks =
+            their_pawns.forward(!white, 1).left(1) | their_pawns.forward(!white, 1).right(1);
         for knight in (pos.knights() & us).squares() {
             let mobility = KNIGHT_ATTACKS[knight.0 as usize] & !their_pawn_attacks;
-            knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize]
-                - KNIGHT_MOBILITY_AVG;
+            knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize] - KNIGHT_MOBILITY_AVG;
         }
 
         let mut bishop_mobility = 0;
         for bishop in (pos.bishops() & us).squares() {
             let mobility = get_bishop_attacks_from(bishop, pos.all_pieces);
-            bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize]
-                - BISHOP_MOBILITY_AVG;
+            bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize] - BISHOP_MOBILITY_AVG;
         }
 
         let mut rook_mobility = 0;
         for rook in (pos.rooks() & us).squares() {
             let mobility = get_rook_attacks_from(rook, pos.all_pieces);
-            rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize]
-                - ROOK_MOBILITY_AVG;
+            rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize] - ROOK_MOBILITY_AVG;
         }
 
-	6*pawn_mobility.popcount() as Score + knight_mobility + bishop_mobility + rook_mobility
+        6 * pawn_mobility.popcount() as Score + knight_mobility + bishop_mobility + rook_mobility
     }
 
     pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
@@ -203,7 +198,11 @@ impl Eval {
                 eg += PASSER_ON_RANK_BONUS_EG[relative_rank];
             }
 
-            if ((FILES[pawn.file() as usize].left(1) | FILES[pawn.file() as usize].right(1)) & pos.pawns() & us).is_empty() {
+            if ((FILES[pawn.file() as usize].left(1) | FILES[pawn.file() as usize].right(1))
+                & pos.pawns()
+                & us)
+                .is_empty()
+            {
                 mg -= ISOLATED_PAWN_PENALTY_MG;
 
                 if !passed {
@@ -222,18 +221,18 @@ impl Eval {
             pos.black_pieces
         };
 
-	const OPEN_FILE_BONUS: Score = 15;
-	const HALF_OPEN_FILE_BONUS: Score = 5;
+        const OPEN_FILE_BONUS: Score = 15;
+        const HALF_OPEN_FILE_BONUS: Score = 5;
         let mut score = 0;
 
-	for rook in (pos.rooks() & us).squares() {
-    	    let file_bb = FILES[rook.file() as usize];
-    	    if (pos.pawns() & file_bb).is_empty() {
-        	score += OPEN_FILE_BONUS;
-    	    } else if (pos.pawns() & us & file_bb).is_empty() {
-        	score += HALF_OPEN_FILE_BONUS;
-    	    }
-	}
+        for rook in (pos.rooks() & us).squares() {
+            let file_bb = FILES[rook.file() as usize];
+            if (pos.pawns() & file_bb).is_empty() {
+                score += OPEN_FILE_BONUS;
+            } else if (pos.pawns() & us & file_bb).is_empty() {
+                score += HALF_OPEN_FILE_BONUS;
+            }
+        }
 
         score
     }

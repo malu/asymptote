@@ -62,4 +62,3 @@ impl Repetitions {
             .any(|h| h == current)
     }
 }
-

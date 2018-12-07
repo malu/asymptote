@@ -90,9 +90,7 @@ impl Search {
         for i in 0..MAX_PLY as usize {
             pv.push(vec![None; MAX_PLY as usize - i + 1]);
             stack.push(Rc::new(RefCell::new(PlyDetails::default())));
-            mp_allocations.push(Rc::new(RefCell::new(
-                MovePickerAllocations::default()
-            )));
+            mp_allocations.push(Rc::new(RefCell::new(MovePickerAllocations::default())));
         }
 
         Search {
@@ -176,7 +174,9 @@ impl Search {
                 best_move_index = 0;
                 num_moves = 0;
                 let mut beta_cutoff = false;
-                'try_moves: for (i, &mut (mov, ref mut subtree_size)) in moves.iter_mut().enumerate() {
+                'try_moves: for (i, &mut (mov, ref mut subtree_size)) in
+                    moves.iter_mut().enumerate()
+                {
                     self.internal_make_move(mov, 0);
                     if !self.position.move_was_legal(mov) {
                         self.internal_unmake_move(mov, 0);
@@ -306,13 +306,11 @@ impl Search {
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
-
         // Mate Distance Pruning
         // If we found a shorter mating sequence, do not search this move further.
         if MATE_SCORE - ply < alpha {
             return Some(alpha);
         }
-
 
         if depth < INC_PLY {
             // In PV nodes we only cutoff on TT hits if we would drop into quiescence search otherwise.
@@ -320,9 +318,9 @@ impl Search {
             if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
                 let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
                 if ttentry
-                        .best_move
-                        .expand(&self.position)
-                        .map_or(false, check_move_legality)
+                    .best_move
+                    .expand(&self.position)
+                    .map_or(false, check_move_legality)
                 {
                     let score = ttentry.score.to_score(ply);
 
@@ -407,7 +405,8 @@ impl Search {
             }
 
             if num_moves == 1 || value.map_or(false, |value| value > alpha) {
-                value = self.search_pv(ply + 1, -beta, -alpha, new_depth)
+                value = self
+                    .search_pv(ply + 1, -beta, -alpha, new_depth)
                     .map(|v| -v);
             }
 
@@ -543,7 +542,8 @@ impl Search {
         if !in_check && self.eval.material.non_pawn_material() > 0 && eval >= beta {
             let r = 2;
             self.internal_make_nullmove(ply);
-            let score = self.search_zw(ply + 1, -alpha, depth - INC_PLY - r * INC_PLY)
+            let score = self
+                .search_zw(ply + 1, -alpha, depth - INC_PLY - r * INC_PLY)
                 .map(|v| -v);
             self.internal_unmake_nullmove(ply);
             match score {
@@ -563,7 +563,10 @@ impl Search {
 
         // If the futility limit is positive, a move has to gain material or else it gets pruned.
         // Therefore we can skip all quiet moves since they don't change material.
-        let futility_skip_quiets = !in_check && depth < 3*INC_PLY && alpha > -MATE_SCORE + MAX_PLY && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
+        let futility_skip_quiets = !in_check
+            && depth < 3 * INC_PLY
+            && alpha > -MATE_SCORE + MAX_PLY
+            && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
 
         let previous_move = self.stack[ply as usize - 1].borrow().current_move;
         let nullmove_reply = previous_move == None;
@@ -600,10 +603,13 @@ impl Search {
             // Futility pruning
             if !check {
                 let capture_value = mov.captured.map_or(0, Piece::value);
-                let promotion_value = mov.promoted
+                let promotion_value = mov
+                    .promoted
                     .map_or(0, |piece| piece.value() - Piece::Pawn.value());
 
-                if eval + 200*((depth / INC_PLY + 1) / 2) + capture_value + promotion_value < alpha {
+                if eval + 200 * ((depth / INC_PLY + 1) / 2) + capture_value + promotion_value
+                    < alpha
+                {
                     pruned = true;
                     self.internal_unmake_move(mov, ply);
                     continue;
@@ -729,9 +735,9 @@ impl Search {
             if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
                 let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
                 if ttentry
-                       .best_move
-                       .expand(&self.position)
-                       .map_or(false, check_move_legality)
+                    .best_move
+                    .expand(&self.position)
+                    .map_or(false, check_move_legality)
                 {
                     let score = ttentry.score.to_score(ply);
 
@@ -791,7 +797,8 @@ impl Search {
             }
             num_moves += 1;
 
-            let value = self.qsearch(ply + 1, -beta, -alpha, depth - INC_PLY)
+            let value = self
+                .qsearch(ply + 1, -beta, -alpha, depth - INC_PLY)
                 .map(|v| -v);
             self.internal_unmake_move(mov, ply);
 
@@ -829,7 +836,7 @@ impl Search {
             }
         }
 
-        if depth == 0 || depth == INC_PLY && in_check  {
+        if depth == 0 || depth == INC_PLY && in_check {
             self.tt.borrow_mut().insert(
                 self.hasher.get_hash(),
                 0,
@@ -932,7 +939,9 @@ impl Search {
     fn update_quiet_stats(&mut self, mov: Move, ply: Ply, depth: Depth) {
         assert!(mov.is_quiet());
 
-        self.history.borrow_mut().increase_score(self.position.white_to_move, mov, depth);
+        self.history
+            .borrow_mut()
+            .increase_score(self.position.white_to_move, mov, depth);
 
         let killers = &mut self.stack[ply as usize].borrow_mut().killers_moves;
 
