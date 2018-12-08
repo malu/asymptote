@@ -16,7 +16,6 @@
 */
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::time;
 
 use crate::eval::*;
 use crate::hash::*;
@@ -25,6 +24,7 @@ use crate::movegen::*;
 use crate::movepick::*;
 use crate::position::*;
 use crate::repetitions::Repetitions;
+use crate::time::*;
 use crate::tt::*;
 
 pub type Ply = i16;
@@ -43,8 +43,8 @@ pub struct Search {
     history: Rc<RefCell<History>>,
     pub position: Position,
     eval: Eval,
-    started_at: time::Instant,
-    pub stop_condition: StopCondition,
+    pub time_control: TimeControl,
+    time_manager: TimeManager,
     pub hasher: Hasher,
     visited_nodes: u64,
     pub tt: Rc<RefCell<TT>>,
@@ -52,27 +52,9 @@ pub struct Search {
     max_ply_searched: Ply,
     repetitions: Repetitions,
     pub made_moves: Vec<Move>,
-    searching_for_white: bool,
     pub show_pv_board: bool,
 
     mp_allocations: Vec<Rc<RefCell<MovePickerAllocations>>>,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum StopCondition {
-    Infinite,
-    TimePerMove {
-        millis: u64,
-    },
-    Depth(Depth),
-    Nodes(u64),
-    Variable {
-        wtime: u64,
-        btime: u64,
-        winc: Option<u64>,
-        binc: Option<u64>,
-        movestogo: Option<u64>,
-    },
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -97,9 +79,9 @@ impl Search {
             history: Rc::new(RefCell::new(History::default())),
             stack,
             eval: Eval::from(&position),
+            time_control: TimeControl::Infinite,
+            time_manager: TimeManager::new(&position, TimeControl::Infinite),
             position,
-            started_at: time::Instant::now(),
-            stop_condition: StopCondition::Infinite,
             hasher: Hasher::new(),
             tt: Rc::new(RefCell::new(TT::new(14))),
             visited_nodes: 0,
@@ -107,7 +89,6 @@ impl Search {
             max_ply_searched: 0,
             repetitions: Repetitions::new(100),
             made_moves: Vec::new(),
-            searching_for_white: true,
             show_pv_board: false,
 
             mp_allocations,
@@ -115,8 +96,7 @@ impl Search {
     }
 
     pub fn root(&mut self) -> Move {
-        self.searching_for_white = self.position.white_to_move;
-        self.started_at = time::Instant::now();
+        self.time_manager = TimeManager::new(&self.position, self.time_control);
         self.visited_nodes = 0;
         self.tt.borrow_mut().next_generation();
         self.pv
@@ -155,7 +135,7 @@ impl Search {
         let mut beta;
         let mut max_depth = 0;
         'deepening: for d in 1_i16.. {
-            if !self.start_another_iteration(d) {
+            if !self.time_manager.start_another_iteration(d) {
                 break;
             }
             let depth = d * INC_PLY;
@@ -285,7 +265,7 @@ impl Search {
         beta: Score,
         depth: Depth,
     ) -> Option<Score> {
-        if self.should_stop() {
+        if self.time_manager.should_stop(self.visited_nodes) {
             return None;
         }
 
@@ -484,7 +464,7 @@ impl Search {
     }
 
     pub fn search_zw(&mut self, ply: Ply, beta: Score, depth: Depth) -> Option<Score> {
-        if self.should_stop() {
+        if self.time_manager.should_stop(self.visited_nodes) {
             return None;
         }
 
@@ -711,7 +691,7 @@ impl Search {
     }
 
     pub fn qsearch(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
-        if self.should_stop() {
+        if self.time_manager.should_stop(self.visited_nodes) {
             return None;
         }
 
@@ -904,8 +884,7 @@ impl Search {
     }
 
     fn uci_info(&self, d: Depth, alpha: Score) {
-        let elapsed = time::Instant::now() - self.started_at;
-        let millis = elapsed.as_secs() as u32 * 1000 + elapsed.subsec_millis();
+        let elapsed = self.time_manager.elapsed_millis();
         let score_str = if alpha.abs() >= MATE_SCORE - MAX_PLY {
             if alpha < 0 {
                 format!("mate {}", -MATE_SCORE - alpha)
@@ -922,7 +901,7 @@ impl Search {
             self.max_ply_searched,
             self.visited_nodes,
             score_str,
-            millis,
+            elapsed,
             self.tt.borrow().usage()
         );
         for mov in self.pv[0].iter().take_while(|o| o.is_some()) {
@@ -966,85 +945,6 @@ impl Search {
         }
     }
 
-    fn start_another_iteration(&mut self, d: Depth) -> bool {
-        if d == MAX_PLY {
-            return false;
-        }
-
-        match self.stop_condition {
-            StopCondition::Depth(stop_d) => d <= stop_d,
-            StopCondition::TimePerMove { millis } => {
-                let now = time::Instant::now();
-                let elapsed = now - self.started_at;
-                let elapsed_millis = elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_millis());
-                elapsed_millis + 50 <= millis
-            }
-            StopCondition::Variable {
-                wtime,
-                btime,
-                winc,
-                binc,
-                movestogo,
-            } => {
-                let now = time::Instant::now();
-                let elapsed = now - self.started_at;
-                let elapsed_millis = elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_millis());
-
-                let time = if self.searching_for_white {
-                    wtime
-                } else {
-                    btime
-                };
-                let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
-                let movestogo = movestogo.unwrap_or(40);
-                elapsed_millis <= ::std::cmp::min(time, time / movestogo + inc) / 2
-            }
-            _ => true,
-        }
-    }
-
-    fn should_stop(&mut self) -> bool {
-        match self.stop_condition {
-            StopCondition::Infinite => false,
-            StopCondition::Nodes(nodes) => self.visited_nodes >= nodes,
-            StopCondition::Depth(_) => false, /* handled in start_another_iteration */
-            StopCondition::TimePerMove { millis } => {
-                if self.visited_nodes & 0x7F == 0 {
-                    let now = time::Instant::now();
-                    let elapsed = now - self.started_at;
-                    let elapsed_millis =
-                        elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_millis());
-                    return elapsed_millis + 20 > millis;
-                }
-                false
-            }
-            StopCondition::Variable {
-                wtime,
-                btime,
-                winc,
-                binc,
-                movestogo,
-            } => {
-                if self.visited_nodes & 0x7F == 0 {
-                    let now = time::Instant::now();
-                    let elapsed = now - self.started_at;
-                    let elapsed_millis =
-                        elapsed.as_secs() * 1000 + u64::from(elapsed.subsec_millis());
-
-                    let time = if self.searching_for_white {
-                        wtime
-                    } else {
-                        btime
-                    };
-                    let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
-                    let movestogo = ::std::cmp::min(10, movestogo.unwrap_or(10));
-                    return elapsed_millis >= ::std::cmp::min(time - 10, time / movestogo + inc);
-                }
-                false
-            }
-        }
-    }
-
     fn is_draw(&self, ply: Ply) -> bool {
         let last_move = self.stack[ply as usize - 1].borrow().current_move;
         if last_move.and_then(|mov| mov.captured).is_some() {
@@ -1057,7 +957,7 @@ impl Search {
     }
 
     pub fn perft(&mut self, depth: usize) {
-        let start = time::Instant::now();
+        self.time_manager = TimeManager::new(&self.position, TimeControl::Infinite);
 
         let mut num_moves = 0;
         let moves = MoveGenerator::from(&self.position).all_moves();
@@ -1074,14 +974,11 @@ impl Search {
             }
         }
 
-        let elapsed = time::Instant::now() - start;
+        let elapsed = self.time_manager.elapsed_millis();
 
         println!();
         println!("Nodes searched: {}", num_moves);
-        println!(
-            "Took {} ms",
-            elapsed.as_secs() as u32 * 1000 + elapsed.subsec_millis()
-        );
+        println!("Took {} ms", elapsed);
         println!();
     }
 

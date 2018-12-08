@@ -17,6 +17,7 @@
 use crate::movegen::*;
 use crate::position::*;
 use crate::search::*;
+use crate::time::*;
 use crate::tt::*;
 
 use std::io::{self, BufRead};
@@ -37,13 +38,13 @@ impl Default for PersistentOptions {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 struct UciGoParams {
-    stop_condition: StopCondition,
+    time_control: TimeControl,
 }
 
 impl<'a> From<&'a str> for UciGoParams {
     fn from(s: &str) -> Self {
         let mut result = UciGoParams {
-            stop_condition: StopCondition::Infinite,
+            time_control: TimeControl::Infinite,
         };
 
         let mut wtime: Option<u64> = None;
@@ -55,20 +56,20 @@ impl<'a> From<&'a str> for UciGoParams {
         let mut split = s.split_whitespace();
         while let Some(s) = split.next() {
             if s == "movetime" {
-                result.stop_condition = StopCondition::TimePerMove {
-                    millis: split.next().unwrap().parse().unwrap(),
-                };
+                result.time_control = TimeControl::FixedMillis(
+                    split.next().unwrap().parse().unwrap(),
+                );
                 return result;
             } else if s == "infinite" {
-                result.stop_condition = StopCondition::Infinite;
+                result.time_control = TimeControl::Infinite;
                 return result;
             } else if s == "nodes" {
-                result.stop_condition =
-                    StopCondition::Nodes(split.next().unwrap().parse().unwrap());
+                result.time_control =
+                    TimeControl::FixedNodes(split.next().unwrap().parse().unwrap());
                 return result;
             } else if s == "depth" {
-                result.stop_condition =
-                    StopCondition::Depth(split.next().unwrap().parse().unwrap());
+                result.time_control =
+                    TimeControl::FixedDepth(split.next().unwrap().parse().unwrap());
                 return result;
             } else if s == "wtime" {
                 wtime = split.next().unwrap().parse().ok();
@@ -84,7 +85,7 @@ impl<'a> From<&'a str> for UciGoParams {
         }
 
         UciGoParams {
-            stop_condition: StopCondition::Variable {
+            time_control: TimeControl::Variable {
                 wtime: wtime.unwrap(),
                 btime: btime.unwrap(),
                 winc,
@@ -171,7 +172,7 @@ impl UCI {
                 println!("readyok");
             } else if line.starts_with("go") {
                 let go_params = UciGoParams::from(line.as_ref());
-                self.search.stop_condition = go_params.stop_condition;
+                self.search.time_control = go_params.time_control;
                 let mov = self.search.root();
                 println!("bestmove {}", mov.to_algebraic());
             } else if line.starts_with("position") {

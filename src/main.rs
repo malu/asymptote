@@ -36,6 +36,7 @@ mod movepick;
 pub mod position;
 mod repetitions;
 mod search;
+mod time;
 mod tt;
 mod uci;
 
