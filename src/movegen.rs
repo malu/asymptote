@@ -17,6 +17,7 @@
 use crate::bitboard::*;
 use crate::eval::*;
 use crate::position::*;
+use lazy_static::*;
 use rand::{prelude::*, prng::ChaChaRng};
 
 pub fn initialize_magics() {

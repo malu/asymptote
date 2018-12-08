@@ -14,18 +14,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#![cfg_attr(feature = "cargo-clippy", warn(option_map_unwrap_or))]
-#![cfg_attr(feature = "cargo-clippy", warn(option_map_unwrap_or_else))]
-#![cfg_attr(feature = "cargo-clippy", warn(result_map_unwrap_or_else))]
-#![cfg_attr(feature = "cargo-clippy", warn(single_match_else))]
-#![cfg_attr(feature = "cargo-clippy", warn(unseparated_literal_suffix))]
-#![cfg_attr(feature = "cargo-clippy", warn(used_underscore_binding))]
-#![cfg_attr(feature = "cargo-clippy", warn(clone_on_ref_ptr))]
-#![cfg_attr(feature = "cargo-clippy", warn(multiple_inherent_impl))]
-
-#[macro_use]
-extern crate lazy_static;
-extern crate rand;
+#![warn(clippy::option_map_unwrap_or)]
+#![warn(clippy::option_map_unwrap_or_else)]
+#![warn(clippy::result_map_unwrap_or_else)]
+#![warn(clippy::single_match_else)]
+#![warn(clippy::unseparated_literal_suffix)]
+#![warn(clippy::used_underscore_binding)]
+#![warn(clippy::clone_on_ref_ptr)]
+#![warn(clippy::multiple_inherent_impl)]
 
 mod bitboard;
 mod eval;
