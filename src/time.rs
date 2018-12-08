@@ -35,7 +35,6 @@ pub enum TimeControl {
     },
 }
 
-
 pub struct TimeManager {
     started_at: time::Instant,
     control: TimeControl,
@@ -53,7 +52,7 @@ impl TimeManager {
 
     pub fn elapsed_millis(&self) -> u64 {
         let duration = time::Instant::now() - self.started_at;
-        1000 * duration.as_secs() + duration.subsec_millis() as u64
+        1000 * duration.as_secs() + u64::from(duration.subsec_millis())
     }
 
     pub fn start_another_iteration(&self, ply: Ply) -> bool {

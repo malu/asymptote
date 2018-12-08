@@ -378,11 +378,11 @@ impl Search {
 
             let new_depth = depth - INC_PLY + extension;
 
-            let mut value = Some(-Score::max_value());
-
-            if num_moves > 1 {
-                value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
-            }
+            let mut value = if num_moves > 1 {
+                self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v)
+            } else {
+                Some(-Score::max_value())
+            };
 
             if num_moves == 1 || value.map_or(false, |value| value > alpha) {
                 value = self
@@ -617,16 +617,15 @@ impl Search {
                 reduction += INC_PLY;
             }
 
-            if extension <= 0 {
-                if depth <= LMR_MAX_DEPTH
-                    && num_moves > LMR_MOVES[(depth / INC_PLY) as usize]
-                    && mtype != MoveType::GoodCapture
-                    && mtype != MoveType::Killer
-                    && !check
-                    && !in_check
-                {
-                    reduction += INC_PLY;
-                }
+            if extension <= 0
+                && depth <= LMR_MAX_DEPTH
+                && num_moves > LMR_MOVES[(depth / INC_PLY) as usize]
+                && mtype != MoveType::GoodCapture
+                && mtype != MoveType::Killer
+                && !check
+                && !in_check
+            {
+                reduction += INC_PLY;
             }
 
             let mut new_depth = depth - INC_PLY + extension - reduction;

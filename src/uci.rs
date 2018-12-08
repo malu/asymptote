@@ -56,9 +56,8 @@ impl<'a> From<&'a str> for UciGoParams {
         let mut split = s.split_whitespace();
         while let Some(s) = split.next() {
             if s == "movetime" {
-                result.time_control = TimeControl::FixedMillis(
-                    split.next().unwrap().parse().unwrap(),
-                );
+                result.time_control =
+                    TimeControl::FixedMillis(split.next().unwrap().parse().unwrap());
                 return result;
             } else if s == "infinite" {
                 result.time_control = TimeControl::Infinite;
@@ -147,8 +146,8 @@ impl UCI {
                             let hash_buckets = 1024 * 1024 * mb / 64; // 64 bytes per hash bucket
                             let power_of_two = (hash_buckets + 1).next_power_of_two() / 2;
                             let bits = power_of_two.trailing_zeros();
-                            self.search.resize_tt(bits as u64);
-                            self.options.hash_bits = bits as u64;
+                            self.search.resize_tt(u64::from(bits));
+                            self.options.hash_bits = u64::from(bits);
                         } else {
                             eprintln!("Unable to parse value '{}' as integer", value);
                         }

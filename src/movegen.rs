@@ -814,7 +814,7 @@ impl<'p> From<&'p Position> for MoveGenerator<'p> {
 }
 
 impl Move {
-    pub fn is_quiet(&self) -> bool {
+    pub fn is_quiet(self) -> bool {
         self.captured.is_none() && self.promoted.is_none()
     }
 

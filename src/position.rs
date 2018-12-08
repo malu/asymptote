@@ -111,15 +111,13 @@ impl Position {
         let allowed_pieces = self.all_pieces ^ mov.from.to_bb() & !mov.to.to_bb();
         let piece_value = mov.captured.map_or(0, Piece::value);
         let piece_after_move = mov.promoted.unwrap_or(mov.piece);
-        let value = piece_value
+        piece_value
             - self.see_square(
                 mov.to,
                 piece_after_move,
                 allowed_pieces,
                 !self.white_to_move,
-            );
-
-        value
+            )
     }
 
     fn see_square(

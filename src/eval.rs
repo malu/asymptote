@@ -153,10 +153,7 @@ impl Eval {
         let (wmg, weg) = self.pawns_for_side(pos, true);
         let (bmg, beg) = self.pawns_for_side(pos, false);
 
-        let pawn_hash_entry = self
-            .pawn_table
-            .get_mut(pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES)
-            .unwrap();
+        let pawn_hash_entry = &mut self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
         pawn_hash_entry.pawns = pawns;
         pawn_hash_entry.color = pos.color & pawns;
         pawn_hash_entry.mg = wmg - bmg;
@@ -275,9 +272,10 @@ impl Eval {
 
         let eg_penalty = CENTER_DISTANCE[king_sq.0 as usize];
 
-        if white && self.material.black_queens == 0 && self.material.black_rooks <= 1 {
-            return (0, -5 * eg_penalty);
-        } else if !white && self.material.white_queens == 0 && self.material.white_rooks <= 1 {
+        let skip_king_safety =
+            (white && self.material.black_queens == 0 && self.material.black_rooks <= 1)
+                || (!white && self.material.white_queens == 0 && self.material.white_rooks <= 1);
+        if skip_king_safety {
             return (0, -5 * eg_penalty);
         }
 
@@ -334,15 +332,12 @@ impl Eval {
             }
         }
 
-        match mov.piece {
-            Piece::Pawn => {
-                if pos.white_to_move {
-                    self.positional.white_pawns_per_file[mov.from.file() as usize] -= 1;
-                } else {
-                    self.positional.black_pawns_per_file[mov.from.file() as usize] -= 1;
-                }
+        if mov.piece == Piece::Pawn {
+            if pos.white_to_move {
+                self.positional.white_pawns_per_file[mov.from.file() as usize] -= 1;
+            } else {
+                self.positional.black_pawns_per_file[mov.from.file() as usize] -= 1;
             }
-            _ => {}
         }
 
         match mov.captured {
