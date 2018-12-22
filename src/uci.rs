@@ -246,6 +246,13 @@ impl UCI {
                 } else {
                     println!("No TT entry.");
                 }
+            } else if line.starts_with("history") {
+                if let Some(mov) = line.split_whitespace().nth(1).map(|mov| Move::from_algebraic(&self.search.position, mov)) {
+                    let score = self.search.history.borrow().get_score(self.search.position.white_to_move, mov);
+                    println!("History score: {}", score);
+                } else {
+                    println!("Invalid move");
+                }
             } else if line.starts_with("perft") {
                 self.search
                     .perft(line.split_whitespace().nth(1).unwrap().parse().unwrap());

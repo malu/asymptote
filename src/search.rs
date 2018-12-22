@@ -40,7 +40,7 @@ const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [255, 255, 3,
 
 pub struct Search {
     stack: Vec<Rc<RefCell<PlyDetails>>>,
-    history: Rc<RefCell<History>>,
+    pub history: Rc<RefCell<History>>,
     pub position: Position,
     eval: Eval,
     pub time_control: TimeControl,
