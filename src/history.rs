@@ -14,12 +14,11 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use crate::eval::*;
 use crate::movegen::*;
 use crate::search::*;
 
 pub struct History {
-    from_to: [[[i32; 64]; 64]; 2],
+    from_to: [[[i64; 64]; 64]; 2],
 }
 
 impl Default for History {
@@ -31,28 +30,13 @@ impl Default for History {
 }
 
 impl History {
-    pub fn get_score(&self, white: bool, mov: Move) -> i32 {
+    pub fn get_score(&self, white: bool, mov: Move) -> i64 {
         self.from_to[white as usize][mov.from.0 as usize][mov.to.0 as usize]
     }
 
     pub fn increase_score(&mut self, white: bool, mov: Move, depth: Depth) {
-        let d = i32::from(depth / INC_PLY);
-        let rescale;
+        let d = i64::from(depth / INC_PLY);
 
-        {
-            let entry = &mut self.from_to[white as usize][mov.from.0 as usize][mov.to.0 as usize];
-            *entry += d * d;
-            rescale = *entry > i32::from(Score::max_value());
-        }
-
-        if rescale {
-            for stm in 0..2 {
-                for from in 0..64 {
-                    for to in 0..64 {
-                        self.from_to[stm][from][to] /= 4;
-                    }
-                }
-            }
-        }
+        self.from_to[white as usize][mov.from.0 as usize][mov.to.0 as usize] += d*d;
     }
 }

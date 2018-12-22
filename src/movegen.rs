@@ -345,7 +345,7 @@ pub struct MoveGenerator<'p> {
 }
 
 impl<'p> MoveGenerator<'p> {
-    pub fn good_captures(&mut self, moves: &mut Vec<Move>, scores: &mut Vec<i16>) {
+    pub fn good_captures(&mut self, moves: &mut Vec<Move>, scores: &mut Vec<i64>) {
         let all_pieces = self.position.all_pieces;
         let ep = if self.position.details.en_passant != 255 {
             if self.position.white_to_move {
@@ -382,7 +382,7 @@ impl<'p> MoveGenerator<'p> {
             let mov = moves[i];
             let score = self.position.see(mov);
             if score >= 0 {
-                scores.push(score);
+                scores.push(score as i64);
                 i += 1;
             } else {
                 moves.swap_remove(i);
@@ -406,7 +406,7 @@ impl<'p> MoveGenerator<'p> {
         self.king(!self.position.all_pieces, moves);
     }
 
-    pub fn bad_captures(&mut self, moves: &mut Vec<Move>, scores: &mut Vec<i16>) {
+    pub fn bad_captures(&mut self, moves: &mut Vec<Move>, scores: &mut Vec<i64>) {
         let all_pieces = self.position.all_pieces;
 
         let them = if self.position.white_to_move {
@@ -428,7 +428,7 @@ impl<'p> MoveGenerator<'p> {
             let mov = moves[i];
             let score = self.position.see(mov);
             if score < 0 {
-                scores.push(score);
+                scores.push(score as i64);
                 i += 1;
             } else {
                 moves.swap_remove(i);

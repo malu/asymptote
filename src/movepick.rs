@@ -17,7 +17,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::eval::*;
 use crate::hash::*;
 use crate::history::*;
 use crate::movegen::*;
@@ -28,7 +27,7 @@ use crate::tt::*;
 pub struct MovePickerAllocations {
     excluded: Vec<Move>,
     moves: Vec<Move>,
-    scores: Vec<Score>,
+    scores: Vec<i64>,
 }
 
 impl Default for MovePickerAllocations {
@@ -48,7 +47,7 @@ pub struct MovePicker<'a> {
     excluded: &'a mut Vec<Move>,
     stage: usize,
     moves: &'a mut Vec<Move>,
-    scores: &'a mut Vec<Score>,
+    scores: &'a mut Vec<i64>,
     index: usize,
     ply_details: Rc<RefCell<PlyDetails>>,
     history: Rc<RefCell<History>>,
@@ -302,7 +301,7 @@ impl<'a> Iterator for MovePicker<'a> {
                     self.scores.extend(
                         self.moves
                             .iter()
-                            .map(|&mov| history.get_score(wtm, mov) as Score),
+                            .map(|&mov| history.get_score(wtm, mov)),
                     );
                 }
                 self.index = 0;
