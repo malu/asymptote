@@ -628,31 +628,22 @@ impl Search {
                 reduction += INC_PLY;
             }
 
-            let mut new_depth = depth - INC_PLY + extension - reduction;
+            let new_depth = depth - INC_PLY + extension;
 
-            let mut value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
-            let mut research = false;
-            if value.is_some() {
-                if value.unwrap() > alpha && reduction > 0 {
-                    new_depth += reduction;
-                    research = true;
-                }
-
-                if research {
-                    value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
-                }
+            let mut value = self.search_zw(ply + 1, -alpha, new_depth-reduction).map(|v| -v);
+            if value.is_some() && value.unwrap() > alpha && reduction > 0 {
+                value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
             }
 
             self.internal_unmake_move(mov, ply);
 
-            if value == None {
-                return None;
-            }
+            if let Some(value) = value {
+                if value > best_score {
+                    best_score = value;
+                    best_move = Some(mov);
+                }
 
-            if value.unwrap() > best_score {
-                best_score = value.unwrap();
-                best_move = Some(mov);
-                if value.unwrap() >= beta {
+                if value >= beta {
                     if mov.is_quiet() {
                         self.update_quiet_stats(mov, ply, depth);
                     }
@@ -664,8 +655,10 @@ impl Search {
                         mov,
                         LOWER_BOUND,
                     );
-                    return value;
+                    return Some(value);
                 }
+            } else {
+                return None;
             }
         }
 
