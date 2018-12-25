@@ -111,7 +111,8 @@ impl Position {
         let allowed_pieces = self.all_pieces ^ mov.from.to_bb() & !mov.to.to_bb();
         let piece_value = mov.captured.map_or(0, Piece::value);
         let piece_after_move = mov.promoted.unwrap_or(mov.piece);
-        piece_value
+        let promotion_value = piece_after_move.value() - mov.piece.value();
+        piece_value + promotion_value
             - self.see_square(
                 mov.to,
                 piece_after_move,
@@ -131,13 +132,19 @@ impl Position {
         let (piece, from_bb) = self.get_cheapest_captures(sq, allowed_pieces, white);
 
         let capture_value = occupier.value();
+        let promotion =
+            piece == Piece::Pawn && (white && sq.rank() == 7 || !white && sq.rank() == 0);
+        let piece_after_move = if promotion { Piece::Queen } else { piece };
+        let promotion_value = piece_after_move.value() - piece.value();
+
         for from in from_bb.squares() {
             value = ::std::cmp::max(
                 value,
-                capture_value - self.see_square(sq, piece, allowed_pieces ^ from.to_bb(), !white),
+                capture_value + promotion_value
+                    - self.see_square(sq, piece_after_move, allowed_pieces ^ from.to_bb(), !white),
             );
 
-            if value >= capture_value {
+            if value >= capture_value + promotion_value {
                 break;
             }
         }
