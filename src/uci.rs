@@ -251,7 +251,15 @@ impl UCI {
                     let score = self.search.history.borrow().get_score(self.search.position.white_to_move, mov);
                     println!("History score: {}", score);
                 } else {
-                    println!("Invalid move");
+                    let mg = MoveGenerator::from(&self.search.position);
+                    let history = self.search.history.borrow();
+                    let mut moves = Vec::new();
+                    mg.quiet_moves(&mut moves);
+                    let mut moves = moves.into_iter().map(|mov| (mov, history.get_score(self.search.position.white_to_move, mov))).collect::<Vec<_>>();
+                    moves.sort_by_key(|(_, hist)| -hist);
+                    for (mov, hist) in moves {
+                        println!("{} {:>8}", mov.to_algebraic(), hist);
+                    }
                 }
             } else if line.starts_with("perft") {
                 self.search
