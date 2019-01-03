@@ -82,11 +82,7 @@ const ROOK_MOBILITY_AVG: Score = 105;
 
 impl Eval {
     fn mobility_for_side(&self, white: bool, pos: &Position) -> Score {
-        let us = if white {
-            pos.white_pieces
-        } else {
-            pos.black_pieces
-        };
+        let us = pos.us(white);
         let rank3 = if white { RANK_3 } else { RANK_6 };
 
         let pawn_stop_squares = (pos.pawns() & us).forward(white, 1);
@@ -162,12 +158,8 @@ impl Eval {
     }
 
     fn pawns_for_side(&mut self, pos: &Position, white: bool) -> (Score, Score) {
-        let us = if white {
-            pos.white_pieces
-        } else {
-            pos.black_pieces
-        };
-        let them = !us;
+        let us = pos.us(white);
+        let them = pos.them(white);
         let side = white as usize;
 
         const PASSER_ON_RANK_BONUS_EG: [Score; 8] = [0, 160, 80, 40, 20, 10, 10, 0];
@@ -212,12 +204,7 @@ impl Eval {
     }
 
     pub fn rooks_for_side(&self, pos: &Position, white: bool) -> Score {
-        let us = if white {
-            pos.white_pieces
-        } else {
-            pos.black_pieces
-        };
-
+        let us = pos.us(white);
         const OPEN_FILE_BONUS: Score = 15;
         const HALF_OPEN_FILE_BONUS: Score = 5;
         let mut score = 0;
@@ -241,12 +228,8 @@ impl Eval {
     }
 
     fn king_safety_for_side(&self, pos: &Position, white: bool) -> (Score, Score) {
-        let us = if white {
-            pos.white_pieces
-        } else {
-            pos.black_pieces
-        };
-        let them = !us;
+        let us = pos.us(white);
+        let them = pos.them(white);
 
         #[cfg_attr(rustfmt, rustfmt_skip)]
         const CENTER_DISTANCE: [Score; 64] = [
@@ -718,69 +701,69 @@ impl Material {
 impl<'p> From<&'p Position> for Material {
     fn from(pos: &Position) -> Material {
         Material {
-            white_pawns: (pos.white_pieces & pos.pawns()).popcount() as usize,
-            white_knights: (pos.white_pieces & pos.knights()).popcount() as usize,
-            white_bishops: (pos.white_pieces & pos.bishops()).popcount() as usize,
-            white_rooks: (pos.white_pieces & pos.rooks()).popcount() as usize,
-            white_queens: (pos.white_pieces & pos.queens()).popcount() as usize,
-            black_pawns: (pos.black_pieces & pos.pawns()).popcount() as usize,
-            black_knights: (pos.black_pieces & pos.knights()).popcount() as usize,
-            black_bishops: (pos.black_pieces & pos.bishops()).popcount() as usize,
-            black_rooks: (pos.black_pieces & pos.rooks()).popcount() as usize,
-            black_queens: (pos.black_pieces & pos.queens()).popcount() as usize,
+            white_pawns: (pos.white_pieces() & pos.pawns()).popcount() as usize,
+            white_knights: (pos.white_pieces() & pos.knights()).popcount() as usize,
+            white_bishops: (pos.white_pieces() & pos.bishops()).popcount() as usize,
+            white_rooks: (pos.white_pieces() & pos.rooks()).popcount() as usize,
+            white_queens: (pos.white_pieces() & pos.queens()).popcount() as usize,
+            black_pawns: (pos.black_pieces() & pos.pawns()).popcount() as usize,
+            black_knights: (pos.black_pieces() & pos.knights()).popcount() as usize,
+            black_bishops: (pos.black_pieces() & pos.bishops()).popcount() as usize,
+            black_rooks: (pos.black_pieces() & pos.rooks()).popcount() as usize,
+            black_queens: (pos.black_pieces() & pos.queens()).popcount() as usize,
         }
     }
 }
 
 fn init_pst_score(pos: &Position) -> [Score; 2] {
     let mut white = 0;
-    white += (pos.white_pieces & pos.pawns())
+    white += (pos.white_pieces() & pos.pawns())
         .squares()
         .map(|sq| pst(&PST[Piece::Pawn.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.knights())
+    white += (pos.white_pieces() & pos.knights())
         .squares()
         .map(|sq| pst(&PST[Piece::Knight.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.bishops())
+    white += (pos.white_pieces() & pos.bishops())
         .squares()
         .map(|sq| pst(&PST[Piece::Bishop.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.rooks())
+    white += (pos.white_pieces() & pos.rooks())
         .squares()
         .map(|sq| pst(&PST[Piece::Rook.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.queens())
+    white += (pos.white_pieces() & pos.queens())
         .squares()
         .map(|sq| pst(&PST[Piece::Queen.index()], true, sq))
         .sum::<Score>();
-    white += (pos.white_pieces & pos.kings())
+    white += (pos.white_pieces() & pos.kings())
         .squares()
         .map(|sq| pst(&PST[Piece::King.index()], true, sq))
         .sum::<Score>();
 
     let mut black = 0;
-    black += (pos.black_pieces & pos.pawns())
+    black += (pos.black_pieces() & pos.pawns())
         .squares()
         .map(|sq| pst(&PST[Piece::Pawn.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.knights())
+    black += (pos.black_pieces() & pos.knights())
         .squares()
         .map(|sq| pst(&PST[Piece::Knight.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.bishops())
+    black += (pos.black_pieces() & pos.bishops())
         .squares()
         .map(|sq| pst(&PST[Piece::Bishop.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.rooks())
+    black += (pos.black_pieces() & pos.rooks())
         .squares()
         .map(|sq| pst(&PST[Piece::Rook.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.queens())
+    black += (pos.black_pieces() & pos.queens())
         .squares()
         .map(|sq| pst(&PST[Piece::Queen.index()], false, sq))
         .sum::<Score>();
-    black += (pos.black_pieces & pos.kings())
+    black += (pos.black_pieces() & pos.kings())
         .squares()
         .map(|sq| pst(&PST[Piece::King.index()], false, sq))
         .sum::<Score>();
@@ -894,11 +877,11 @@ impl<'p> From<&'p Position> for Positional {
         let mut white_pawns_per_file = [0; 8];
         let mut black_pawns_per_file = [0; 8];
 
-        for pawn in (pos.pawns() & pos.white_pieces).squares() {
+        for pawn in (pos.pawns() & pos.white_pieces()).squares() {
             white_pawns_per_file[pawn.file() as usize] += 1;
         }
 
-        for pawn in (pos.pawns() & pos.black_pieces).squares() {
+        for pawn in (pos.pawns() & pos.black_pieces()).squares() {
             black_pawns_per_file[pawn.file() as usize] += 1;
         }
 

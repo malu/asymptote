@@ -106,11 +106,7 @@ impl Hasher {
     pub fn make_move(&mut self, pos: &Position, mov: Move) {
         let rank2 = if pos.white_to_move { RANK_2 } else { RANK_7 };
         let rank4 = if pos.white_to_move { RANK_4 } else { RANK_5 };
-        let them = if pos.white_to_move {
-            pos.black_pieces
-        } else {
-            pos.white_pieces
-        };
+        let them = pos.them(pos.white_to_move);
 
         if pos.details.en_passant != 255 {
             self.hash ^= self.en_passant[pos.details.en_passant as usize];

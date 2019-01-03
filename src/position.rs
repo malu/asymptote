@@ -42,6 +42,9 @@ pub struct Position {
     /// Bitboard of each piece type on the board. A set bit means a piece occupies the respective square. Index by `bb[Piece::index()]`.
     pub bb: [Bitboard; 6],
 
+    /// Bitboard of all pieces of a single color. `[Black, White]`.
+    pub pieces: [Bitboard; 2],
+
     /// Whether it is white's tunr to move.
     pub white_to_move: bool,
 
@@ -54,12 +57,6 @@ pub struct Position {
 
     /// A bitboard of all pieces on the board.
     pub all_pieces: Bitboard,
-
-    /// A bitboard of all white pieces on the board.
-    pub white_pieces: Bitboard,
-
-    /// A bitboard of all black pieces on the board.
-    pub black_pieces: Bitboard,
 }
 
 /// Some not easily reverted changes in a position.
@@ -104,6 +101,22 @@ impl Position {
 
     pub fn kings(&self) -> Bitboard {
         self.bb[Piece::King.index()]
+    }
+
+    pub fn white_pieces(&self) -> Bitboard {
+        self.pieces[1]
+    }
+
+    pub fn black_pieces(&self) -> Bitboard {
+        self.pieces[0]
+    }
+
+    pub fn us(&self, white: bool) -> Bitboard {
+        self.pieces[white as usize]
+    }
+
+    pub fn them(&self, white: bool) -> Bitboard {
+        self.pieces[1-white as usize]
     }
 
     /// Static exchange evaluation
@@ -158,12 +171,7 @@ impl Position {
         allowed_pieces: Bitboard,
         white: bool,
     ) -> (Piece, Bitboard) {
-        let us = if white {
-            self.white_pieces & allowed_pieces
-        } else {
-            self.black_pieces & allowed_pieces
-        };
-
+        let us = self.us(white) & allowed_pieces;
         let mut capturers;
 
         // TODO currently doesn't account for en passant moves.
@@ -201,12 +209,7 @@ impl Position {
     }
 
     fn is_attacked(&self, sq: Square) -> bool {
-        let them = if self.white_to_move {
-            self.black_pieces
-        } else {
-            self.white_pieces
-        };
-
+        let them = self.them(self.white_to_move);
         let mg = MoveGenerator::from(self);
         let bishop_attacks: Bitboard =
             get_bishop_attacks_from(sq, self.all_pieces) & (self.bishops() | self.queens()) & them;
@@ -250,11 +253,7 @@ impl Position {
 
     /// Checks whether the current side to move is in check.
     pub fn in_check(&self) -> bool {
-        let us = if self.white_to_move {
-            self.white_pieces
-        } else {
-            self.black_pieces
-        };
+        let us = self.us(self.white_to_move);
         let king = (us & self.kings()).squares().nth(0).unwrap();
         self.is_attacked(king)
     }
@@ -289,11 +288,7 @@ impl Position {
 
     /// Applies `mov` to the current board position.
     pub fn make_move(&mut self, mov: Move) {
-        let them = if self.white_to_move {
-            self.black_pieces
-        } else {
-            self.white_pieces
-        };
+        let them = self.them(self.white_to_move);
         let rank2 = if self.white_to_move { RANK_2 } else { RANK_7 };
         let rank4 = if self.white_to_move { RANK_4 } else { RANK_5 };
 
@@ -393,8 +388,8 @@ impl Position {
             | self.rooks()
             | self.queens()
             | self.kings();
-        self.white_pieces = self.all_pieces & self.color;
-        self.black_pieces = self.all_pieces & !self.white_pieces;
+        self.pieces[1] = self.all_pieces & self.color;
+        self.pieces[0] = self.all_pieces & !self.color;
     }
 
     /// Undoes a previously made move (by `self.make_move(mov)`).
@@ -458,8 +453,8 @@ impl Position {
             | self.rooks()
             | self.queens()
             | self.kings();
-        self.white_pieces = self.all_pieces & self.color;
-        self.black_pieces = self.all_pieces & !self.white_pieces;
+        self.pieces[1] = self.all_pieces & self.color;
+        self.pieces[0] = self.all_pieces & !self.color;
     }
 
     /// Applies a null move (no move, just change side to move) allowing one side to make two
@@ -597,6 +592,7 @@ impl<'a> From<&'a str> for Position {
         let mut pos = Position {
             color: Bitboard::from(0x0),
             bb: [Bitboard::from(0x0); 6],
+            pieces: [Bitboard::from(0x0); 2],
             details: IrreversibleDetails {
                 en_passant: 255,
                 castling: CASTLE_WHITE_KSIDE
@@ -609,8 +605,6 @@ impl<'a> From<&'a str> for Position {
             fullmove: 1,
 
             all_pieces: Bitboard::from(0x0),
-            white_pieces: Bitboard::from(0x0),
-            black_pieces: Bitboard::from(0x0),
         };
 
         let mut split = fen.split(' ').filter(|s| !s.is_empty());
@@ -725,15 +719,11 @@ impl<'a> From<&'a str> for Position {
             }
 
             pos.bb[piece.index()] ^= sq;
-            if white {
-                pos.color ^= sq;
-                pos.white_pieces ^= sq;
-            } else {
-                pos.black_pieces ^= sq;
-            }
+            pos.pieces[white as usize] ^= sq;
+            pos.color = pos.pieces[1];
         }
 
-        pos.all_pieces = pos.white_pieces | pos.black_pieces;
+        pos.all_pieces = pos.white_pieces() | pos.black_pieces();
 
         if split.next().unwrap() == "b" {
             pos.white_to_move = false;
@@ -789,6 +779,7 @@ pub const STARTING_POSITION: Position = Position {
         STARTING_QUEENS,
         STARTING_KINGS,
     ],
+    pieces: [STARTING_BLACK, STARTING_COLOR],
     details: IrreversibleDetails {
         en_passant: 255,
         castling: CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE | CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE,
@@ -798,8 +789,6 @@ pub const STARTING_POSITION: Position = Position {
     fullmove: 1,
 
     all_pieces: STARTING_ALL,
-    white_pieces: STARTING_COLOR,
-    black_pieces: STARTING_BLACK,
 };
 
 #[cfg(test)]
