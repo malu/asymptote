@@ -23,7 +23,6 @@ use crate::position::*;
 pub struct Eval {
     pub material: Material,
     pst: [Score; 2],
-    positional: Positional,
     pawn_table: Vec<PawnHashEntry>,
 }
 
@@ -39,12 +38,6 @@ pub struct Material {
     black_bishops: usize,
     black_rooks: usize,
     black_queens: usize,
-}
-
-#[derive(Debug)]
-struct Positional {
-    white_pawns_per_file: [usize; 8],
-    black_pawns_per_file: [usize; 8],
 }
 
 const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
@@ -119,7 +112,6 @@ impl Eval {
         let mut score = 0;
         score += self.material.score();
         score += self.pst[1] - self.pst[0];
-        score += self.positional.score(pos);
         score += self.mobility_for_side(true, pos) - self.mobility_for_side(false, pos);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
 
@@ -166,6 +158,8 @@ impl Eval {
         const PASSER_ON_RANK_BONUS_MG: [Score; 8] = [0, 60, 50, 40, 30, 20, 10, 0];
         const ISOLATED_PAWN_PENALTY_EG: Score = 10;
         const ISOLATED_PAWN_PENALTY_MG: Score = 10;
+        const DOUBLED_PAWN_PENALTY_EG: Score = 30;
+        const DOUBLED_PAWN_PENALTY_MG: Score = 30;
 
         let mut mg = 0;
         let mut eg = 0;
@@ -175,6 +169,11 @@ impl Eval {
             let file_forward_bb = corridor_bb & FILES[pawn.file() as usize];
             let passed = (corridor_bb & them & pos.pawns()).is_empty();
             let doubled = !(file_forward_bb & us & pos.pawns()).is_empty();
+
+            if doubled {
+                mg -= DOUBLED_PAWN_PENALTY_MG;
+                eg -= DOUBLED_PAWN_PENALTY_EG;
+            }
 
             if passed && !doubled {
                 let relative_rank = if white {
@@ -315,21 +314,11 @@ impl Eval {
             }
         }
 
-        if mov.piece == Piece::Pawn {
-            if pos.white_to_move {
-                self.positional.white_pawns_per_file[mov.from.file() as usize] -= 1;
-            } else {
-                self.positional.black_pawns_per_file[mov.from.file() as usize] -= 1;
-            }
-        }
-
         match mov.captured {
             Some(Piece::Pawn) => {
                 if pos.white_to_move {
-                    self.positional.black_pawns_per_file[mov.to.file() as usize] -= 1;
                     self.material.black_pawns -= 1;
                 } else {
-                    self.positional.white_pawns_per_file[mov.to.file() as usize] -= 1;
                     self.material.white_pawns -= 1;
                 }
             }
@@ -366,13 +355,6 @@ impl Eval {
 
         match mov.piece {
             Piece::Pawn => match mov.promoted {
-                None => {
-                    if pos.white_to_move {
-                        self.positional.white_pawns_per_file[mov.to.file() as usize] += 1;
-                    } else {
-                        self.positional.black_pawns_per_file[mov.to.file() as usize] += 1;
-                    }
-                }
                 Some(Piece::Knight) => {
                     if pos.white_to_move {
                         self.material.white_pawns -= 1;
@@ -464,13 +446,6 @@ impl Eval {
         }
 
         match mov.piece {
-            Piece::Pawn => {
-                if unmaking_white_move {
-                    self.positional.white_pawns_per_file[mov.from.file() as usize] += 1;
-                } else {
-                    self.positional.black_pawns_per_file[mov.from.file() as usize] += 1;
-                }
-            }
             Piece::King => {
                 if mov.to.0 == mov.from.0 + 2 {
                     // castle kingside
@@ -504,10 +479,8 @@ impl Eval {
         match mov.captured {
             Some(Piece::Pawn) => {
                 if unmaking_white_move {
-                    self.positional.black_pawns_per_file[mov.to.file() as usize] += 1;
                     self.material.black_pawns += 1;
                 } else {
-                    self.positional.white_pawns_per_file[mov.to.file() as usize] += 1;
                     self.material.white_pawns += 1;
                 }
             }
@@ -544,13 +517,6 @@ impl Eval {
 
         if mov.piece == Piece::Pawn {
             match mov.promoted {
-                None => {
-                    if unmaking_white_move {
-                        self.positional.white_pawns_per_file[mov.to.file() as usize] -= 1;
-                    } else {
-                        self.positional.black_pawns_per_file[mov.to.file() as usize] -= 1;
-                    }
-                }
                 Some(Piece::Knight) => {
                     if unmaking_white_move {
                         self.material.white_pawns += 1;
@@ -603,7 +569,6 @@ impl<'p> From<&'p Position> for Eval {
         Eval {
             material: Material::from(pos),
             pst: init_pst_score(pos),
-            positional: Positional::from(pos),
             pawn_table,
         }
     }
@@ -852,42 +817,5 @@ pub fn pst(pst: &[Score; 64], from_white_perspective: bool, sq: Square) -> Score
         pst[sq.0 as usize ^ 0b11_1000]
     } else {
         pst[sq.0 as usize]
-    }
-}
-
-impl Positional {
-    fn score(&self, _pos: &Position) -> Score {
-        let mut score = 0;
-        let penalty = [0, 0, 25, 60, 90, 140, 200, 270];
-
-        for &num_pawns in &self.white_pawns_per_file {
-            score -= penalty[num_pawns];
-        }
-
-        for &num_pawns in &self.black_pawns_per_file {
-            score += penalty[num_pawns];
-        }
-
-        score
-    }
-}
-
-impl<'p> From<&'p Position> for Positional {
-    fn from(pos: &Position) -> Positional {
-        let mut white_pawns_per_file = [0; 8];
-        let mut black_pawns_per_file = [0; 8];
-
-        for pawn in (pos.pawns() & pos.white_pieces()).squares() {
-            white_pawns_per_file[pawn.file() as usize] += 1;
-        }
-
-        for pawn in (pos.pawns() & pos.black_pieces()).squares() {
-            black_pawns_per_file[pawn.file() as usize] += 1;
-        }
-
-        Positional {
-            white_pawns_per_file,
-            black_pawns_per_file,
-        }
     }
 }
