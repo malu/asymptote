@@ -11,3 +11,4 @@ lazy_static = "1.0.1"
 
 [profile.release]
 debug = true
+codegen-units = 1
