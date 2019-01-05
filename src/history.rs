@@ -18,25 +18,44 @@ use crate::movegen::*;
 use crate::search::*;
 
 pub struct History {
-    from_to: [[[i64; 64]; 64]; 2],
+    piece_to: [[[i64; 64]; 6]; 2],
 }
 
 impl Default for History {
     fn default() -> History {
         History {
-            from_to: [[[0; 64]; 64]; 2],
+            piece_to: [[[0; 64]; 6]; 2],
         }
     }
 }
 
 impl History {
     pub fn get_score(&self, white: bool, mov: Move) -> i64 {
-        self.from_to[white as usize][mov.from.0 as usize][mov.to.0 as usize]
+        self.piece_to[white as usize][mov.piece.index()][mov.to.0 as usize]
     }
 
     pub fn increase_score(&mut self, white: bool, mov: Move, depth: Depth) {
         let d = i64::from(depth / INC_PLY);
 
-        self.from_to[white as usize][mov.from.0 as usize][mov.to.0 as usize] += d*d;
+        self.piece_to[white as usize][mov.piece.index()][mov.to.0 as usize] += d*d;
+    }
+
+    pub fn decrease_score(&mut self, white: bool, moves: &[Option<Move>], depth: Depth) {
+        let d = i64::from(depth / INC_PLY);
+
+        for mov in moves {
+            let mov = mov.unwrap();
+            self.piece_to[white as usize][mov.piece.index()][mov.to.0 as usize] -= d*d;
+        }
+    }
+
+    pub fn rescale(&mut self) {
+        for stm in 0..2 {
+            for piece in 0..6 {
+                for to in 0..64 {
+                    self.piece_to[stm][piece][to] /= 256;
+                }
+            }
+        }
     }
 }

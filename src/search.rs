@@ -55,6 +55,7 @@ pub struct Search {
     pub show_pv_board: bool,
 
     mp_allocations: Vec<Rc<RefCell<MovePickerAllocations>>>,
+    quiets: [[Option<Move>; 256]; MAX_PLY as usize],
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -92,6 +93,7 @@ impl Search {
             show_pv_board: false,
 
             mp_allocations,
+            quiets: [[None; 256]; MAX_PLY as usize],
         }
     }
 
@@ -105,7 +107,7 @@ impl Search {
 
         {
             let mut history = self.history.borrow_mut();
-            *history = History::default();
+            history.rescale();
         }
 
         let mut moves = MoveGenerator::from(&self.position)
@@ -349,6 +351,7 @@ impl Search {
         let mut best_score = -Score::max_value();
 
         let mut num_moves = 0;
+        let mut num_quiets = 0;
         for (mtype, mov) in moves {
             self.internal_make_move(mov, ply);
             if !self.position.move_was_legal(mov) {
@@ -357,6 +360,10 @@ impl Search {
             }
 
             num_moves += 1;
+            if mov.is_quiet() {
+                self.quiets[ply as usize][num_quiets] = Some(mov);
+                num_quiets += 1;
+            }
 
             let mut extension = 0;
             if mtype == MoveType::TTMove && ply < 80 {
@@ -417,7 +424,7 @@ impl Search {
                             self.add_pv_move(mov, ply);
                             if value >= beta {
                                 if mov.is_quiet() {
-                                    self.update_quiet_stats(mov, ply, depth);
+                                    self.update_quiet_stats(mov, ply, depth, num_quiets-1);
                                 }
 
                                 self.tt.borrow_mut().insert(
@@ -571,6 +578,7 @@ impl Search {
         pruned = futility_skip_quiets;
 
         let mut num_moves = 0;
+        let mut num_quiets = 0;
         for (mtype, mov) in moves {
             self.internal_make_move(mov, ply);
             if !self.position.move_was_legal(mov) {
@@ -597,6 +605,11 @@ impl Search {
             }
 
             num_moves += 1;
+
+            if mov.is_quiet() {
+                self.quiets[ply as usize][num_quiets] = Some(mov);
+                num_quiets += 1;
+            }
 
             let mut extension = 0;
             let mut reduction = 0;
@@ -645,7 +658,7 @@ impl Search {
 
                 if value >= beta {
                     if mov.is_quiet() {
-                        self.update_quiet_stats(mov, ply, depth);
+                        self.update_quiet_stats(mov, ply, depth, num_quiets-1);
                     }
 
                     self.tt.borrow_mut().insert(
@@ -907,12 +920,12 @@ impl Search {
         }
     }
 
-    fn update_quiet_stats(&mut self, mov: Move, ply: Ply, depth: Depth) {
+    fn update_quiet_stats(&mut self, mov: Move, ply: Ply, depth: Depth, num_failed_quiets: usize) {
         assert!(mov.is_quiet());
 
-        self.history
-            .borrow_mut()
-            .increase_score(self.position.white_to_move, mov, depth);
+        let mut history = self.history.borrow_mut();
+        history.increase_score(self.position.white_to_move, mov, depth);
+        history.decrease_score(self.position.white_to_move, &self.quiets[ply as usize][0..num_failed_quiets], depth);
 
         let killers = &mut self.stack[ply as usize].borrow_mut().killers_moves;
 
