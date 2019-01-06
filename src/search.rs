@@ -1012,8 +1012,9 @@ impl Search {
     }
 
     pub fn internal_make_move(&mut self, mov: Move, ply: Ply) {
-        self.stack[ply as usize].borrow_mut().irreversible_details = self.position.details;
-        self.stack[ply as usize].borrow_mut().current_move = Some(mov);
+        let mut current_ply = self.stack[ply as usize].borrow_mut();
+        current_ply.irreversible_details = self.position.details;
+        current_ply.current_move = Some(mov);
 
         self.hasher.make_move(&self.position, mov);
         self.eval.make_move(mov, &self.position);
