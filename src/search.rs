@@ -214,7 +214,7 @@ impl Search {
 
                                     self.add_pv_move(mov, 0);
 
-                                    if depth > 5 * INC_PLY {
+                                    if self.time_manager.elapsed_millis() > 1000 {
                                         self.uci_info(depth, alpha);
                                     }
                                 }
