@@ -901,10 +901,11 @@ impl Search {
         };
         let mut pos = self.position.clone();
         print!(
-            "info depth {} seldepth {} nodes {} score {} time {} hashfull {} pv ",
+            "info depth {} seldepth {} nodes {} nps {} score {} time {} hashfull {} pv ",
             d / INC_PLY,
             self.max_ply_searched,
             self.visited_nodes,
+            1000 * self.visited_nodes / ::std::cmp::max(1, elapsed),
             score_str,
             elapsed,
             self.tt.borrow().usage()
