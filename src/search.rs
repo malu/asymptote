@@ -892,9 +892,9 @@ impl Search {
         let elapsed = self.time_manager.elapsed_millis();
         let score_str = if alpha.abs() >= MATE_SCORE - MAX_PLY {
             if alpha < 0 {
-                format!("mate {}", -MATE_SCORE - alpha)
+                format!("mate {}", -(MATE_SCORE + alpha) / 2)
             } else {
-                format!("mate {}", -alpha + MATE_SCORE)
+                format!("mate {}", (MATE_SCORE - alpha + 1) / 2)
             }
         } else {
             format!("cp {}", alpha)
