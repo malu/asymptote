@@ -910,9 +910,9 @@ impl Search {
             elapsed,
             self.tt.borrow().usage()
         );
-        for mov in self.pv[0].iter().take_while(|o| o.is_some()) {
-            print!("{} ", mov.unwrap().to_algebraic());
-            pos.make_move(mov.unwrap());
+        for mov in self.pv[0].iter().cloned().take_while(Option::is_some).flatten() {
+            print!("{} ", mov.to_algebraic());
+            pos.make_move(mov);
         }
         println!();
 
@@ -952,14 +952,15 @@ impl Search {
     }
 
     fn is_draw(&self, ply: Ply) -> bool {
-        let last_move = self.stack[ply as usize - 1].borrow().current_move;
-        if last_move.and_then(|mov| mov.captured).is_some() {
-            self.eval.material.is_draw()
-        } else if last_move.is_some() && last_move.unwrap().piece != Piece::Pawn {
-            self.repetitions.has_repeated()
-        } else {
-            false
+        if let Some(last_move) = self.stack[ply as usize - 1].borrow().current_move {
+            if last_move.captured.is_some() {
+                return self.eval.material.is_draw();
+            } else if last_move.piece != Piece::Pawn {
+                return self.repetitions.has_repeated();
+            }
         }
+
+        false
     }
 
     pub fn perft(&mut self, depth: usize) {

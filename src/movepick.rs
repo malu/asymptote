@@ -258,9 +258,8 @@ impl<'a> Iterator for MovePicker<'a> {
                     self.moves.extend(
                         killers
                             .into_iter()
-                            .filter(|m| m.is_some())
-                            .map(|m| m.unwrap())
-                            .filter(|&m| MoveGenerator::from(pos).is_legal(m)),
+                            .flatten()
+                            .filter(|&&m| MoveGenerator::from(pos).is_legal(m)),
                     );
                     self.scores.extend(self.moves.iter().map(|_| 0));
                 }
