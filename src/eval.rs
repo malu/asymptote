@@ -21,23 +21,9 @@ use crate::position::*;
 
 #[derive(Debug)]
 pub struct Eval {
-    pub material: Material,
+    material: [[usize; 5]; 2],
     pst: [Score; 2],
     pawn_table: Vec<PawnHashEntry>,
-}
-
-#[derive(Debug)]
-pub struct Material {
-    white_pawns: usize,
-    white_knights: usize,
-    white_bishops: usize,
-    white_rooks: usize,
-    white_queens: usize,
-    black_pawns: usize,
-    black_knights: usize,
-    black_bishops: usize,
-    black_rooks: usize,
-    black_queens: usize,
 }
 
 const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
@@ -108,9 +94,51 @@ impl Eval {
         6 * pawn_mobility.popcount() as Score + knight_mobility + bishop_mobility + rook_mobility
     }
 
+    fn material_score(&self) -> Score {
+        let pawn = Piece::Pawn.index();
+        let knight = Piece::Knight.index();
+        let bishop = Piece::Bishop.index();
+        let rook = Piece::Rook.index();
+        let queen = Piece::Queen.index();
+        let black = 0;
+        let white = 1;
+
+        let mut score = 0;
+        score += PAWN_SCORE * self.material[white][pawn] as Score;
+        score += KNIGHT_SCORE * self.material[white][knight] as Score;
+        score += BISHOP_SCORE * self.material[white][bishop] as Score;
+        score += ROOK_SCORE * self.material[white][rook] as Score;
+        score += QUEEN_SCORE * self.material[white][queen] as Score;
+
+        score -= PAWN_SCORE * self.material[black][pawn] as Score;
+        score -= KNIGHT_SCORE * self.material[black][knight] as Score;
+        score -= BISHOP_SCORE * self.material[black][bishop] as Score;
+        score -= ROOK_SCORE * self.material[black][rook] as Score;
+        score -= QUEEN_SCORE * self.material[black][queen] as Score;
+
+        // encourage trading pieces if ahead in material or pawns if behind in material
+        if score > 50 {
+            score += 4 * self.material[white][pawn] as Score;
+            score += 4 * self.material[black][pawn] as Score;
+        } else if score < -50 {
+            score -= 4 * self.material[black][pawn] as Score;
+            score -= 4 * self.material[white][pawn] as Score;
+        }
+
+        if self.material[white][bishop] > 1 {
+            score += 40;
+        }
+
+        if self.material[black][bishop] > 1 {
+            score -= 40;
+        }
+
+        score
+    }
+
     pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
         let mut score = 0;
-        score += self.material.score();
+        score += self.material_score();
         score += self.pst[1] - self.pst[0];
         score += self.mobility_for_side(true, pos) - self.mobility_for_side(false, pos);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
@@ -229,6 +257,7 @@ impl Eval {
     fn king_safety_for_side(&self, pos: &Position, white: bool) -> (Score, Score) {
         let us = pos.us(white);
         let them = pos.them(white);
+        let side = white as usize;
 
         #[cfg_attr(rustfmt, rustfmt_skip)]
         const CENTER_DISTANCE: [Score; 64] = [
@@ -254,9 +283,8 @@ impl Eval {
 
         let eg_penalty = CENTER_DISTANCE[king_sq.0 as usize];
 
-        let skip_king_safety =
-            (white && self.material.black_queens == 0 && self.material.black_rooks <= 1)
-                || (!white && self.material.white_queens == 0 && self.material.white_rooks <= 1);
+        let skip_king_safety = self.material[1-side][Piece::Queen.index()] == 0
+            && self.material[1-side][Piece::Rook.index()] <= 1;
         if skip_king_safety {
             return (0, -5 * eg_penalty);
         }
@@ -285,277 +313,161 @@ impl Eval {
         (-mg_penalty, -5 * eg_penalty)
     }
 
-    fn phase(&self) -> i16 {
-        self.material.non_pawn_material()
+    pub fn phase(&self) -> i16 {
+        self.non_pawn_material(false) + self.non_pawn_material(true)
     }
 
     pub fn make_move(&mut self, mov: Move, pos: &Position) {
-        self.pst[pos.white_to_move as usize] -=
+        let side = pos.white_to_move as usize;
+        self.pst[side] -=
             pst(&PST[mov.piece.index()], pos.white_to_move, mov.from);
 
-        if let Some(promotion_piece) = mov.promoted {
-            self.pst[pos.white_to_move as usize] +=
-                pst(&PST[promotion_piece.index()], pos.white_to_move, mov.to);
+        if let Some(promoted) = mov.promoted {
+            self.material[side][Piece::Pawn.index()] -= 1;
+            self.material[side][promoted.index()] += 1;
+            self.pst[side] +=
+                pst(&PST[promoted.index()], pos.white_to_move, mov.to);
         } else {
-            self.pst[pos.white_to_move as usize] +=
+            self.pst[side] +=
                 pst(&PST[mov.piece.index()], pos.white_to_move, mov.to);
         }
 
-        if let Some(captured_piece) = mov.captured {
+        if let Some(captured) = mov.captured {
+            self.material[1-side][captured.index()] -= 1;
             if mov.en_passant {
-                self.pst[1 - pos.white_to_move as usize] -= pst(
+                self.pst[1-side] -= pst(
                     &PST[Piece::Pawn.index()],
                     !pos.white_to_move,
                     mov.to.backward(pos.white_to_move, 1),
                 );
             } else {
-                self.pst[1 - pos.white_to_move as usize] -=
-                    pst(&PST[captured_piece.index()], !pos.white_to_move, mov.to);
+                self.pst[1-side] -=
+                    pst(&PST[captured.index()], !pos.white_to_move, mov.to);
             }
         }
 
-        match mov.captured {
-            Some(Piece::Pawn) => {
-                if pos.white_to_move {
-                    self.material.black_pawns -= 1;
-                } else {
-                    self.material.white_pawns -= 1;
-                }
+        if mov.piece == Piece::King {
+            if mov.to.0 == mov.from.0 + 2 {
+                // castle kingside
+                self.pst[side] -= pst(
+                    &PST[Piece::Rook.index()],
+                    pos.white_to_move,
+                    mov.to.right(1),
+                );
+                self.pst[side] +=
+                    pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(1));
+            } else if mov.from.0 == mov.to.0 + 2 {
+                // castle queenside
+                self.pst[side] -=
+                    pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(2));
+                self.pst[side] += pst(
+                    &PST[Piece::Rook.index()],
+                    pos.white_to_move,
+                    mov.to.right(1),
+                );
             }
-            Some(Piece::Knight) => {
-                if pos.white_to_move {
-                    self.material.black_knights -= 1;
-                } else {
-                    self.material.white_knights -= 1;
-                }
-            }
-            Some(Piece::Bishop) => {
-                if pos.white_to_move {
-                    self.material.black_bishops -= 1;
-                } else {
-                    self.material.white_bishops -= 1;
-                }
-            }
-            Some(Piece::Rook) => {
-                if pos.white_to_move {
-                    self.material.black_rooks -= 1;
-                } else {
-                    self.material.white_rooks -= 1;
-                }
-            }
-            Some(Piece::Queen) => {
-                if pos.white_to_move {
-                    self.material.black_queens -= 1;
-                } else {
-                    self.material.white_queens -= 1;
-                }
-            }
-            _ => {}
-        }
-
-        match mov.piece {
-            Piece::Pawn => match mov.promoted {
-                Some(Piece::Knight) => {
-                    if pos.white_to_move {
-                        self.material.white_pawns -= 1;
-                        self.material.white_knights += 1;
-                    } else {
-                        self.material.black_pawns -= 1;
-                        self.material.black_knights += 1;
-                    }
-                }
-                Some(Piece::Bishop) => {
-                    if pos.white_to_move {
-                        self.material.white_pawns -= 1;
-                        self.material.white_bishops += 1;
-                    } else {
-                        self.material.black_pawns -= 1;
-                        self.material.black_bishops += 1;
-                    }
-                }
-                Some(Piece::Rook) => {
-                    if pos.white_to_move {
-                        self.material.white_pawns -= 1;
-                        self.material.white_rooks += 1;
-                    } else {
-                        self.material.black_pawns -= 1;
-                        self.material.black_rooks += 1;
-                    }
-                }
-                Some(Piece::Queen) => {
-                    if pos.white_to_move {
-                        self.material.white_pawns -= 1;
-                        self.material.white_queens += 1;
-                    } else {
-                        self.material.black_pawns -= 1;
-                        self.material.black_queens += 1;
-                    }
-                }
-                _ => {}
-            },
-            Piece::King => {
-                if mov.to.0 == mov.from.0 + 2 {
-                    // castle kingside
-                    self.pst[pos.white_to_move as usize] -= pst(
-                        &PST[Piece::Rook.index()],
-                        pos.white_to_move,
-                        mov.to.right(1),
-                    );
-                    self.pst[pos.white_to_move as usize] +=
-                        pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(1));
-                } else if mov.from.0 == mov.to.0 + 2 {
-                    // castle queenside
-                    self.pst[pos.white_to_move as usize] -=
-                        pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(2));
-                    self.pst[pos.white_to_move as usize] += pst(
-                        &PST[Piece::Rook.index()],
-                        pos.white_to_move,
-                        mov.to.right(1),
-                    );
-                }
-            }
-            _ => {}
         }
     }
 
     pub fn unmake_move(&mut self, mov: Move, pos: &Position) {
         let unmaking_white_move = !pos.white_to_move;
+        let side = unmaking_white_move as usize;
 
-        self.pst[1 - pos.white_to_move as usize] +=
-            pst(&PST[mov.piece.index()], !pos.white_to_move, mov.from);
+        self.pst[side] +=
+            pst(&PST[mov.piece.index()], unmaking_white_move, mov.from);
 
-        if let Some(promotion_piece) = mov.promoted {
-            self.pst[1 - pos.white_to_move as usize] -=
-                pst(&PST[promotion_piece.index()], !pos.white_to_move, mov.to);
-        } else {
-            self.pst[1 - pos.white_to_move as usize] -=
-                pst(&PST[mov.piece.index()], !pos.white_to_move, mov.to);
-        }
-
-        if let Some(captured_piece) = mov.captured {
+        if let Some(captured) = mov.captured {
+            self.material[1-side][captured.index()] += 1;
             if mov.en_passant {
-                self.pst[pos.white_to_move as usize] += pst(
+                self.pst[1-side] += pst(
                     &PST[Piece::Pawn.index()],
                     pos.white_to_move,
-                    mov.to.backward(!pos.white_to_move, 1),
+                    mov.to.backward(unmaking_white_move, 1),
                 );
             } else {
-                self.pst[pos.white_to_move as usize] +=
-                    pst(&PST[captured_piece.index()], pos.white_to_move, mov.to);
+                self.pst[1-side] +=
+                    pst(&PST[captured.index()], pos.white_to_move, mov.to);
             }
         }
 
-        match mov.piece {
-            Piece::King => {
-                if mov.to.0 == mov.from.0 + 2 {
-                    // castle kingside
-                    self.pst[1 - pos.white_to_move as usize] += pst(
-                        &PST[Piece::Rook.index()],
-                        !pos.white_to_move,
-                        mov.to.right(1),
-                    );
-                    self.pst[1 - pos.white_to_move as usize] -= pst(
-                        &PST[Piece::Rook.index()],
-                        !pos.white_to_move,
-                        mov.to.left(1),
-                    );
-                } else if mov.from.0 == mov.to.0 + 2 {
-                    // castle queenside
-                    self.pst[1 - pos.white_to_move as usize] += pst(
-                        &PST[Piece::Rook.index()],
-                        !pos.white_to_move,
-                        mov.to.left(2),
-                    );
-                    self.pst[1 - pos.white_to_move as usize] -= pst(
-                        &PST[Piece::Rook.index()],
-                        !pos.white_to_move,
-                        mov.to.right(1),
-                    );
-                }
-            }
-            _ => {}
+        if let Some(promoted) = mov.promoted {
+            self.material[side][Piece::Pawn.index()] += 1;
+            self.material[side][promoted.index()] -= 1;
+            self.pst[side] -=
+                pst(&PST[promoted.index()], unmaking_white_move, mov.to);
+        } else {
+            self.pst[side] -=
+                pst(&PST[mov.piece.index()], unmaking_white_move, mov.to);
         }
 
-        match mov.captured {
-            Some(Piece::Pawn) => {
-                if unmaking_white_move {
-                    self.material.black_pawns += 1;
-                } else {
-                    self.material.white_pawns += 1;
-                }
+        if mov.piece == Piece::King {
+            if mov.to.0 == mov.from.0 + 2 {
+                // castle kingside
+                self.pst[side] += pst(
+                    &PST[Piece::Rook.index()],
+                    unmaking_white_move,
+                    mov.to.right(1),
+                );
+                self.pst[side] -= pst(
+                    &PST[Piece::Rook.index()],
+                    unmaking_white_move,
+                    mov.to.left(1),
+                );
+            } else if mov.from.0 == mov.to.0 + 2 {
+                // castle queenside
+                self.pst[side] += pst(
+                    &PST[Piece::Rook.index()],
+                    unmaking_white_move,
+                    mov.to.left(2),
+                );
+                self.pst[side] -= pst(
+                    &PST[Piece::Rook.index()],
+                    unmaking_white_move,
+                    mov.to.right(1),
+                );
             }
-            Some(Piece::Knight) => {
-                if unmaking_white_move {
-                    self.material.black_knights += 1;
-                } else {
-                    self.material.white_knights += 1;
-                }
+        }
+    }
+
+    pub fn is_material_draw(&self) -> bool {
+        let material = &self.material;
+        let pawn = Piece::Pawn.index();
+        let knight = Piece::Knight.index();
+        let bishop = Piece::Bishop.index();
+        let rook = Piece::Rook.index();
+        let queen = Piece::Queen.index();
+
+        for side in 0..2 {
+            if material[side][pawn] > 0
+                || material[side][rook] > 0
+                || material[side][queen] > 0
+            {
+                return false;
             }
-            Some(Piece::Bishop) => {
-                if unmaking_white_move {
-                    self.material.black_bishops += 1;
-                } else {
-                    self.material.white_bishops += 1;
-                }
-            }
-            Some(Piece::Rook) => {
-                if unmaking_white_move {
-                    self.material.black_rooks += 1;
-                } else {
-                    self.material.white_rooks += 1;
-                }
-            }
-            Some(Piece::Queen) => {
-                if unmaking_white_move {
-                    self.material.black_queens += 1;
-                } else {
-                    self.material.white_queens += 1;
-                }
-            }
-            _ => {}
         }
 
-        if mov.piece == Piece::Pawn {
-            match mov.promoted {
-                Some(Piece::Knight) => {
-                    if unmaking_white_move {
-                        self.material.white_pawns += 1;
-                        self.material.white_knights -= 1;
-                    } else {
-                        self.material.black_pawns += 1;
-                        self.material.black_knights -= 1;
-                    }
+        for side in 0..2 {
+            if material[side][bishop] == 0 && material[side][knight] == 0 {
+                if material[1-side][bishop] == 0 && material[1-side][knight] < 3 {
+                    return true;
                 }
-                Some(Piece::Bishop) => {
-                    if unmaking_white_move {
-                        self.material.white_pawns += 1;
-                        self.material.white_bishops -= 1;
-                    } else {
-                        self.material.black_pawns += 1;
-                        self.material.black_bishops -= 1;
-                    }
-                }
-                Some(Piece::Rook) => {
-                    if unmaking_white_move {
-                        self.material.white_pawns += 1;
-                        self.material.white_rooks -= 1;
-                    } else {
-                        self.material.black_pawns += 1;
-                        self.material.black_rooks -= 1;
-                    }
-                }
-                Some(Piece::Queen) => {
-                    if unmaking_white_move {
-                        self.material.white_pawns += 1;
-                        self.material.white_queens -= 1;
-                    } else {
-                        self.material.black_pawns += 1;
-                        self.material.black_queens -= 1;
-                    }
-                }
-                _ => {}
+
+                return material[1-side][bishop] > 0
+                    && material[1-side][bishop] + material[1-side][knight] > 1;
             }
         }
+
+        false
+    }
+
+    pub fn non_pawn_material(&self, white: bool) -> Score {
+        let mut material = 0;
+        let side = white as usize;
+        material += 3 * self.material[side][Piece::Knight.index()] as Score;
+        material += 3 * self.material[side][Piece::Bishop.index()] as Score;
+        material += 5 * self.material[side][Piece::Rook.index()] as Score;
+        material += 9 * self.material[side][Piece::Queen.index()] as Score;
+        material
     }
 }
 
@@ -567,115 +479,24 @@ impl<'p> From<&'p Position> for Eval {
         }
 
         Eval {
-            material: Material::from(pos),
+            material: [
+                [
+                    (pos.black_pieces() & pos.pawns()).popcount() as usize,
+                    (pos.black_pieces() & pos.knights()).popcount() as usize,
+                    (pos.black_pieces() & pos.bishops()).popcount() as usize,
+                    (pos.black_pieces() & pos.rooks()).popcount() as usize,
+                    (pos.black_pieces() & pos.queens()).popcount() as usize,
+                ],
+                [
+                    (pos.white_pieces() & pos.pawns()).popcount() as usize,
+                    (pos.white_pieces() & pos.knights()).popcount() as usize,
+                    (pos.white_pieces() & pos.bishops()).popcount() as usize,
+                    (pos.white_pieces() & pos.rooks()).popcount() as usize,
+                    (pos.white_pieces() & pos.queens()).popcount() as usize,
+                ],
+            ],
             pst: init_pst_score(pos),
             pawn_table,
-        }
-    }
-}
-
-impl Material {
-    pub fn is_draw(&self) -> bool {
-        if self.white_pawns > 0 || self.white_rooks > 0 || self.white_queens > 0 {
-            return false;
-        }
-
-        if self.black_pawns > 0 || self.black_rooks > 0 || self.black_queens > 0 {
-            return false;
-        }
-
-        if self.white_bishops == 0 && self.white_knights == 0 {
-            if self.black_bishops == 0 && self.black_knights < 3 {
-                return true;
-            }
-
-            if self.black_bishops > 0 && self.black_bishops + self.black_knights > 1 {
-                return false;
-            }
-
-            return true;
-        }
-
-        if self.black_bishops == 0 && self.black_knights == 0 {
-            if self.white_bishops == 0 && self.white_knights < 3 {
-                return true;
-            }
-
-            if self.white_bishops > 0 && self.white_bishops + self.white_knights > 1 {
-                return false;
-            }
-
-            return true;
-        }
-
-        false
-    }
-
-    pub fn score(&self) -> Score {
-        let mut white_material = 0;
-        white_material += PAWN_SCORE * self.white_pawns as Score;
-        white_material += KNIGHT_SCORE * self.white_knights as Score;
-        white_material += BISHOP_SCORE * self.white_bishops as Score;
-        white_material += ROOK_SCORE * self.white_rooks as Score;
-        white_material += QUEEN_SCORE * self.white_queens as Score;
-
-        let mut black_material = 0;
-        black_material += PAWN_SCORE * self.black_pawns as Score;
-        black_material += KNIGHT_SCORE * self.black_knights as Score;
-        black_material += BISHOP_SCORE * self.black_bishops as Score;
-        black_material += ROOK_SCORE * self.black_rooks as Score;
-        black_material += QUEEN_SCORE * self.black_queens as Score;
-
-        // encourage trading pieces if ahead in material or pawns if behind in material
-        if white_material > black_material + 50 {
-            white_material += 4 * self.white_pawns as Score;
-            black_material -= 4 * self.black_pawns as Score;
-        } else if black_material > white_material + 50 {
-            black_material += 4 * self.black_pawns as Score;
-            white_material -= 4 * self.white_pawns as Score;
-        }
-
-        if self.white_bishops > 1 {
-            white_material += 40;
-        }
-
-        if self.black_bishops > 1 {
-            black_material += 40;
-        }
-
-        white_material - black_material
-    }
-
-    pub fn non_pawn_material(&self) -> Score {
-        let mut white_material = 0;
-        white_material += 3 * self.white_knights as Score;
-        white_material += 3 * self.white_bishops as Score;
-        white_material += 5 * self.white_rooks as Score;
-        white_material += 9 * self.white_queens as Score;
-
-        let mut black_material = 0;
-        black_material += 3 * self.black_knights as Score;
-        black_material += 3 * self.black_bishops as Score;
-        black_material += 5 * self.black_rooks as Score;
-        black_material += 9 * self.black_queens as Score;
-
-        white_material + black_material
-    }
-}
-
-impl<'p> From<&'p Position> for Material {
-    fn from(pos: &Position) -> Material {
-        Material {
-            white_pawns: (pos.white_pieces() & pos.pawns()).popcount() as usize,
-            white_knights: (pos.white_pieces() & pos.knights()).popcount() as usize,
-            white_bishops: (pos.white_pieces() & pos.bishops()).popcount() as usize,
-            white_rooks: (pos.white_pieces() & pos.rooks()).popcount() as usize,
-            white_queens: (pos.white_pieces() & pos.queens()).popcount() as usize,
-            black_pawns: (pos.black_pieces() & pos.pawns()).popcount() as usize,
-            black_knights: (pos.black_pieces() & pos.knights()).popcount() as usize,
-            black_bishops: (pos.black_pieces() & pos.bishops()).popcount() as usize,
-            black_rooks: (pos.black_pieces() & pos.rooks()).popcount() as usize,
-            black_queens: (pos.black_pieces() & pos.queens()).popcount() as usize,
         }
     }
 }

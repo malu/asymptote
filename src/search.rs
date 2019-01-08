@@ -526,7 +526,10 @@ impl Search {
 
         let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
         // Nullmove
-        if !in_check && self.eval.material.non_pawn_material() > 0 && eval >= beta {
+        if !in_check
+            && self.eval.phase() > 0
+            && eval >= beta
+        {
             let r = 2;
             self.internal_make_nullmove(ply);
             let score = self
@@ -954,7 +957,7 @@ impl Search {
     fn is_draw(&self, ply: Ply) -> bool {
         if let Some(last_move) = self.stack[ply as usize - 1].borrow().current_move {
             if last_move.captured.is_some() {
-                return self.eval.material.is_draw();
+                return self.eval.is_material_draw();
             } else if last_move.piece != Piece::Pawn {
                 return self.repetitions.has_repeated();
             }
