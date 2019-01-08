@@ -58,6 +58,10 @@ impl Bitboard {
         self.0 == 0
     }
 
+    pub fn at_least_one(self) -> bool {
+        self.0 != 0
+    }
+
     pub fn squares(self) -> SquareIterator {
         SquareIterator { bb: self }
     }

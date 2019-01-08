@@ -178,29 +178,29 @@ impl Position {
         capturers = self.pawns()
             & us
             & (sq.to_bb().backward(white, 1).left(1) | sq.to_bb().backward(white, 1).right(1));
-        if !capturers.is_empty() {
+        if capturers.at_least_one() {
             return (Piece::Pawn, capturers);
         }
 
         capturers = self.knights() & us & KNIGHT_ATTACKS[sq.0 as usize];
-        if !capturers.is_empty() {
+        if capturers.at_least_one() {
             return (Piece::Knight, capturers);
         }
 
         let bishop_attacker_squares = us & get_bishop_attacks_from(sq, allowed_pieces);
         capturers = self.bishops() & bishop_attacker_squares;
-        if !capturers.is_empty() {
+        if capturers.at_least_one() {
             return (Piece::Bishop, capturers);
         }
 
         let rook_attacker_squares = us & get_rook_attacks_from(sq, allowed_pieces);
         capturers = self.rooks() & rook_attacker_squares;
-        if !capturers.is_empty() {
+        if capturers.at_least_one() {
             return (Piece::Rook, capturers);
         }
 
         capturers = self.queens() & us & (bishop_attacker_squares | rook_attacker_squares);
-        if !capturers.is_empty() {
+        if capturers.at_least_one() {
             return (Piece::Queen, capturers);
         }
 
@@ -213,18 +213,18 @@ impl Position {
         let mg = MoveGenerator::from(self);
         let bishop_attacks: Bitboard =
             get_bishop_attacks_from(sq, self.all_pieces) & (self.bishops() | self.queens()) & them;
-        if !bishop_attacks.is_empty() {
+        if bishop_attacks.at_least_one() {
             return true;
         }
 
         let rook_attacks: Bitboard =
             get_rook_attacks_from(sq, self.all_pieces) & (self.rooks() | self.queens()) & them;
-        if !rook_attacks.is_empty() {
+        if rook_attacks.at_least_one() {
             return true;
         }
 
         let knight_attacks: Bitboard = mg.knight_from(sq) & self.knights() & them;
-        if !knight_attacks.is_empty() {
+        if knight_attacks.at_least_one() {
             return true;
         }
 
@@ -244,7 +244,7 @@ impl Position {
             return true;
         }
 
-        if !(mg.king_from(sq) & self.kings() & them).is_empty() {
+        if (mg.king_from(sq) & self.kings() & them).at_least_one() {
             return true;
         }
 
