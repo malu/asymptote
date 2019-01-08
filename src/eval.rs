@@ -194,9 +194,11 @@ impl Eval {
         for pawn in (pos.pawns() & us).squares() {
             let sq = pawn.0 as usize;
             let corridor_bb = PAWN_CORRIDOR[side][sq];
-            let file_forward_bb = corridor_bb & FILES[pawn.file() as usize];
+            let file_bb = FILES[pawn.file() as usize];
+            let file_forward_bb = corridor_bb & file_bb;
             let passed = (corridor_bb & them & pos.pawns()).is_empty();
             let doubled = (file_forward_bb & us & pos.pawns()).at_least_one();
+            let isolated = ((file_bb.left(1) | file_bb.right(1)) & pos.pawns() & us).is_empty();
 
             if doubled {
                 mg -= DOUBLED_PAWN_PENALTY_MG;
@@ -214,11 +216,7 @@ impl Eval {
                 eg += PASSER_ON_RANK_BONUS_EG[relative_rank];
             }
 
-            if ((FILES[pawn.file() as usize].left(1) | FILES[pawn.file() as usize].right(1))
-                & pos.pawns()
-                & us)
-                .is_empty()
-            {
+            if isolated {
                 mg -= ISOLATED_PAWN_PENALTY_MG;
 
                 if !passed {
