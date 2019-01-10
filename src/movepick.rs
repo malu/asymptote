@@ -297,11 +297,8 @@ impl<'a> Iterator for MovePicker<'a> {
                     let history = self.history.borrow();
                     let wtm = self.position.white_to_move;
                     self.scores.clear();
-                    self.scores.extend(
-                        self.moves
-                            .iter()
-                            .map(|&mov| history.get_score(wtm, mov)),
-                    );
+                    self.scores
+                        .extend(self.moves.iter().map(|&mov| history.get_score(wtm, mov)));
                 }
                 self.index = 0;
                 self.stage += 1;

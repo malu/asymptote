@@ -424,7 +424,7 @@ impl Search {
                             self.add_pv_move(mov, ply);
                             if value >= beta {
                                 if mov.is_quiet() {
-                                    self.update_quiet_stats(mov, ply, depth, num_quiets-1);
+                                    self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
                                 }
 
                                 self.tt.borrow_mut().insert(
@@ -526,10 +526,7 @@ impl Search {
 
         let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
         // Nullmove
-        if !in_check
-            && self.eval.phase() > 0
-            && eval >= beta
-        {
+        if !in_check && self.eval.phase() > 0 && eval >= beta {
             let r = 2;
             self.internal_make_nullmove(ply);
             let score = self
@@ -646,7 +643,9 @@ impl Search {
 
             let new_depth = depth - INC_PLY + extension;
 
-            let mut value = self.search_zw(ply + 1, -alpha, new_depth-reduction).map(|v| -v);
+            let mut value = self
+                .search_zw(ply + 1, -alpha, new_depth - reduction)
+                .map(|v| -v);
             if value.is_some() && value.unwrap() > alpha && reduction > 0 {
                 value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
             }
@@ -661,7 +660,7 @@ impl Search {
 
                 if value >= beta {
                     if mov.is_quiet() {
-                        self.update_quiet_stats(mov, ply, depth, num_quiets-1);
+                        self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
                     }
 
                     self.tt.borrow_mut().insert(
@@ -913,7 +912,12 @@ impl Search {
             elapsed,
             self.tt.borrow().usage()
         );
-        for mov in self.pv[0].iter().cloned().take_while(Option::is_some).flatten() {
+        for mov in self.pv[0]
+            .iter()
+            .cloned()
+            .take_while(Option::is_some)
+            .flatten()
+        {
             print!("{} ", mov.to_algebraic());
             pos.make_move(mov);
         }
@@ -929,7 +933,11 @@ impl Search {
 
         let mut history = self.history.borrow_mut();
         history.increase_score(self.position.white_to_move, mov, depth);
-        history.decrease_score(self.position.white_to_move, &self.quiets[ply as usize][0..num_failed_quiets], depth);
+        history.decrease_score(
+            self.position.white_to_move,
+            &self.quiets[ply as usize][0..num_failed_quiets],
+            depth,
+        );
 
         let killers = &mut self.stack[ply as usize].borrow_mut().killers_moves;
 

@@ -37,7 +37,7 @@ impl History {
     pub fn increase_score(&mut self, white: bool, mov: Move, depth: Depth) {
         let d = i64::from(depth / INC_PLY);
 
-        self.piece_to[white as usize][mov.piece.index()][mov.to.0 as usize] += d*d;
+        self.piece_to[white as usize][mov.piece.index()][mov.to.0 as usize] += d * d;
     }
 
     pub fn decrease_score(&mut self, white: bool, moves: &[Option<Move>], depth: Depth) {
@@ -45,7 +45,7 @@ impl History {
 
         for mov in moves {
             let mov = mov.unwrap();
-            self.piece_to[white as usize][mov.piece.index()][mov.to.0 as usize] -= d*d;
+            self.piece_to[white as usize][mov.piece.index()][mov.to.0 as usize] -= d * d;
         }
     }
 

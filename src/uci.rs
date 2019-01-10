@@ -247,15 +247,31 @@ impl UCI {
                     println!("No TT entry.");
                 }
             } else if line.starts_with("history") {
-                if let Some(mov) = line.split_whitespace().nth(1).map(|mov| Move::from_algebraic(&self.search.position, mov)) {
-                    let score = self.search.history.borrow().get_score(self.search.position.white_to_move, mov);
+                if let Some(mov) = line
+                    .split_whitespace()
+                    .nth(1)
+                    .map(|mov| Move::from_algebraic(&self.search.position, mov))
+                {
+                    let score = self
+                        .search
+                        .history
+                        .borrow()
+                        .get_score(self.search.position.white_to_move, mov);
                     println!("History score: {}", score);
                 } else {
                     let mg = MoveGenerator::from(&self.search.position);
                     let history = self.search.history.borrow();
                     let mut moves = Vec::new();
                     mg.quiet_moves(&mut moves);
-                    let mut moves = moves.into_iter().map(|mov| (mov, history.get_score(self.search.position.white_to_move, mov))).collect::<Vec<_>>();
+                    let mut moves = moves
+                        .into_iter()
+                        .map(|mov| {
+                            (
+                                mov,
+                                history.get_score(self.search.position.white_to_move, mov),
+                            )
+                        })
+                        .collect::<Vec<_>>();
                     moves.sort_by_key(|(_, hist)| -hist);
                     for (mov, hist) in moves {
                         println!("{} {:>8}", mov.to_algebraic(), hist);

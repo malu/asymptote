@@ -116,7 +116,7 @@ impl Position {
     }
 
     pub fn them(&self, white: bool) -> Bitboard {
-        self.pieces[1-white as usize]
+        self.pieces[1 - white as usize]
     }
 
     /// Static exchange evaluation

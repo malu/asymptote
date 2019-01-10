@@ -281,8 +281,8 @@ impl Eval {
 
         let eg_penalty = CENTER_DISTANCE[king_sq.0 as usize];
 
-        let skip_king_safety = self.material[1-side][Piece::Queen.index()] == 0
-            && self.material[1-side][Piece::Rook.index()] <= 1;
+        let skip_king_safety = self.material[1 - side][Piece::Queen.index()] == 0
+            && self.material[1 - side][Piece::Rook.index()] <= 1;
         if skip_king_safety {
             return (0, -5 * eg_penalty);
         }
@@ -317,30 +317,26 @@ impl Eval {
 
     pub fn make_move(&mut self, mov: Move, pos: &Position) {
         let side = pos.white_to_move as usize;
-        self.pst[side] -=
-            pst(&PST[mov.piece.index()], pos.white_to_move, mov.from);
+        self.pst[side] -= pst(&PST[mov.piece.index()], pos.white_to_move, mov.from);
 
         if let Some(promoted) = mov.promoted {
             self.material[side][Piece::Pawn.index()] -= 1;
             self.material[side][promoted.index()] += 1;
-            self.pst[side] +=
-                pst(&PST[promoted.index()], pos.white_to_move, mov.to);
+            self.pst[side] += pst(&PST[promoted.index()], pos.white_to_move, mov.to);
         } else {
-            self.pst[side] +=
-                pst(&PST[mov.piece.index()], pos.white_to_move, mov.to);
+            self.pst[side] += pst(&PST[mov.piece.index()], pos.white_to_move, mov.to);
         }
 
         if let Some(captured) = mov.captured {
-            self.material[1-side][captured.index()] -= 1;
+            self.material[1 - side][captured.index()] -= 1;
             if mov.en_passant {
-                self.pst[1-side] -= pst(
+                self.pst[1 - side] -= pst(
                     &PST[Piece::Pawn.index()],
                     !pos.white_to_move,
                     mov.to.backward(pos.white_to_move, 1),
                 );
             } else {
-                self.pst[1-side] -=
-                    pst(&PST[captured.index()], !pos.white_to_move, mov.to);
+                self.pst[1 - side] -= pst(&PST[captured.index()], !pos.white_to_move, mov.to);
             }
         }
 
@@ -352,12 +348,10 @@ impl Eval {
                     pos.white_to_move,
                     mov.to.right(1),
                 );
-                self.pst[side] +=
-                    pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(1));
+                self.pst[side] += pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(1));
             } else if mov.from.0 == mov.to.0 + 2 {
                 // castle queenside
-                self.pst[side] -=
-                    pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(2));
+                self.pst[side] -= pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(2));
                 self.pst[side] += pst(
                     &PST[Piece::Rook.index()],
                     pos.white_to_move,
@@ -371,31 +365,27 @@ impl Eval {
         let unmaking_white_move = !pos.white_to_move;
         let side = unmaking_white_move as usize;
 
-        self.pst[side] +=
-            pst(&PST[mov.piece.index()], unmaking_white_move, mov.from);
+        self.pst[side] += pst(&PST[mov.piece.index()], unmaking_white_move, mov.from);
 
         if let Some(captured) = mov.captured {
-            self.material[1-side][captured.index()] += 1;
+            self.material[1 - side][captured.index()] += 1;
             if mov.en_passant {
-                self.pst[1-side] += pst(
+                self.pst[1 - side] += pst(
                     &PST[Piece::Pawn.index()],
                     pos.white_to_move,
                     mov.to.backward(unmaking_white_move, 1),
                 );
             } else {
-                self.pst[1-side] +=
-                    pst(&PST[captured.index()], pos.white_to_move, mov.to);
+                self.pst[1 - side] += pst(&PST[captured.index()], pos.white_to_move, mov.to);
             }
         }
 
         if let Some(promoted) = mov.promoted {
             self.material[side][Piece::Pawn.index()] += 1;
             self.material[side][promoted.index()] -= 1;
-            self.pst[side] -=
-                pst(&PST[promoted.index()], unmaking_white_move, mov.to);
+            self.pst[side] -= pst(&PST[promoted.index()], unmaking_white_move, mov.to);
         } else {
-            self.pst[side] -=
-                pst(&PST[mov.piece.index()], unmaking_white_move, mov.to);
+            self.pst[side] -= pst(&PST[mov.piece.index()], unmaking_white_move, mov.to);
         }
 
         if mov.piece == Piece::King {
@@ -436,22 +426,19 @@ impl Eval {
         let queen = Piece::Queen.index();
 
         for side in 0..2 {
-            if material[side][pawn] > 0
-                || material[side][rook] > 0
-                || material[side][queen] > 0
-            {
+            if material[side][pawn] > 0 || material[side][rook] > 0 || material[side][queen] > 0 {
                 return false;
             }
         }
 
         for side in 0..2 {
             if material[side][bishop] == 0 && material[side][knight] == 0 {
-                if material[1-side][bishop] == 0 && material[1-side][knight] < 3 {
+                if material[1 - side][bishop] == 0 && material[1 - side][knight] < 3 {
                     return true;
                 }
 
-                return material[1-side][bishop] > 0
-                    && material[1-side][bishop] + material[1-side][knight] > 1;
+                return material[1 - side][bishop] > 0
+                    && material[1 - side][bishop] + material[1 - side][knight] > 1;
             }
         }
 
