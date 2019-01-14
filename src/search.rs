@@ -321,7 +321,7 @@ impl Search {
             }
 
             self.visited_nodes -= 1;
-            return self.qsearch(ply, alpha, beta, depth);
+            return self.qsearch(ply, alpha, beta, 0);
         }
 
         // Internal iterative deepening
