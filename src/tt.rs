@@ -120,6 +120,10 @@ impl TTMove {
                 result.captured = Some(Piece::Pawn);
             } else {
                 result.captured = pos.find_piece(result.to);
+                if result.captured.is_none() {
+                    // This move is supposed to be a capture but isn't
+                    return None;
+                }
             }
         }
 
