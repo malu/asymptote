@@ -90,9 +90,12 @@ pub struct TTMove {
     to: u8,   // bits 0-5: to position, bits 6-7 promotion piece
 }
 
-const PROMOTION_MASK: u8 = 0b1100_0000;
-const PROMOTION_QUEEN: u8 = 0b1100_0000;
-const PROMOTION_ROOK: u8 = 0b1000_0000;
+const SQUARE_MASK:      u8 = 0b0011_1111;
+const CAPTURE_FLAG:     u8 = 0b0100_0000;
+const EN_PASSANT_FLAG:  u8 = 0b1000_0000;
+const PROMOTION_MASK:   u8 = 0b1100_0000;
+const PROMOTION_QUEEN:  u8 = 0b1100_0000;
+const PROMOTION_ROOK:   u8 = 0b1000_0000;
 const PROMOTION_BISHOP: u8 = 0b0100_0000;
 const PROMOTION_KNIGHT: u8 = 0b0000_0000;
 
@@ -104,15 +107,15 @@ impl TTMove {
     // Expands this `TTMove` to a `Move`value.
     pub fn expand(self, pos: &Position) -> Option<Move> {
         let mut result = Move {
-            from: Square(self.from & 63),
-            to: Square(self.to & 63),
-            piece: pos.find_piece(Square(self.from & 63))?,
+            from: Square(self.from & SQUARE_MASK),
+            to: Square(self.to & SQUARE_MASK),
+            piece: pos.find_piece(Square(self.from & SQUARE_MASK))?,
             captured: None,
             promoted: None,
-            en_passant: self.from & (1 << 7) > 0,
+            en_passant: self.from & EN_PASSANT_FLAG > 0,
         };
 
-        if self.from & (1 << 6) > 0 {
+        if self.from & CAPTURE_FLAG > 0 {
             if result.en_passant {
                 result.captured = Some(Piece::Pawn);
             } else {
@@ -137,16 +140,16 @@ impl TTMove {
 impl From<Move> for TTMove {
     fn from(mov: Move) -> TTMove {
         let mut result = TTMove {
-            from: mov.from.0 & 63,
-            to: mov.to.0 & 63,
+            from: mov.from.0 & SQUARE_MASK,
+            to: mov.to.0 & SQUARE_MASK,
         };
 
         if mov.captured.is_some() {
-            result.from |= 1 << 6
+            result.from |= CAPTURE_FLAG;
         }
 
         if mov.en_passant {
-            result.from |= 1 << 7
+            result.from |= EN_PASSANT_FLAG;
         }
 
         match mov.promoted {
