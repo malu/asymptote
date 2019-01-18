@@ -24,6 +24,9 @@ pub struct Eval {
     material: [[usize; 5]; 2],
     pst: [Score; 2],
     pawn_table: Vec<PawnHashEntry>,
+    attacked_by: [[Bitboard; 6]; 2],
+    attacked_by_1: [Bitboard; 2],
+    attacked_by_2: [Bitboard; 2],
 }
 
 const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
@@ -60,35 +63,79 @@ const ROOK_MOBILITY: [Score; 15] = [
 const ROOK_MOBILITY_AVG: Score = 105;
 
 impl Eval {
-    fn mobility_for_side(&self, white: bool, pos: &Position) -> Score {
+    fn mobility_for_side(&mut self, white: bool, pos: &Position) -> Score {
         let us = pos.us(white);
+        let them = pos.them(white);
         let rank3 = if white { RANK_3 } else { RANK_6 };
+
+        let s = white as usize;
+        self.attacked_by[s] = [Bitboard::from(0); 6];
+        self.attacked_by_1[s] = Bitboard::from(0);
+        self.attacked_by_2[s] = Bitboard::from(0);
 
         let pawn_stop_squares = (pos.pawns() & us).forward(white, 1);
         let mut pawn_mobility = pawn_stop_squares & !pos.all_pieces;
         pawn_mobility |= (pawn_mobility & rank3).forward(white, 1) & !pos.all_pieces;
-        pawn_mobility |=
-            pos.all_pieces & !us & (pawn_stop_squares.left(1) | pawn_stop_squares.right(1));
+        pawn_mobility |= them & (pawn_stop_squares.left(1) | pawn_stop_squares.right(1));
+
+        let b = pawn_stop_squares.left(1);
+        self.attacked_by[s][Piece::Pawn.index()] |= b;
+        self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
+        self.attacked_by_1[s] |= b;
+
+        let b = pawn_stop_squares.right(1);
+        self.attacked_by[s][Piece::Pawn.index()] |= b;
+        self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
+        self.attacked_by_1[s] |= b;
 
         let mut knight_mobility = 0;
         let their_pawns = pos.pawns() & !us;
         let their_pawn_attacks =
             their_pawns.forward(!white, 1).left(1) | their_pawns.forward(!white, 1).right(1);
         for knight in (pos.knights() & us).squares() {
-            let mobility = KNIGHT_ATTACKS[knight.0 as usize] & !their_pawn_attacks;
+            let b = KNIGHT_ATTACKS[knight.0 as usize];
+            let mobility = b & !their_pawn_attacks;
             knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize] - KNIGHT_MOBILITY_AVG;
+            self.attacked_by[s][Piece::Knight.index()] |= b;
+            self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
+            self.attacked_by_1[s] |= b;
         }
 
         let mut bishop_mobility = 0;
         for bishop in (pos.bishops() & us).squares() {
-            let mobility = get_bishop_attacks_from(bishop, pos.all_pieces);
-            bishop_mobility += BISHOP_MOBILITY[mobility.popcount() as usize] - BISHOP_MOBILITY_AVG;
+            let b = get_bishop_attacks_from(bishop, pos.all_pieces);
+            let x = get_bishop_attacks_from(bishop, pos.all_pieces ^ (pos.queens() & us));
+            bishop_mobility += BISHOP_MOBILITY[b.popcount() as usize] - BISHOP_MOBILITY_AVG;
+            self.attacked_by[s][Piece::Bishop.index()] |= b;
+            self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
+            self.attacked_by_1[s] |= b;
         }
 
         let mut rook_mobility = 0;
         for rook in (pos.rooks() & us).squares() {
-            let mobility = get_rook_attacks_from(rook, pos.all_pieces);
-            rook_mobility += ROOK_MOBILITY[mobility.popcount() as usize] - ROOK_MOBILITY_AVG;
+            let b = get_rook_attacks_from(rook, pos.all_pieces);
+            let x = get_rook_attacks_from(rook, pos.all_pieces ^ (pos.queens() & us));
+            rook_mobility += ROOK_MOBILITY[b.popcount() as usize] - ROOK_MOBILITY_AVG;
+            self.attacked_by[s][Piece::Rook.index()] |= b;
+            self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
+            self.attacked_by_1[s] |= b;
+        }
+
+        for queen in (pos.queens() & us).squares() {
+            let b = get_bishop_attacks_from(queen, pos.all_pieces)
+                | get_rook_attacks_from(queen, pos.all_pieces);
+            let x = get_bishop_attacks_from(queen, pos.all_pieces ^ (pos.queens() & us))
+                | get_rook_attacks_from(queen, pos.all_pieces ^ (pos.queens() & us));
+            self.attacked_by[s][Piece::Queen.index()] |= b;
+            self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
+            self.attacked_by_1[s] |= b;
+        }
+
+        for king in (pos.kings() & us).squares() {
+            let b = KING_ATTACKS[king.0 as usize];
+            self.attacked_by[s][Piece::King.index()] |= b;
+            self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
+            self.attacked_by_1[s] |= b;
         }
 
         6 * pawn_mobility.popcount() as Score + knight_mobility + bishop_mobility + rook_mobility
@@ -279,12 +326,12 @@ impl Eval {
         let front = adjacent_files.forward(white, 1);
         let distant_front = adjacent_files.forward(white, 2);
 
-        let eg_penalty = CENTER_DISTANCE[king_sq.0 as usize];
+        let eg_penalty = 5 * CENTER_DISTANCE[king_sq.0 as usize];
 
         let skip_king_safety = self.material[1 - side][Piece::Queen.index()] == 0
             && self.material[1 - side][Piece::Rook.index()] <= 1;
         if skip_king_safety {
-            return (0, -5 * eg_penalty);
+            return (0, -eg_penalty);
         }
 
         index += (3 - (front & pos.pawns() & us).popcount()) * 2;
@@ -307,8 +354,42 @@ impl Eval {
             index += 1;
         }
 
-        let mg_penalty = (index * index) as Score;
-        (-mg_penalty, -5 * eg_penalty)
+        let safe_knight_checks = !self.attacked_by_1[side] & KNIGHT_ATTACKS[king_sq.0 as usize];
+        let safe_bishop_checks =
+            !self.attacked_by_1[side] & get_bishop_attacks_from(king_sq, pos.all_pieces);
+        let safe_rook_checks =
+            !self.attacked_by_1[side] & get_rook_attacks_from(king_sq, pos.all_pieces);
+
+        let queen_contact_checks = KING_ATTACKS[king_sq.0 as usize]
+            & self.attacked_by[1 - side][Piece::Queen.index()]
+            & self.attacked_by_2[1 - side]
+            & !self.attacked_by_2[side];
+        if queen_contact_checks.at_least_one() {
+            index += 5;
+        }
+
+        let mut mg_penalty = (index * index) as Score;
+
+        if (safe_knight_checks & self.attacked_by[1 - side][Piece::Knight.index()]).at_least_one() {
+            mg_penalty += 50;
+        }
+
+        if (safe_bishop_checks & self.attacked_by[1 - side][Piece::Bishop.index()]).at_least_one() {
+            mg_penalty += 25;
+        }
+
+        if (safe_rook_checks & self.attacked_by[1 - side][Piece::Rook.index()]).at_least_one() {
+            mg_penalty += 25;
+        }
+
+        if ((safe_bishop_checks | safe_rook_checks)
+            & self.attacked_by[1 - side][Piece::Queen.index()])
+        .at_least_one()
+        {
+            mg_penalty += 50;
+        }
+
+        (-mg_penalty, -eg_penalty)
     }
 
     pub fn phase(&self) -> i16 {
@@ -482,6 +563,9 @@ impl<'p> From<&'p Position> for Eval {
             ],
             pst: init_pst_score(pos),
             pawn_table,
+            attacked_by: [[Bitboard::from(0); 6]; 2],
+            attacked_by_1: [Bitboard::from(0); 2],
+            attacked_by_2: [Bitboard::from(0); 2],
         }
     }
 }
