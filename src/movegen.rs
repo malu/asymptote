@@ -407,6 +407,14 @@ impl<'p> MoveGenerator<'p> {
 
         moves.clear();
         scores.clear();
+
+        let promotion_rank = if self.position.white_to_move {
+            RANK_8
+        } else {
+            RANK_1
+        };
+
+        self.pawn(promotion_rank, moves);
         self.knight(them & all_pieces, moves);
         self.bishop(them & all_pieces, moves);
         self.rook(them & all_pieces, moves);
