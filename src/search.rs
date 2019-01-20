@@ -558,7 +558,6 @@ impl Search {
         // Therefore we can skip all quiet moves since they don't change material.
         let futility_skip_quiets = !in_check
             && depth < 3 * INC_PLY
-            && alpha > -MATE_SCORE + MAX_PLY
             && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
 
         let previous_move = self.stack[ply as usize - 1].borrow().current_move;
