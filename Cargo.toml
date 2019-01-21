@@ -7,7 +7,6 @@ edition = "2018"
 
 [dependencies]
 rand = "0.5.0"
-lazy_static = "1.0.1"
 
 [profile.release]
 debug = true

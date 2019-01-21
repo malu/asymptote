@@ -17,36 +17,46 @@
 use crate::bitboard::*;
 use crate::eval::*;
 use crate::position::*;
-use lazy_static::*;
 use rand::{prelude::*, prng::ChaChaRng};
 
 pub fn initialize_magics() {
-    use lazy_static::initialize;
-    initialize(&BISHOP_ATTACKS);
-    initialize(&ROOK_ATTACKS);
+    let offset = initialize_bishop_attacks(0);
+    initialize_rook_attacks(offset);
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+static mut MAGIC_TABLE: [Bitboard; 156800] = [Bitboard(0); 156800];
+static mut BISHOP_ATTACKS: [Magic; 64] = [
+    Magic {
+        magic: 0,
+        shift: 0,
+        mask: Bitboard(0),
+        offset: 0,
+    }; 64
+];
+static mut ROOK_ATTACKS: [Magic; 64] = [
+    Magic {
+        magic: 0,
+        shift: 0,
+        mask: Bitboard(0),
+        offset: 0,
+    }; 64
+];
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 struct Magic {
     magic: u64,
     shift: u32,
     mask: Bitboard,
-    table: Vec<Bitboard>,
+    offset: usize,
 }
 
 impl Magic {
     fn index(&self, occupied: Bitboard) -> usize {
-        ((occupied & self.mask).0.wrapping_mul(self.magic)).wrapping_shr(self.shift) as usize
+        self.offset + ((occupied & self.mask).0.wrapping_mul(self.magic)).wrapping_shr(self.shift) as usize
     }
 }
 
-lazy_static! {
-    static ref BISHOP_ATTACKS: Vec<Magic> = initialize_bishop_attacks();
-    static ref ROOK_ATTACKS: Vec<Magic> = initialize_rook_attacks();
-}
-
-fn initialize_bishop_attacks() -> Vec<Magic> {
-    let mut result = Vec::with_capacity(64);
+fn initialize_bishop_attacks(offset: usize) -> usize {
     let border = FILE_A | FILE_H | RANK_1 | RANK_8;
 
     let mut seed = [0; 32];
@@ -55,6 +65,8 @@ fn initialize_bishop_attacks() -> Vec<Magic> {
         seed[i] = (((i * i) + seed[i - 1] as usize) % 256) as u8;
     }
     let mut rng = ChaChaRng::from_seed(seed);
+
+    let mut offset = offset;
 
     for sq in 0..64 {
         let from = Square(sq);
@@ -83,12 +95,11 @@ fn initialize_bishop_attacks() -> Vec<Magic> {
             magic: sparse_random(&mut rng),
             mask,
             shift,
-            table: Vec::with_capacity(size),
+            offset,
         };
 
         let mut last_used = Vec::with_capacity(size);
         for _ in 0..size {
-            magic.table.push(Bitboard::from(0));
             last_used.push(0);
         }
 
@@ -97,30 +108,32 @@ fn initialize_bishop_attacks() -> Vec<Magic> {
         'search_magic: loop {
             for i in 0..size {
                 let index = magic.index(occupancy[i]);
-                if magic.table[index] != reference[i] && last_used[index] == tries {
+                let magic_table_entry = unsafe { MAGIC_TABLE[index] };
+                if magic_table_entry != reference[i] && last_used[index - offset] == tries {
                     // retry
                     magic.magic = sparse_random(&mut rng);
                     tries += 1;
                     continue 'search_magic;
                 }
-                magic.table[index] = reference[i];
-                last_used[index] = tries;
+                unsafe { MAGIC_TABLE[index] = reference[i]; }
+                last_used[index - offset] = tries;
             }
 
             break;
         }
 
-        result.push(magic);
+        unsafe { BISHOP_ATTACKS[sq as usize] = magic; }
+        offset += size;
     }
 
-    result
+    offset
 }
 
 pub fn get_bishop_attacks_from(from: Square, blockers: Bitboard) -> Bitboard {
     let sq_index = from.0 as usize;
     unsafe {
         let magic = &BISHOP_ATTACKS.get_unchecked(sq_index);
-        *magic.table.get_unchecked(magic.index(blockers))
+        *MAGIC_TABLE.get_unchecked(magic.index(blockers))
     }
 }
 
@@ -170,8 +183,7 @@ fn bishop_from(from: Square, blockers: Bitboard) -> Bitboard {
         | reachable_nw.forward(true, 1).left(1)
 }
 
-fn initialize_rook_attacks() -> Vec<Magic> {
-    let mut result = Vec::with_capacity(64);
+fn initialize_rook_attacks(offset: usize) -> usize {
     let border_files = FILE_A | FILE_H;
     let border_ranks = RANK_1 | RANK_8;
 
@@ -181,6 +193,8 @@ fn initialize_rook_attacks() -> Vec<Magic> {
         seed[i] = (((i * i) + seed[i - 1] as usize) % 256) as u8;
     }
     let mut rng = ChaChaRng::from_seed(seed);
+
+    let mut offset = offset;
 
     for sq in 0..64 {
         let from = Square(sq);
@@ -210,12 +224,11 @@ fn initialize_rook_attacks() -> Vec<Magic> {
             magic: sparse_random(&mut rng),
             mask,
             shift,
-            table: Vec::with_capacity(size),
+            offset,
         };
 
         let mut last_used = Vec::with_capacity(size);
         for _ in 0..size {
-            magic.table.push(Bitboard::from(0));
             last_used.push(0);
         }
 
@@ -224,30 +237,32 @@ fn initialize_rook_attacks() -> Vec<Magic> {
         'search_magic: loop {
             for i in 0..size {
                 let index = magic.index(occupancy[i]);
-                if magic.table[index] != reference[i] && last_used[index] == tries {
+                let magic_table_entry = unsafe { MAGIC_TABLE[index] };
+                if magic_table_entry != reference[i] && last_used[index - offset] == tries {
                     // retry
                     magic.magic = sparse_random(&mut rng);
                     tries += 1;
                     continue 'search_magic;
                 }
-                magic.table[index] = reference[i];
-                last_used[index] = tries;
+                unsafe { MAGIC_TABLE[index] = reference[i]; }
+                last_used[index - offset] = tries;
             }
 
             break;
         }
 
-        result.push(magic);
+        unsafe { ROOK_ATTACKS[sq as usize] = magic; }
+        offset += size;
     }
 
-    result
+    offset
 }
 
 pub fn get_rook_attacks_from(from: Square, blockers: Bitboard) -> Bitboard {
     let sq_index = from.0 as usize;
     unsafe {
         let magic = &ROOK_ATTACKS.get_unchecked(sq_index);
-        *magic.table.get_unchecked(magic.index(blockers))
+        *MAGIC_TABLE.get_unchecked(magic.index(blockers))
     }
 }
 
