@@ -1,6 +1,6 @@
 [package]
 name = "asymptote"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Maximilian Lupke <maxlupke@gmail.com>"]
 license = "GPL-3.0-only"
 edition = "2018"
