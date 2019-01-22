@@ -15,6 +15,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use std::cell::RefCell;
+use std::cmp;
 use std::rc::Rc;
 
 use crate::eval::*;
@@ -151,12 +152,12 @@ impl Search {
                 break;
             }
             let depth = d * INC_PLY;
-            max_depth = ::std::cmp::max(max_depth, depth);
+            max_depth = cmp::max(max_depth, depth);
 
             self.max_ply_searched = 0;
             let mut delta = 50;
-            alpha = ::std::cmp::max(last_score - delta, -MATE_SCORE);
-            beta = ::std::cmp::min(last_score + delta, MATE_SCORE);
+            alpha = cmp::max(last_score - delta, -MATE_SCORE);
+            beta = cmp::min(last_score + delta, MATE_SCORE);
             'aspiration: loop {
                 match self.search_root(&mut moves, alpha, beta, depth) {
                     None => break 'aspiration,
@@ -169,10 +170,10 @@ impl Search {
 
                         if best_score >= beta {
                             delta += delta / 2;
-                            beta = ::std::cmp::min(MATE_SCORE, best_score + delta);
+                            beta = cmp::min(MATE_SCORE, best_score + delta);
                         } else if best_score <= alpha {
                             delta += delta / 2;
-                            alpha = ::std::cmp::max(best_score - delta, -MATE_SCORE);
+                            alpha = cmp::max(best_score - delta, -MATE_SCORE);
                         } else {
                             last_score = best_score;
                             break 'aspiration;
@@ -278,7 +279,7 @@ impl Search {
         }
 
         self.visited_nodes += 1;
-        self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
+        self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
 
         // Check if there is a draw by insufficient mating material or threefold repetition.
         if self.is_draw(ply) {
@@ -497,7 +498,7 @@ impl Search {
 
         let alpha = beta - 1;
         self.visited_nodes += 1;
-        self.max_ply_searched = ::std::cmp::max(ply, self.max_ply_searched);
+        self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
 
         let in_check = self.position.in_check();
 
@@ -556,9 +557,8 @@ impl Search {
 
         // If the futility limit is positive, a move has to gain material or else it gets pruned.
         // Therefore we can skip all quiet moves since they don't change material.
-        let futility_skip_quiets = !in_check
-            && depth < 3 * INC_PLY
-            && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
+        let futility_skip_quiets =
+            !in_check && depth < 3 * INC_PLY && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
 
         let previous_move = self.stack[ply as usize - 1].borrow().current_move;
         let nullmove_reply = previous_move == None;
@@ -912,7 +912,7 @@ impl Search {
             d / INC_PLY,
             self.max_ply_searched,
             self.visited_nodes,
-            1000 * self.visited_nodes / ::std::cmp::max(1, elapsed),
+            1000 * self.visited_nodes / cmp::max(1, elapsed),
             score_str,
             elapsed,
             self.tt.borrow().usage()

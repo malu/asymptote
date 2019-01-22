@@ -17,6 +17,8 @@
 use crate::bitboard::*;
 use crate::movegen::*;
 
+use std::cmp;
+
 /// Bit indicating if white can castle kingside.
 pub const CASTLE_WHITE_KSIDE: u8 = 0x1;
 
@@ -151,7 +153,7 @@ impl Position {
         let promotion_value = piece_after_move.value() - piece.value();
 
         for from in from_bb.squares() {
-            value = ::std::cmp::max(
+            value = cmp::max(
                 value,
                 capture_value + promotion_value
                     - self.see_square(sq, piece_after_move, allowed_pieces ^ from.to_bb(), !white),

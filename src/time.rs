@@ -15,6 +15,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::cmp;
 use std::time;
 
 use crate::position::Position;
@@ -83,7 +84,7 @@ impl TimeManager {
                 };
                 let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
                 let movestogo = movestogo.unwrap_or(40);
-                elapsed <= ::std::cmp::min(time, time / movestogo + inc) / 2
+                elapsed <= cmp::min(time, time / movestogo + inc) / 2
             }
         }
     }
@@ -115,8 +116,8 @@ impl TimeManager {
                         btime
                     };
                     let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
-                    let movestogo = ::std::cmp::min(10, movestogo.unwrap_or(10));
-                    return elapsed >= ::std::cmp::min(time - 10, time / movestogo + inc);
+                    let movestogo = cmp::min(10, movestogo.unwrap_or(10));
+                    return elapsed >= cmp::min(time - 10, time / movestogo + inc);
                 }
                 false
             }

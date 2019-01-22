@@ -90,12 +90,12 @@ pub struct TTMove {
     to: u8,   // bits 0-5: to position, bits 6-7 promotion piece
 }
 
-const SQUARE_MASK:      u8 = 0b0011_1111;
-const CAPTURE_FLAG:     u8 = 0b0100_0000;
-const EN_PASSANT_FLAG:  u8 = 0b1000_0000;
-const PROMOTION_MASK:   u8 = 0b1100_0000;
-const PROMOTION_QUEEN:  u8 = 0b1100_0000;
-const PROMOTION_ROOK:   u8 = 0b1000_0000;
+const SQUARE_MASK: u8 = 0b0011_1111;
+const CAPTURE_FLAG: u8 = 0b0100_0000;
+const EN_PASSANT_FLAG: u8 = 0b1000_0000;
+const PROMOTION_MASK: u8 = 0b1100_0000;
+const PROMOTION_QUEEN: u8 = 0b1100_0000;
+const PROMOTION_ROOK: u8 = 0b1000_0000;
 const PROMOTION_BISHOP: u8 = 0b0100_0000;
 const PROMOTION_KNIGHT: u8 = 0b0000_0000;
 
