@@ -162,7 +162,7 @@ impl UCI {
                 }
             } else if line.starts_with("uci") {
                 self.search = Search::new(STARTING_POSITION);
-                println!("id name Asymptote v0.4.1");
+                println!("id name Asymptote v0.4.2");
                 println!("id author Maximilian Lupke");
                 println!("option name Hash type spin default 1 min 0 max 2048");
                 println!("option name ShowPVBoard type check default false");
