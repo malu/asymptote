@@ -518,8 +518,8 @@ impl Eval {
                     return true;
                 }
 
-                return material[1 - side][bishop] > 0
-                    && material[1 - side][bishop] + material[1 - side][knight] > 1;
+                return material[1 - side][bishop] == 0
+                    || material[1 - side][bishop] + material[1 - side][knight] <= 1;
             }
         }
 
