@@ -21,6 +21,8 @@ use crate::movegen::*;
 use crate::position::*;
 use crate::search::*;
 
+use std::cmp;
+
 #[repr(align(64))]
 pub struct Bucket([TTEntry; NUM_CLUSTERS]);
 
@@ -28,7 +30,6 @@ pub struct TT {
     table: Vec<Bucket>,
     bitmask: u64,
     generation: u8,
-    usage: u64,
 }
 
 pub type Bound = u8;
@@ -188,13 +189,21 @@ impl TT {
             table,
             bitmask,
             generation: 0,
-            usage: 0,
         }
     }
 
     pub fn usage(&self) -> u64 {
-        let len = self.table.len() * NUM_CLUSTERS;
-        1000 * self.usage / len as u64
+        let n = cmp::min(300, self.table.len());
+        let total = n * NUM_CLUSTERS;
+        let mut usage = 0;
+        for bucket in self.table.iter().take(n) {
+            for &entry in &bucket.0 {
+                if !entry.best_move.is_null() && entry.generation == self.generation {
+                    usage += 1;
+                }
+            }
+        }
+        1000 * usage / total as u64
     }
 
     pub fn next_generation(&mut self) {
@@ -219,7 +228,6 @@ impl TT {
             let entries = unsafe { self.table.get_unchecked((hash & self.bitmask) as usize).0 };
             for (i, entry) in entries.into_iter().enumerate() {
                 if entry.best_move.is_null() {
-                    self.usage += 1;
                     replace = i;
                     replace_age = None;
                     replace_depth = None;
