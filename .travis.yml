@@ -7,21 +7,21 @@ env:
   - CRATE_NAME=asymptote
 matrix:
   include:
-  - env: TARGET=i686-unknown-linux-gnu FEATURES=-popcnt
-  - env: TARGET=i686-unknown-linux-gnu FEATURES=+popcnt
-  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=-popcnt
-  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=+popcnt
-  - env: TARGET=i686-apple-darwin FEATURES=-popcnt
+  - env: TARGET=i686-unknown-linux-gnu FEATURES=-popcnt NAME=linux-32bit
+  - env: TARGET=i686-unknown-linux-gnu FEATURES=+popcnt NAME=linux-32bit-popcount
+  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=-popcnt NAME=linux-64bit
+  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=+popcnt NAME=linux-64bit-popcount
+  - env: TARGET=i686-apple-darwin FEATURES=-popcnt NAME=osx-32bit
     os: osx
-  - env: TARGET=i686-apple-darwin FEATURES=+popcnt
+  - env: TARGET=i686-apple-darwin FEATURES=+popcnt NAME=osx-32bit-popcount
     os: osx
-  - env: TARGET=x86_64-apple-darwin FEATURES=-popcnt
+  - env: TARGET=x86_64-apple-darwin FEATURES=-popcnt NAME=osx-64bit
     os: osx
-  - env: TARGET=x86_64-apple-darwin FEATURES=+popcnt
+  - env: TARGET=x86_64-apple-darwin FEATURES=+popcnt NAME=osx-64bit-popcount
     os: osx
-  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=-popcnt
+  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=-popcnt NAME=linux-64bit-nightly
     rust: nightly
-  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=+popcnt
+  - env: TARGET=x86_64-unknown-linux-gnu FEATURES=+popcnt NAME=linux-64bit-popcount-nightly
     rust: nightly
 before_install:
 - set -e
@@ -38,7 +38,7 @@ deploy:
   api_key:
     secure: pSVYc9d155XgELoi1MidxD7fE73ddNoYhwAEYCIWNjcTQbzn1Ppq9Hl/fGY6radvAOwmJmi3ynJzPknAbvMpJthbTI+53kH8vjOve234UeHkWZp5YLqXWTyXtwH5zxrIg/wqWT5oJNRfUGgPAiSg5lZfkYiekp6gXDwFeCBI8bbtsiT2NuGPI6NcJbz0ypr+zTBgGQaopomIDM/jh++CaVweQlVQB0qcGM9mT3sjxHLgSMzFh57Ozy4Rl8b5onheDQLIjLT30uccokdFCG7Zvzj3F0izenikiPyLnAYCVz6HWQlnuAw6hOwpNBu8Rc/gX/4b3odBHL3fZmAMUg81lJ+4OqChPXnNzRcFMXi9zJ12yLoZh865vCqslf6GYVOF3Rmmf6cZSMVpTwf6N9IMwdWzra6GhKcknHaAY+n33ibV1m8NYH6R95VS6iUNpSbd4K12jOJXis7YFQqxAt6gs6qL7zOsYH0i4maAWkSaRW7NxmpJb/RWomMQO224T5qjsTi1/7OnbMQwUdFu1f5E1rUp8z354Pl7wHlsHrIy8Ykh08t0T6Sj+iJuXg9WbkhIvoGNbUOIR7qAZimdmdX4TSvAqcELsNGm+x6EijvlovFWt6gN3LdyJTFYeXbZbGRkTVXMLVrhNT8b33N2Z13hUPxSNxTjU+8Sf0O78XESNV8=
   file_glob: true
-  file: "$CRATE_NAME-$TRAVIS_TAG-$TARGET$FEATURES.*"
+  file: "$CRATE_NAME-$TRAVIS_TAG-$NAME.*"
   on:
     condition: "$TRAVIS_RUST_VERSION = stable"
     tags: true

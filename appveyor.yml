@@ -16,28 +16,42 @@ environment:
     # MinGW
     - TARGET: i686-pc-windows-gnu
       FEATURES: -popcnt
+      NAME: windows-gnu-32bit
     - TARGET: i686-pc-windows-gnu
       FEATURES: +popcnt
+      NAME: windows-gnu-32bit-popcount
     - TARGET: x86_64-pc-windows-gnu
       FEATURES: -popcnt
+      NAME: windows-gnu-64bit
     - TARGET: x86_64-pc-windows-gnu
       FEATURES: +popcnt
+      NAME: windows-gnu-64bit-popcount
 
     # MSVC
     - TARGET: i686-pc-windows-msvc
       FEATURES: -popcnt
+      NAME: windows-msvc-32bit
     - TARGET: i686-pc-windows-msvc
       FEATURES: +popcnt
+      NAME: windows-msvc-32bit-popcount
     - TARGET: x86_64-pc-windows-msvc
       FEATURES: -popcnt
+      NAME: windows-msvc-64bit
     - TARGET: x86_64-pc-windows-msvc
       FEATURES: +popcnt
+      NAME: windows-msvc-64bit-popcount
 
     # Testing other channels
     - TARGET: x86_64-pc-windows-gnu
       RUST_VERSION: nightly
+      # The following line should not be necessary as nightly builds don't get
+      # deployed, but just to make sure.
+      NAME: windows-gnu-64bit-nightly
     - TARGET: x86_64-pc-windows-msvc
       RUST_VERSION: nightly
+      # The following line should not be necessary as nightly builds don't get
+      # deployed, but just to make sure.
+      NAME: windows-msvc-64bit-nightly
 
 install:
   - ps: >-

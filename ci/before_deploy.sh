@@ -24,7 +24,7 @@ main() {
     cp target/$TARGET/release/asymptote $stage/
 
     cd $stage
-    tar czf $src/$CRATE_NAME-$TRAVIS_TAG-$TARGET$FEATURES.tar.gz *
+    tar czf $src/$CRATE_NAME-$TRAVIS_TAG-$NAME.tar.gz *
     cd $src
 
     rm -rf $stage
