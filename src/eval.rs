@@ -33,8 +33,7 @@ const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
 
 #[derive(Debug, Default)]
 struct PawnHashEntry {
-    pawns: Bitboard,
-    color: Bitboard,
+    hash: Hash,
     mg: Score,
     eg: Score,
 }
@@ -204,11 +203,9 @@ impl Eval {
     }
 
     fn pawns(&mut self, pos: &Position, pawn_hash: Hash) -> (Score, Score) {
-        let pawns = pos.bb[Piece::Pawn.index()];
-
         {
             let pawn_hash_entry = &self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
-            if pawn_hash_entry.pawns == pawns && pawn_hash_entry.color == pos.color & pawns {
+            if pawn_hash_entry.hash == pawn_hash {
                 return (pawn_hash_entry.mg, pawn_hash_entry.eg);
             }
         }
@@ -217,8 +214,7 @@ impl Eval {
         let (bmg, beg) = self.pawns_for_side(pos, false);
 
         let pawn_hash_entry = &mut self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
-        pawn_hash_entry.pawns = pawns;
-        pawn_hash_entry.color = pos.color & pawns;
+        pawn_hash_entry.hash = pawn_hash;
         pawn_hash_entry.mg = wmg - bmg;
         pawn_hash_entry.eg = weg - beg;
         (wmg - bmg, weg - beg)
