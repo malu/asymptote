@@ -14,6 +14,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+use crate::bench::*;
 use crate::movegen::*;
 use crate::position::*;
 use crate::search::*;
@@ -203,6 +204,8 @@ impl UCI {
                 }
             } else if line.starts_with("quit") {
                 return;
+            } else if line.starts_with("bench") {
+                run_benchmark(12);
             } else if line.starts_with("showmoves") {
                 println!("Pseudo-legal moves");
                 for mov in MoveGenerator::from(&self.search.position).all_moves() {

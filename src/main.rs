@@ -23,6 +23,7 @@
 #![warn(clippy::clone_on_ref_ptr)]
 #![warn(clippy::multiple_inherent_impl)]
 
+mod bench;
 mod bitboard;
 mod eval;
 mod hash;

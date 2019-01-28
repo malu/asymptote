@@ -47,7 +47,7 @@ pub struct Search {
     pub time_control: TimeControl,
     time_manager: TimeManager,
     pub hasher: Hasher,
-    visited_nodes: u64,
+    pub visited_nodes: u64,
     pub tt: Rc<RefCell<TT>>,
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
