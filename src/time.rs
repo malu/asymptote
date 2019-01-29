@@ -16,6 +16,7 @@
 */
 
 use std::cmp;
+use std::sync;
 use std::time;
 
 use crate::position::Position;
@@ -40,15 +41,26 @@ pub struct TimeManager {
     started_at: time::Instant,
     control: TimeControl,
     searching_for_white: bool,
+    pub stop_rx: sync::mpsc::Receiver<()>,
+    force_stop: bool,
 }
 
 impl TimeManager {
-    pub fn new(position: &Position, control: TimeControl) -> TimeManager {
+    pub fn new(position: &Position, control: TimeControl, stop_rx: sync::mpsc::Receiver<()>) -> TimeManager {
         TimeManager {
             started_at: time::Instant::now(),
             control,
             searching_for_white: position.white_to_move,
+            stop_rx,
+            force_stop: false,
         }
+    }
+
+    pub fn update(&mut self, position: &Position, control: TimeControl) {
+        self.force_stop = false;
+        self.started_at = time::Instant::now();
+        self.control = control;
+        self.searching_for_white = position.white_to_move;
     }
 
     pub fn elapsed_millis(&self) -> u64 {
@@ -56,8 +68,14 @@ impl TimeManager {
         1000 * duration.as_secs() + u64::from(duration.subsec_millis())
     }
 
+    pub fn check_for_stop(&mut self) {
+        if self.stop_rx.try_recv().is_ok() {
+            self.force_stop = true;
+        }
+    }
+
     pub fn start_another_iteration(&self, ply: Ply) -> bool {
-        if ply == MAX_PLY {
+        if ply == MAX_PLY || self.force_stop {
             return false;
         }
 
@@ -89,7 +107,15 @@ impl TimeManager {
         }
     }
 
-    pub fn should_stop(&self, visited_nodes: u64) -> bool {
+    pub fn should_stop(&mut self, visited_nodes: u64) -> bool {
+        if visited_nodes & 0x7F == 0 {
+            self.check_for_stop();
+        }
+
+        if self.force_stop {
+            return true;
+        }
+
         match self.control {
             TimeControl::Infinite => false,
             TimeControl::FixedMillis(millis) => {

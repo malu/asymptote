@@ -69,25 +69,28 @@ const BENCH_POSITIONS: [&'static str; 50] = [
     "2r2b2/5p2/5k2/p1r1pP2/P2pB3/1P3P2/K1P3R1/7R w - - 23 93",
 ];
 
+use std::sync;
 use std::time;
 
 use crate::position::Position;
 use crate::search::{Search, Ply};
 use crate::time::TimeControl;
 
-pub fn run_benchmark(ply: Ply) {
+pub fn run_benchmark(ply: Ply, stop_rx: sync::mpsc::Receiver<()>) {
     let tc = TimeControl::FixedDepth(ply);
 
     let start = time::Instant::now();
     let mut nodes = 0;
+    let mut rx = stop_rx;
     for (i, &fen) in BENCH_POSITIONS.into_iter().enumerate() {
         println!("Position {:>2}: {}", i+1, fen);
         let pos = Position::from(fen);
-        let mut search = Search::new(pos);
+        let mut search = Search::new(pos, rx);
         search.resize_tt(17); // 8 MB hash table
         search.time_control = tc;
         search.root();
         nodes += search.visited_nodes;
+        rx = search.time_manager.stop_rx;
     }
     let duration = time::Instant::now() - start;
     let ms = 1000 * duration.as_secs() + u64::from(duration.subsec_millis());

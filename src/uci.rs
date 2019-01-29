@@ -19,25 +19,27 @@ use crate::movegen::*;
 use crate::position::*;
 use crate::search::*;
 use crate::time::*;
-use crate::tt::*;
 
 use std::io::{self, BufRead};
+use std::sync;
+use std::thread;
 
 pub struct UCI {
-    search: Search,
-    options: PersistentOptions,
+    _main_thread: thread::JoinHandle<()>,
+    main_thread_tx: sync::mpsc::Sender<UciCommand>,
+    stop_tx: sync::mpsc::Sender<()>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum UciCommand {
+pub enum UciCommand {
     Unknown(String),
-    UciNewGame,
-    Uci,
+    UciNewGame(sync::mpsc::Sender<()>, sync::mpsc::Receiver<()>),
+    Uci(sync::mpsc::Sender<()>, sync::mpsc::Receiver<()>),
     IsReady,
     SetOption(String, String),
     Position(Position, Vec<String>),
     Go(GoParams),
     Quit,
+    Stop,
     Bench,
     ShowMoves,
     Debug,
@@ -46,27 +48,21 @@ enum UciCommand {
     Perft(usize),
 }
 
-struct PersistentOptions {
-    hash_bits: u64,
-}
-
-impl Default for PersistentOptions {
-    fn default() -> Self {
-        PersistentOptions { hash_bits: 14 }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-struct GoParams {
-    time_control: TimeControl,
+pub struct GoParams {
+    pub time_control: TimeControl,
 }
 
 impl UCI {
     pub fn new() -> UCI {
         initialize_magics();
+        let (main_tx, main_rx) = sync::mpsc::channel();
+        let (stop_tx, stop_rx) = sync::mpsc::channel();
         UCI {
-            search: Search::new(STARTING_POSITION),
-            options: PersistentOptions::default(),
+            _main_thread: thread::spawn(move || {
+                Search::new(STARTING_POSITION, stop_rx).looping(main_rx)
+            }),
+            main_thread_tx: main_tx,
+            stop_tx,
         }
     }
 
@@ -77,189 +73,38 @@ impl UCI {
             let line = line.unwrap();
 
             let cmd = UciCommand::from(line.as_ref());
-            if cmd == UciCommand::Quit {
-                return;
-            }
 
-            self.handle_uci_cmd(cmd);
-        }
-    }
-
-    fn handle_uci_cmd(&mut self, cmd: UciCommand) {
-        match cmd {
-            UciCommand::Unknown(cmd) => eprintln!("Unknown command: {}", cmd),
-            UciCommand::UciNewGame => self.handle_ucinewgame(),
-            UciCommand::Uci => self.handle_uci(),
-            UciCommand::IsReady => self.handle_isready(),
-            UciCommand::SetOption(name, value) => self.handle_setoption(name, value),
-            UciCommand::Position(pos, moves) => self.handle_position(pos, moves),
-            UciCommand::Go(params) => self.handle_go(params),
-            UciCommand::Quit => {}
-            UciCommand::Bench => self.handle_bench(),
-            UciCommand::ShowMoves => self.handle_showmoves(),
-            UciCommand::Debug => self.handle_d(),
-            UciCommand::TT => self.handle_tt(),
-            UciCommand::History(mov) => self.handle_history(mov),
-            UciCommand::Perft(depth) => self.handle_perft(depth),
-        }
-    }
-
-    fn handle_ucinewgame(&mut self) {
-        self.search = Search::new(STARTING_POSITION);
-        self.search.resize_tt(self.options.hash_bits);
-    }
-
-    fn handle_uci(&mut self) {
-        self.search = Search::new(STARTING_POSITION);
-        println!("id name Asymptote v0.4.2");
-        println!("id author Maximilian Lupke");
-        println!("option name Hash type spin default 1 min 0 max 2048");
-        println!("option name ShowPVBoard type check default false");
-        println!("uciok");
-    }
-
-    fn handle_isready(&self) {
-        println!("readyok");
-    }
-
-    fn handle_go(&mut self, params: GoParams) {
-        self.search.time_control = params.time_control;
-        let mov = self.search.root();
-        println!("bestmove {}", mov.to_algebraic());
-    }
-
-    fn handle_position(&mut self, pos: Position, moves: Vec<String>) {
-        self.search.position = pos;
-        self.search.redo_eval();
-
-        for (i, mov) in moves.iter().enumerate() {
-            if i < self.search.made_moves.len()
-                && mov == self.search.made_moves[i].to_algebraic().as_str()
-            {
-                continue;
-            }
-
-            let mov = Move::from_algebraic(&self.search.position, &mov);
-            self.search.make_move(mov);
-        }
-    }
-
-    fn handle_setoption(&mut self, name: String, value: String) {
-        match name.as_ref() {
-            "hash" => {
-                if let Ok(mb) = value.parse::<usize>() {
-                    let hash_buckets = 1024 * 1024 * mb / 64; // 64 bytes per hash bucket
-                    let power_of_two = (hash_buckets + 1).next_power_of_two() / 2;
-                    let bits = power_of_two.trailing_zeros();
-                    self.search.resize_tt(u64::from(bits));
-                    self.options.hash_bits = u64::from(bits);
-                } else {
-                    eprintln!("Unable to parse value '{}' as integer", value);
+            // Some commands are handled here instead of by the search
+            match cmd {
+                UciCommand::Quit => return,
+                UciCommand::Stop => {
+                    self.stop_tx.send(()).unwrap();
                 }
-            }
-            "showpvboard" => {
-                self.search.show_pv_board = value.eq_ignore_ascii_case("true");
-            }
-            _ => {
-                eprintln!("Unrecognized option {}", name);
-            }
-        }
-    }
-
-    fn handle_bench(&self) {
-        run_benchmark(12);
-    }
-
-    fn handle_showmoves(&mut self) {
-        println!("Pseudo-legal moves");
-        for mov in MoveGenerator::from(&self.search.position).all_moves() {
-            print!("{} ", mov.to_algebraic());
-        }
-        println!("\n");
-
-        println!("Legal moves");
-        for mov in MoveGenerator::from(&self.search.position).all_moves() {
-            self.search.internal_make_move(mov, 0);
-            if self.search.position.move_was_legal(mov) {
-                print!("{} ", mov.to_algebraic());
-            }
-            self.search.internal_unmake_move(mov, 0);
-        }
-        println!();
-    }
-
-    fn handle_d(&self) {
-        self.search.position.print("");
-    }
-
-    fn handle_tt(&mut self) {
-        println!("Current hash: 0x{:0>64x}", self.search.hasher.get_hash());
-        let tt = self
-            .search
-            .tt
-            .borrow_mut()
-            .get(self.search.hasher.get_hash());
-        if let Some(tt) = tt {
-            if let Some(best_move) = tt.best_move.expand(&self.search.position) {
-                println!("Best move: {}", best_move.to_algebraic());
-                print!("Score:     ");
-                if tt.bound == EXACT_BOUND {
-                    println!("= {:?}", tt.score);
-                } else if tt.bound & LOWER_BOUND > 0 {
-                    println!("> {:?}", tt.score);
-                } else {
-                    println!("< {:?}", tt.score);
+                UciCommand::Uci(tx, rx) => {
+                    self.stop_tx = tx.clone();
+                    self.main_thread_tx.send(UciCommand::Uci(tx, rx)).unwrap();
                 }
-                println!("Depth:     {} ({} plies)", tt.depth, tt.depth / INC_PLY);
-            } else {
-                println!("No TT entry.");
-            }
-        } else {
-            println!("No TT entry.");
-        }
-    }
-
-    fn handle_history(&self, mov: Option<String>) {
-        match mov.map(|m| Move::from_algebraic(&self.search.position, &m)) {
-            Some(mov) => {
-                let score = self
-                    .search
-                    .history
-                    .borrow()
-                    .get_score(self.search.position.white_to_move, mov);
-                println!("History score: {}", score);
-            }
-            None => {
-                let mg = MoveGenerator::from(&self.search.position);
-                let history = self.search.history.borrow();
-                let mut moves = Vec::new();
-                mg.quiet_moves(&mut moves);
-                let mut moves = moves
-                    .into_iter()
-                    .map(|mov| {
-                        (
-                            mov,
-                            history.get_score(self.search.position.white_to_move, mov),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                moves.sort_by_key(|(_, hist)| -hist);
-                for (mov, hist) in moves {
-                    println!("{} {:>8}", mov.to_algebraic(), hist);
+                UciCommand::UciNewGame(tx, rx) => {
+                    self.stop_tx = tx.clone();
+                    self.main_thread_tx.send(UciCommand::UciNewGame(tx, rx)).unwrap();
+                }
+                UciCommand::Bench => {
+                    let (_, rx) = sync::mpsc::channel();
+                    run_benchmark(12, rx);
+                }
+                cmd => {
+                    self.main_thread_tx.send(cmd).unwrap();
                 }
             }
         }
-    }
-
-    fn handle_perft(&mut self, depth: usize) {
-        self.search.perft(depth);
     }
 }
 
 impl<'a> From<&'a str> for UciCommand {
     fn from(line: &str) -> Self {
         if line.starts_with("ucinewgame") {
-            UciCommand::UciNewGame
+            let (tx, rx) = sync::mpsc::channel();
+            UciCommand::UciNewGame(tx, rx)
         } else if line.starts_with("setoption") {
             let mut words = line.split_whitespace();
             assert!(words.next() == Some("setoption"));
@@ -290,7 +135,8 @@ impl<'a> From<&'a str> for UciCommand {
 
             UciCommand::SetOption(name, value)
         } else if line.starts_with("uci") {
-            UciCommand::Uci
+            let (tx, rx) = sync::mpsc::channel();
+            UciCommand::Uci(tx, rx)
         } else if line.starts_with("isready") {
             UciCommand::IsReady
         } else if line.starts_with("go") {
@@ -332,6 +178,8 @@ impl<'a> From<&'a str> for UciCommand {
         } else if line.starts_with("perft") {
             let depth = line.split_whitespace().nth(1).and_then(|d| d.parse().ok()).unwrap_or(6);
             UciCommand::Perft(depth)
+        } else if line == "stop" {
+            UciCommand::Stop
         } else {
             UciCommand::Unknown(line.to_owned())
         }

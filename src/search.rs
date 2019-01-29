@@ -17,6 +17,7 @@
 use std::cell::RefCell;
 use std::cmp;
 use std::rc::Rc;
+use std::sync;
 
 use crate::eval::*;
 use crate::hash::*;
@@ -27,6 +28,7 @@ use crate::position::*;
 use crate::repetitions::Repetitions;
 use crate::time::*;
 use crate::tt::*;
+use crate::uci::*;
 
 pub type Ply = i16;
 pub type Depth = i16;
@@ -39,13 +41,28 @@ const FUTILITY_POSITIONAL_MARGIN: Score = 300;
 const LMR_MAX_DEPTH: Depth = 8 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
 
+#[derive(Copy, Clone, Debug)]
+struct PersistentOptions {
+    hash_bits: u64,
+    show_pv_board: bool,
+}
+
+impl Default for PersistentOptions {
+    fn default() -> Self {
+        PersistentOptions {
+            hash_bits: 14,
+            show_pv_board: false,
+        }
+    }
+}
+
 pub struct Search {
     stack: Vec<Rc<RefCell<PlyDetails>>>,
     pub history: Rc<RefCell<History>>,
     pub position: Position,
     eval: Eval,
     pub time_control: TimeControl,
-    time_manager: TimeManager,
+    pub time_manager: TimeManager,
     pub hasher: Hasher,
     pub visited_nodes: u64,
     pub tt: Rc<RefCell<TT>>,
@@ -53,7 +70,7 @@ pub struct Search {
     max_ply_searched: Ply,
     repetitions: Repetitions,
     pub made_moves: Vec<Move>,
-    pub show_pv_board: bool,
+    options: PersistentOptions,
 
     mp_allocations: Vec<Rc<RefCell<MovePickerAllocations>>>,
     quiets: [[Option<Move>; 256]; MAX_PLY as usize],
@@ -67,7 +84,7 @@ pub struct PlyDetails {
 }
 
 impl Search {
-    pub fn new(position: Position) -> Self {
+    pub fn new(position: Position, stop_rx: sync::mpsc::Receiver<()>) -> Self {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         let mut stack = Vec::with_capacity(MAX_PLY as usize);
         let mut mp_allocations = Vec::with_capacity(MAX_PLY as usize);
@@ -82,7 +99,7 @@ impl Search {
             stack,
             eval: Eval::from(&position),
             time_control: TimeControl::Infinite,
-            time_manager: TimeManager::new(&position, TimeControl::Infinite),
+            time_manager: TimeManager::new(&position, TimeControl::Infinite, stop_rx),
             position,
             hasher: Hasher::new(),
             tt: Rc::new(RefCell::new(TT::new(14))),
@@ -91,7 +108,7 @@ impl Search {
             max_ply_searched: 0,
             repetitions: Repetitions::new(100),
             made_moves: Vec::new(),
-            show_pv_board: false,
+            options: PersistentOptions::default(),
 
             mp_allocations,
             quiets: [[None; 256]; MAX_PLY as usize],
@@ -99,7 +116,7 @@ impl Search {
     }
 
     pub fn root(&mut self) -> Move {
-        self.time_manager = TimeManager::new(&self.position, self.time_control);
+        self.time_manager.update(&self.position, self.time_control);
         self.visited_nodes = 0;
         self.tt.borrow_mut().next_generation();
         self.pv
@@ -928,7 +945,7 @@ impl Search {
         }
         println!();
 
-        if self.show_pv_board {
+        if self.options.show_pv_board {
             pos.print("info string ");
         }
     }
@@ -980,7 +997,7 @@ impl Search {
     }
 
     pub fn perft(&mut self, depth: usize) {
-        self.time_manager = TimeManager::new(&self.position, TimeControl::Infinite);
+        self.time_manager.update(&self.position, TimeControl::Infinite);
 
         let mut num_moves = 0;
         let moves = MoveGenerator::from(&self.position).all_moves();
@@ -1079,5 +1096,170 @@ impl Search {
 
     pub fn resize_tt(&mut self, bits: u64) {
         self.tt = Rc::new(RefCell::new(TT::new(bits)));
+    }
+
+    pub fn looping(&mut self, main_rx: sync::mpsc::Receiver<UciCommand>) {
+        for cmd in main_rx {
+            match cmd {
+                UciCommand::Unknown(cmd) => eprintln!("Unknown command: {}", cmd),
+                UciCommand::UciNewGame(_, rx) => self.handle_ucinewgame(rx),
+                UciCommand::Uci(_, rx) => self.handle_uci(rx),
+                UciCommand::IsReady => self.handle_isready(),
+                UciCommand::SetOption(name, value) => self.handle_setoption(name, value),
+                UciCommand::Position(pos, moves) => self.handle_position(pos, moves),
+                UciCommand::Go(params) => self.handle_go(params),
+                UciCommand::ShowMoves => self.handle_showmoves(),
+                UciCommand::Debug => self.handle_d(),
+                UciCommand::TT => self.handle_tt(),
+                UciCommand::History(mov) => self.handle_history(mov),
+                UciCommand::Perft(depth) => self.handle_perft(depth),
+                _ => eprintln!("Unexpected uci command"),
+            }
+        }
+    }
+
+    fn handle_ucinewgame(&mut self, rx: sync::mpsc::Receiver<()>) {
+        let options = self.options;
+        *self = Search::new(STARTING_POSITION, rx);
+        self.options = options;
+        self.resize_tt(self.options.hash_bits);
+    }
+
+    fn handle_uci(&mut self, rx: sync::mpsc::Receiver<()>) {
+        let options = self.options;
+        *self = Search::new(STARTING_POSITION, rx);
+        self.options = options;
+        println!("id name Asymptote v0.4.2");
+        println!("id author Maximilian Lupke");
+        println!("option name Hash type spin default 1 min 0 max 2048");
+        println!("option name ShowPVBoard type check default false");
+        println!("uciok");
+    }
+
+    fn handle_isready(&self) {
+        println!("readyok");
+    }
+
+    fn handle_go(&mut self, params: GoParams) {
+        self.time_control = params.time_control;
+        let mov = self.root();
+        println!("bestmove {}", mov.to_algebraic());
+    }
+
+    fn handle_position(&mut self, pos: Position, moves: Vec<String>) {
+        pos.print("");
+        println!("{:?}", moves);
+        self.position = pos;
+        self.redo_eval();
+
+        for ref mov in &moves {
+            let mov = Move::from_algebraic(&self.position, &mov);
+            self.make_move(mov);
+        }
+    }
+
+    fn handle_setoption(&mut self, name: String, value: String) {
+        match name.as_ref() {
+            "hash" => {
+                if let Ok(mb) = value.parse::<usize>() {
+                    let hash_buckets = 1024 * 1024 * mb / 64; // 64 bytes per hash bucket
+                    let power_of_two = (hash_buckets + 1).next_power_of_two() / 2;
+                    let bits = power_of_two.trailing_zeros();
+                    self.resize_tt(u64::from(bits));
+                    self.options.hash_bits = u64::from(bits);
+                } else {
+                    eprintln!("Unable to parse value '{}' as integer", value);
+                }
+            }
+            "showpvboard" => {
+                self.options.show_pv_board = value.eq_ignore_ascii_case("true");
+            }
+            _ => {
+                eprintln!("Unrecognized option {}", name);
+            }
+        }
+    }
+
+    fn handle_showmoves(&mut self) {
+        println!("Pseudo-legal moves");
+        for mov in MoveGenerator::from(&self.position).all_moves() {
+            print!("{} ", mov.to_algebraic());
+        }
+        println!("\n");
+
+        println!("Legal moves");
+        for mov in MoveGenerator::from(&self.position).all_moves() {
+            self.internal_make_move(mov, 0);
+            if self.position.move_was_legal(mov) {
+                print!("{} ", mov.to_algebraic());
+            }
+            self.internal_unmake_move(mov, 0);
+        }
+        println!();
+    }
+
+    fn handle_d(&self) {
+        self.position.print("");
+    }
+
+    fn handle_tt(&mut self) {
+        println!("Current hash: 0x{:0>64x}", self.hasher.get_hash());
+        let tt = self
+            .tt
+            .borrow_mut()
+            .get(self.hasher.get_hash());
+        if let Some(tt) = tt {
+            if let Some(best_move) = tt.best_move.expand(&self.position) {
+                println!("Best move: {}", best_move.to_algebraic());
+                print!("Score:     ");
+                if tt.bound == EXACT_BOUND {
+                    println!("= {:?}", tt.score);
+                } else if tt.bound & LOWER_BOUND > 0 {
+                    println!("> {:?}", tt.score);
+                } else {
+                    println!("< {:?}", tt.score);
+                }
+                println!("Depth:     {} ({} plies)", tt.depth, tt.depth / INC_PLY);
+            } else {
+                println!("No TT entry.");
+            }
+        } else {
+            println!("No TT entry.");
+        }
+    }
+
+    fn handle_history(&self, mov: Option<String>) {
+        match mov.map(|m| Move::from_algebraic(&self.position, &m)) {
+            Some(mov) => {
+                let score = self
+                    .history
+                    .borrow()
+                    .get_score(self.position.white_to_move, mov);
+                println!("History score: {}", score);
+            }
+            None => {
+                let mg = MoveGenerator::from(&self.position);
+                let history = self.history.borrow();
+                let mut moves = Vec::new();
+                mg.quiet_moves(&mut moves);
+                let mut moves = moves
+                    .into_iter()
+                    .map(|mov| {
+                        (
+                            mov,
+                            history.get_score(self.position.white_to_move, mov),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                moves.sort_by_key(|(_, hist)| -hist);
+                for (mov, hist) in moves {
+                    println!("{} {:>8}", mov.to_algebraic(), hist);
+                }
+            }
+        }
+    }
+
+    fn handle_perft(&mut self, depth: usize) {
+        self.perft(depth);
     }
 }

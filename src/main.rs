@@ -37,33 +37,9 @@ mod time;
 mod tt;
 mod uci;
 
-use std::env::args;
-
-use crate::position::STARTING_POSITION;
-use crate::search::Search;
 use crate::uci::*;
 
 fn main() {
-    let mut args = args().skip(1);
-    if let Some(cmd) = args.next() {
-        match cmd.as_ref() {
-            "perft" => {
-                let mut search = Search::new(STARTING_POSITION);
-                let i = if let Some(n) = args.next() {
-                    n.parse().unwrap()
-                } else {
-                    4
-                };
-                search.perft(i);
-            }
-            "go" => {
-                let mut search = Search::new(STARTING_POSITION);
-                println!("bestmove {}", search.root().to_algebraic());
-            }
-            _ => {}
-        }
-    } else {
-        let mut uci = UCI::new();
-        uci.run();
-    }
+    let mut uci = UCI::new();
+    uci.run();
 }
