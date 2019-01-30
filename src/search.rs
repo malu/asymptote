@@ -376,7 +376,7 @@ impl Search {
 
         let mut num_moves = 0;
         let mut num_quiets = 0;
-        for (mtype, mov) in moves {
+        for (_mtype, mov) in moves {
             self.internal_make_move(mov, ply);
             if !self.position.move_was_legal(mov) {
                 self.internal_unmake_move(mov, ply);
@@ -390,10 +390,6 @@ impl Search {
             }
 
             let mut extension = 0;
-            if mtype == MoveType::TTMove && ply < 80 {
-                extension += INC_PLY / 4;
-            }
-
             // Check extension
             let check = self.position.in_check();
             if check {
