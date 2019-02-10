@@ -47,12 +47,12 @@ struct Magic {
     magic: u64,
     shift: u32,
     mask: Bitboard,
-    offset: usize,
+    offset: u32,
 }
 
 impl Magic {
     fn index(&self, occupied: Bitboard) -> usize {
-        self.offset + ((occupied & self.mask).0.wrapping_mul(self.magic)).wrapping_shr(self.shift) as usize
+        self.offset as usize + ((occupied & self.mask).0.wrapping_mul(self.magic)).wrapping_shr(self.shift) as usize
     }
 }
 
@@ -95,7 +95,7 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
             magic: sparse_random(&mut rng),
             mask,
             shift,
-            offset,
+            offset: offset as u32,
         };
 
         let mut last_used = Vec::with_capacity(size);
@@ -224,7 +224,7 @@ fn initialize_rook_attacks(offset: usize) -> usize {
             magic: sparse_random(&mut rng),
             mask,
             shift,
-            offset,
+            offset: offset as u32,
         };
 
         let mut last_used = Vec::with_capacity(size);
