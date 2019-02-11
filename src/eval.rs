@@ -350,6 +350,10 @@ impl Eval {
             index += 1;
         }
 
+        let safe_squares = KING_ATTACKS[king_sq.0 as usize] & !us & !self.attacked_by_1[1 - side];
+        const SAFE_SQUARES_PENALTY: [usize; 9] = [3, 2, 1, 0, 0, 0, 0, 0, 0];
+        index += SAFE_SQUARES_PENALTY[safe_squares.popcount()];
+
         let safe_knight_checks = !self.attacked_by_1[side] & KNIGHT_ATTACKS[king_sq.0 as usize];
         let safe_bishop_checks =
             !self.attacked_by_1[side] & get_bishop_attacks_from(king_sq, pos.all_pieces);
