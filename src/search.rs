@@ -318,32 +318,32 @@ impl Search {
             return Some(alpha);
         }
 
-        if depth < INC_PLY {
+        let ttentry = self.tt.borrow_mut().get(self.hasher.get_hash()).and_then(|ttentry| {
+            let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
+            mov.map(|mov| (ttentry, mov))
+        });
+
+        if let Some((ttentry, _)) = ttentry {
+            let score = ttentry.score.to_score(ply);
+
             // In PV nodes we only cutoff on TT hits if we would drop into quiescence search otherwise.
             // Otherwise we would get shorter principal variations as output.
-            if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
-                let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
-                if ttentry
-                    .best_move
-                    .expand(&self.position)
-                    .map_or(false, check_move_legality)
-                {
-                    let score = ttentry.score.to_score(ply);
+            if depth < INC_PLY {
+                if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
+                    return Some(score);
+                }
 
-                    if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
-                        return Some(score);
-                    }
+                if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
+                    return Some(score);
+                }
 
-                    if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
-                        return Some(score);
-                    }
-
-                    if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
-                        return Some(score);
-                    }
+                if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
+                    return Some(score);
                 }
             }
+        }
 
+        if depth < INC_PLY {
             self.visited_nodes -= 1;
             return self.qsearch(ply, alpha, beta, 0);
         }
@@ -515,16 +515,15 @@ impl Search {
 
         let in_check = self.position.in_check();
 
-        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
-            let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
-            if (ttentry.depth >= depth || depth < INC_PLY)
-                && ttentry
-                    .best_move
-                    .expand(&self.position)
-                    .map_or(false, check_move_legality)
-            {
-                let score = ttentry.score.to_score(ply);
+        let ttentry = self.tt.borrow_mut().get(self.hasher.get_hash()).and_then(|ttentry| {
+            let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
+            mov.map(|mov| (ttentry, mov))
+        });
 
+        if let Some((ttentry, _)) = ttentry {
+            let score = ttentry.score.to_score(ply);
+
+            if ttentry.depth >= depth || depth < INC_PLY {
                 if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
                     return Some(score);
                 }
