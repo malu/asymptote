@@ -1063,11 +1063,13 @@ impl Search {
 
         self.hasher.make_nullmove(&self.position);
         self.position.make_nullmove();
+        self.repetitions.push_position(self.hasher.get_hash());
     }
 
     fn internal_unmake_nullmove(&mut self, ply: Ply) {
         let irreversible = self.stack[ply as usize].borrow().irreversible_details;
         self.hasher.unmake_nullmove(&self.position, irreversible);
+        self.repetitions.pop_position();
         self.position.unmake_nullmove(irreversible);
     }
 
