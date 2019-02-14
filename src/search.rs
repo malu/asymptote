@@ -132,10 +132,7 @@ impl Search {
             .all_moves()
             .into_iter()
             .filter(|&mov| {
-                self.internal_make_move(mov, 0);
-                let result = self.position.move_was_legal(mov);
-                self.internal_unmake_move(mov, 0);
-                result
+                self.position.move_is_legal(mov)
             })
             .map(|mov| (mov, 0))
             .collect::<Vec<_>>();
@@ -377,11 +374,11 @@ impl Search {
         let mut num_moves = 0;
         let mut num_quiets = 0;
         for (_mtype, mov) in moves {
-            self.internal_make_move(mov, ply);
-            if !self.position.move_was_legal(mov) {
-                self.internal_unmake_move(mov, ply);
+            if !self.position.move_is_legal(mov) {
                 continue;
             }
+
+            self.internal_make_move(mov, ply);
 
             num_moves += 1;
             if mov.is_quiet() {
@@ -597,11 +594,11 @@ impl Search {
         let mut num_moves = 0;
         let mut num_quiets = 0;
         for (mtype, mov) in moves {
-            self.internal_make_move(mov, ply);
-            if !self.position.move_was_legal(mov) {
-                self.internal_unmake_move(mov, ply);
+            if !self.position.move_is_legal(mov) {
                 continue;
             }
+
+            self.internal_make_move(mov, ply);
 
             let check = self.position.in_check();
 
@@ -794,11 +791,11 @@ impl Search {
 
         let mut num_moves = 0;
         for (_mtype, mov) in moves {
-            self.internal_make_move(mov, ply);
-            if !self.position.move_was_legal(mov) {
-                self.internal_unmake_move(mov, ply);
+            if !self.position.move_is_legal(mov) {
                 continue;
             }
+
+            self.internal_make_move(mov, ply);
             num_moves += 1;
 
             let value = self
@@ -886,12 +883,9 @@ impl Search {
         );
 
         for (_, mov) in moves {
-            self.internal_make_move(mov, MAX_PLY - 1);
-            if self.position.move_was_legal(mov) {
-                self.internal_unmake_move(mov, MAX_PLY - 1);
+            if self.position.move_is_legal(mov) {
                 return false;
             }
-            self.internal_unmake_move(mov, MAX_PLY - 1);
         }
 
         true
@@ -999,12 +993,14 @@ impl Search {
 
         if depth > 0 {
             for mov in moves {
-                self.internal_make_move(mov, depth as Ply);
-                if self.position.move_was_legal(mov) {
-                    let perft = self.internal_perft(depth - 1);
-                    num_moves += perft;
-                    println!("{}: {}", mov.to_algebraic(), perft);
+                if !self.position.move_is_legal(mov) {
+                    continue;
                 }
+
+                self.internal_make_move(mov, depth as Ply);
+                let perft = self.internal_perft(depth - 1);
+                num_moves += perft;
+                println!("{}: {}", mov.to_algebraic(), perft);
                 self.internal_unmake_move(mov, depth as Ply);
             }
         }
@@ -1026,10 +1022,12 @@ impl Search {
         let moves = MoveGenerator::from(&self.position).all_moves();
 
         for mov in moves {
-            self.internal_make_move(mov, depth as Ply);
-            if self.position.move_was_legal(mov) {
-                num_moves += self.internal_perft(depth - 1);
+            if !self.position.move_is_legal(mov) {
+                continue;
             }
+
+            self.internal_make_move(mov, depth as Ply);
+            num_moves += self.internal_perft(depth - 1);
             self.internal_unmake_move(mov, depth as Ply);
         }
 
@@ -1186,11 +1184,9 @@ impl Search {
 
         println!("Legal moves");
         for mov in MoveGenerator::from(&self.position).all_moves() {
-            self.internal_make_move(mov, 0);
-            if self.position.move_was_legal(mov) {
+            if self.position.move_is_legal(mov) {
                 print!("{} ", mov.to_algebraic());
             }
-            self.internal_unmake_move(mov, 0);
         }
         println!();
     }

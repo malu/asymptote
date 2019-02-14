@@ -260,31 +260,83 @@ impl Position {
         self.is_attacked(king)
     }
 
-    /// Checks whether `prev_move` (which has to be already made by `self.make_move(prev_move)`) was
-    /// legal.
-    pub fn move_was_legal(&mut self, prev_move: Move) -> bool {
-        self.white_to_move = !self.white_to_move;
+    pub fn move_is_legal(&mut self, mov: Move) -> bool {
+        let mut all_pieces = self.all_pieces;
+        let mut king = (self.kings() & self.us(self.white_to_move)).squares().nth(0).unwrap();
+        let mut them = self.them(self.white_to_move) & all_pieces;
 
-        if self.in_check() {
-            self.white_to_move = !self.white_to_move;
+        if mov.piece == Piece::King {
+            king = mov.to;
+
+            if mov.from.left(2) == mov.to {
+                // Queenside castling
+                if self.is_attacked(mov.from) || self.is_attacked(mov.from.left(1)) {
+                    return false;
+                }
+
+                all_pieces ^= mov.from;
+                all_pieces ^= mov.to;
+
+                // Rook movement
+                all_pieces ^= mov.to.left(2);
+                all_pieces ^= mov.to.right(1);
+            } else if mov.from.right(2) == mov.to {
+                // Kingside castling
+                if self.is_attacked(mov.from) || self.is_attacked(mov.from.right(1)) {
+                    return false;
+                }
+
+                all_pieces ^= mov.from;
+                all_pieces ^= mov.to;
+
+                // Rook movement
+                all_pieces ^= mov.to.right(1);
+                all_pieces ^= mov.to.left(1);
+            } else {
+                all_pieces ^= mov.from;
+
+                if mov.captured.is_none() {
+                    all_pieces ^= mov.to;
+                } else {
+                    them ^= mov.to;
+                }
+            }
+        } else {
+            if mov.en_passant {
+                all_pieces ^= mov.from;
+                all_pieces ^= mov.to;
+                all_pieces ^= mov.to.backward(self.white_to_move, 1);
+                them ^= mov.to.backward(self.white_to_move, 1);
+            } else if mov.captured.is_some() {
+                all_pieces ^= mov.from;
+                them ^= mov.to;
+            } else {
+                all_pieces ^= mov.from;
+                all_pieces ^= mov.to;
+            }
+        }
+
+        if (KNIGHT_ATTACKS[king.0 as usize] & them & self.knights()).at_least_one() {
             return false;
         }
 
-        if prev_move.piece == Piece::King && prev_move.to.0 == prev_move.from.0 + 2 {
-            // kside castling
-            let legal =
-                !self.is_attacked(prev_move.from) && !self.is_attacked(prev_move.from.right(1));
-            self.white_to_move = !self.white_to_move;
-            return legal;
-        } else if prev_move.piece == Piece::King && prev_move.from.0 == prev_move.to.0 + 2 {
-            // qside castling
-            let legal =
-                !self.is_attacked(prev_move.from) && !self.is_attacked(prev_move.from.left(1));
-            self.white_to_move = !self.white_to_move;
-            return legal;
+        if (KING_ATTACKS[king.0 as usize] & them & self.kings()).at_least_one() {
+            return false;
         }
 
-        self.white_to_move = !self.white_to_move;
+        if (get_bishop_attacks_from(king, all_pieces) & them & (self.queens() | self.bishops())).at_least_one() {
+            return false;
+        }
+
+        if (get_rook_attacks_from(king, all_pieces) & them & (self.queens() | self.rooks())).at_least_one() {
+            return false;
+        }
+
+        let their_pawns = self.pawns() & them;
+        if (their_pawns.left(1) | their_pawns.right(1)).backward(self.white_to_move, 1) & king {
+            return false;
+        }
+
         true
     }
 
