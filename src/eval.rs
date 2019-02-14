@@ -14,6 +14,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+use std::cmp;
+
 use crate::bitboard::*;
 use crate::hash::*;
 use crate::movegen::*;
@@ -189,11 +191,23 @@ impl Eval {
         score += self.mobility_for_side(true, pos) - self.mobility_for_side(false, pos);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
 
-        let phase = self.phase();
+        let mut mg = score;
+        let mut eg = score;
+
         let (king_mg, king_eg) = self.king_safety(pos);
-        score += (king_mg * phase + king_eg * (62 - phase)) / 62;
+        mg += king_mg;
+        eg += king_eg;
+
         let (pawns_mg, pawns_eg) = self.pawns(pos, pawn_hash);
-        score += (pawns_mg * phase + pawns_eg * (62 - phase)) / 62;
+        mg += pawns_mg;
+        eg += pawns_eg;
+
+        let mg = mg as i32;
+        let eg = eg as i32;
+        let phase = self.phase() as i32;
+
+        let score = (mg * phase + eg * (62 - phase)) / 62;
+        let score = score as Score;
 
         if pos.white_to_move {
             score
@@ -393,7 +407,7 @@ impl Eval {
     }
 
     pub fn phase(&self) -> i16 {
-        self.non_pawn_material(false) + self.non_pawn_material(true)
+        cmp::min(62, self.non_pawn_material(false) + self.non_pawn_material(true))
     }
 
     pub fn make_move(&mut self, mov: Move, pos: &Position) {
