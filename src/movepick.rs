@@ -17,12 +17,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::hash::*;
 use crate::history::*;
 use crate::movegen::*;
 use crate::position::*;
 use crate::search::*;
-use crate::tt::*;
 
 pub struct MovePickerAllocations {
     excluded: Vec<Move>,
@@ -41,8 +39,7 @@ impl Default for MovePickerAllocations {
 }
 
 pub struct MovePicker<'a> {
-    tt: Rc<RefCell<TT>>,
-    hash: Hash,
+    ttmove: Option<Move>,
     position: Position,
     excluded: &'a mut Vec<Move>,
     stage: usize,
@@ -106,8 +103,7 @@ pub enum MoveType {
 impl<'a> MovePicker<'a> {
     pub fn new(
         position: Position,
-        tt: Rc<RefCell<TT>>,
-        hash: Hash,
+        ttmove: Option<Move>,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
@@ -118,8 +114,7 @@ impl<'a> MovePicker<'a> {
 
         MovePicker {
             history,
-            tt,
-            hash,
+            ttmove,
             position,
             excluded: &mut allocations.excluded,
             stage: 0,
@@ -133,8 +128,6 @@ impl<'a> MovePicker<'a> {
 
     pub fn qsearch(
         position: Position,
-        tt: Rc<RefCell<TT>>,
-        hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
@@ -145,8 +138,7 @@ impl<'a> MovePicker<'a> {
 
         MovePicker {
             history,
-            tt,
-            hash,
+            ttmove: None,
             position,
             excluded: &mut allocations.excluded,
             stage: 10,
@@ -160,8 +152,6 @@ impl<'a> MovePicker<'a> {
 
     pub fn qsearch_in_check(
         position: Position,
-        tt: Rc<RefCell<TT>>,
-        hash: Hash,
         ply_details: Rc<RefCell<PlyDetails>>,
         history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
@@ -172,8 +162,7 @@ impl<'a> MovePicker<'a> {
 
         MovePicker {
             history,
-            tt,
-            hash,
+            ttmove: None,
             position,
             excluded: &mut allocations.excluded,
             stage: 13,
@@ -214,13 +203,9 @@ impl<'a> Iterator for MovePicker<'a> {
         match STAGE_ORDER[self.stage] {
             Stage::TTMove => {
                 self.stage += 1;
-                if let Some(ttentry) = self.tt.borrow_mut().get(self.hash) {
-                    if let Some(mov) = ttentry.best_move.expand(&self.position) {
-                        if MoveGenerator::from(&self.position).is_legal(mov) {
-                            self.excluded.push(mov);
-                            return Some((MoveType::TTMove, mov));
-                        }
-                    }
+                if let Some(mov) = self.ttmove {
+                    self.excluded.push(mov);
+                    return Some((MoveType::TTMove, mov));
                 }
                 self.next()
             }

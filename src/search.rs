@@ -315,12 +315,14 @@ impl Search {
             return Some(alpha);
         }
 
-        let ttentry = self.tt.borrow_mut().get(self.hasher.get_hash()).and_then(|ttentry| {
+        let (ttentry, mut ttmove) = if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
             let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
-            mov.map(|mov| (ttentry, mov))
-        });
+            (mov.map(|_| ttentry), mov)
+        } else {
+            (None, None)
+        };
 
-        if let Some((ttentry, _)) = ttentry {
+        if let Some(ttentry) = ttentry {
             let score = ttentry.score.to_score(ply);
 
             // In PV nodes we only cutoff on TT hits if we would drop into quiescence search otherwise.
@@ -347,8 +349,10 @@ impl Search {
 
         // Internal iterative deepening
         // If we don't get a previous best move from the TT, do a reduced-depth search first to get one.
-        if depth >= 4 * INC_PLY && !self.has_tt_move() {
+        if depth >= 4 * INC_PLY && ttmove.is_none() {
+            self.stack[ply as usize].borrow_mut().current_move = None;
             self.search_pv(ply, alpha, beta, depth - 2 * INC_PLY);
+            ttmove = self.stack[ply as usize].borrow().current_move;
             self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
         }
 
@@ -357,8 +361,7 @@ impl Search {
 
         let moves = MovePicker::new(
             self.position.clone(),
-            Rc::clone(&self.tt),
-            self.hasher.get_hash(),
+            ttmove,
             Rc::clone(&self.stack[ply as usize]),
             Rc::clone(&self.history),
             &mut mp_allocations,
@@ -515,12 +518,14 @@ impl Search {
 
         let in_check = !nullmove_reply && self.position.in_check();
 
-        let ttentry = self.tt.borrow_mut().get(self.hasher.get_hash()).and_then(|ttentry| {
+        let (ttentry, mut ttmove) = if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
             let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
-            mov.map(|mov| (ttentry, mov))
-        });
+            (mov.map(|_| ttentry), mov)
+        } else {
+            (None, None)
+        };
 
-        if let Some((ttentry, _)) = ttentry {
+        if let Some(ttentry) = ttentry {
             let score = ttentry.score.to_score(ply);
 
             if ttentry.depth >= depth || depth < INC_PLY {
@@ -573,8 +578,10 @@ impl Search {
             !in_check && depth < 3 * INC_PLY && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
 
         // Internal deepening
-        if depth >= 6 * INC_PLY && !self.has_tt_move() {
+        if depth >= 6 * INC_PLY && ttmove.is_none() {
+            self.stack[ply as usize].borrow_mut().current_move = None;
             self.search_zw(ply, beta, depth / 2);
+            ttmove = self.stack[ply as usize].borrow().current_move;
         }
 
         let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
@@ -582,8 +589,7 @@ impl Search {
 
         let mut moves = MovePicker::new(
             self.position.clone(),
-            Rc::clone(&self.tt),
-            self.hasher.get_hash(),
+            ttmove,
             Rc::clone(&self.stack[ply as usize]),
             Rc::clone(&self.history),
             &mut mp_allocations,
@@ -769,8 +775,6 @@ impl Search {
         let moves = if in_check {
             MovePicker::qsearch_in_check(
                 self.position.clone(),
-                Rc::clone(&self.tt),
-                self.hasher.get_hash(),
                 Rc::clone(&self.stack[ply as usize]),
                 Rc::clone(&self.history),
                 &mut mp_allocations,
@@ -778,8 +782,6 @@ impl Search {
         } else {
             MovePicker::qsearch(
                 self.position.clone(),
-                Rc::clone(&self.tt),
-                self.hasher.get_hash(),
                 Rc::clone(&self.stack[ply as usize]),
                 Rc::clone(&self.history),
                 &mut mp_allocations,
@@ -875,8 +877,7 @@ impl Search {
 
         let moves = MovePicker::new(
             self.position.clone(),
-            Rc::clone(&self.tt),
-            self.hasher.get_hash(),
+            None,
             Rc::clone(&self.stack[MAX_PLY as usize - 1]),
             Rc::clone(&self.history),
             &mut mp_allocations,
@@ -889,16 +890,6 @@ impl Search {
         }
 
         true
-    }
-
-    pub fn has_tt_move(&self) -> bool {
-        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
-            if let Some(mov) = ttentry.best_move.expand(&self.position) {
-                return MoveGenerator::from(&self.position).is_legal(mov);
-            }
-        }
-
-        false
     }
 
     fn uci_info(&self, d: Depth, alpha: Score) {
