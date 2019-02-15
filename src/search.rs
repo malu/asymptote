@@ -510,7 +510,10 @@ impl Search {
         self.visited_nodes += 1;
         self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
 
-        let in_check = self.position.in_check();
+        let previous_move = self.stack[ply as usize - 1].borrow().current_move;
+        let nullmove_reply = previous_move == None;
+
+        let in_check = !nullmove_reply && self.position.in_check();
 
         let ttentry = self.tt.borrow_mut().get(self.hasher.get_hash()).and_then(|ttentry| {
             let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
@@ -568,9 +571,6 @@ impl Search {
         // Therefore we can skip all quiet moves since they don't change material.
         let futility_skip_quiets =
             !in_check && depth < 3 * INC_PLY && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
-
-        let previous_move = self.stack[ply as usize - 1].borrow().current_move;
-        let nullmove_reply = previous_move == None;
 
         // Internal deepening
         if depth >= 6 * INC_PLY && !self.has_tt_move() {
