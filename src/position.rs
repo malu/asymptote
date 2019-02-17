@@ -348,6 +348,95 @@ impl Position {
         true
     }
 
+    pub fn move_will_check(&self, mov: Move) -> bool {
+        let us = self.us(self.white_to_move);
+        let mut all_pieces = self.all_pieces;
+        let mut pawns = self.pawns() & us;
+        let mut knights = self.knights() & us;
+        let mut bishops = (self.bishops() | self.queens()) & us;
+        let mut rooks = (self.rooks() | self.queens()) & us;
+
+        all_pieces ^= mov.from;
+        all_pieces |= mov.to;
+
+        match mov.piece {
+            Piece::Pawn => {
+                pawns ^= mov.from;
+                pawns |= mov.to;
+
+                if mov.en_passant {
+                    all_pieces ^= mov.to.backward(self.white_to_move, 1);
+                }
+
+                if let Some(piece) = mov.promoted {
+                    pawns ^= mov.to;
+                    match piece {
+                        Piece::Knight => knights |= mov.to,
+                        Piece::Bishop => bishops |= mov.to,
+                        Piece::Rook => rooks |= mov.to,
+                        Piece::Queen => {
+                            bishops |= mov.to;
+                            rooks |= mov.to;
+                        }
+                        _ => unreachable!("Illegal promotion"),
+                    }
+                }
+            }
+            Piece::Knight => {
+                knights ^= mov.from;
+                knights |= mov.to;
+            }
+            Piece::Bishop => {
+                bishops ^= mov.from;
+                bishops |= mov.to;
+            }
+            Piece::Rook => {
+                rooks ^= mov.from;
+                rooks |= mov.to;
+            }
+            Piece::Queen => {
+                bishops ^= mov.from;
+                bishops |= mov.to;
+                rooks ^= mov.from;
+                rooks |= mov.to;
+            }
+            Piece::King => {
+                if mov.to == mov.from.right(2) {
+                    // kingside castling
+                    rooks ^= mov.to.right(1);
+                    rooks |= mov.to.left(1);
+                    all_pieces ^= mov.to.right(1);
+                    all_pieces |= mov.to.left(1);
+                } else if mov.to == mov.from.left(2) {
+                    // queenside castling
+                    rooks ^= mov.to.left(2);
+                    rooks |= mov.to.right(1);
+                    all_pieces ^= mov.to.left(2);
+                    all_pieces |= mov.to.right(1);
+                }
+            }
+        }
+
+        let their_king = self.king_sq(!self.white_to_move);
+        if (KNIGHT_ATTACKS[their_king] & knights).at_least_one() {
+            return true;
+        }
+
+        if (get_bishop_attacks_from(their_king, all_pieces) & bishops).at_least_one() {
+            return true;
+        }
+
+        if (get_rook_attacks_from(their_king, all_pieces) & rooks).at_least_one() {
+            return true;
+        }
+
+        if (pawns.left(1) | pawns.right(1)).forward(self.white_to_move, 1) & their_king {
+            return true;
+        }
+
+        false
+    }
+
     /// Applies `mov` to the current board position.
     pub fn make_move(&mut self, mov: Move) {
         let them = self.them(self.white_to_move);

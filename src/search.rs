@@ -372,6 +372,8 @@ impl Search {
                 continue;
             }
 
+            let check = self.position.move_will_check(mov);
+
             self.internal_make_move(mov, ply);
 
             num_moves += 1;
@@ -382,7 +384,6 @@ impl Search {
 
             let mut extension = 0;
             // Check extension
-            let check = self.position.in_check();
             if check {
                 extension += INC_PLY;
             }
@@ -597,10 +598,7 @@ impl Search {
                 continue;
             }
 
-            self.internal_make_move(mov, ply);
-
-            let check = self.position.in_check();
-
+            let check = self.position.move_will_check(mov);
             // Futility pruning
             if !check {
                 let capture_value = mov.captured.map_or(0, Piece::value);
@@ -612,10 +610,11 @@ impl Search {
                     < alpha
                 {
                     pruned = true;
-                    self.internal_unmake_move(mov, ply);
                     continue;
                 }
             }
+
+            self.internal_make_move(mov, ply);
 
             num_moves += 1;
 
