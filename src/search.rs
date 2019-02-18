@@ -549,6 +549,13 @@ impl Search {
         }
 
         let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
+        if !in_check
+            && depth < 5 * INC_PLY
+            && eval - 128 * (depth / INC_PLY) > beta
+        {
+            return Some(beta);
+        }
+
         // Nullmove
         if !in_check && self.eval.phase() > 0 && eval >= beta {
             let r = 2;
