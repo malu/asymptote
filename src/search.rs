@@ -65,7 +65,7 @@ pub struct Search {
     pub time_manager: TimeManager,
     pub hasher: Hasher,
     pub visited_nodes: u64,
-    pub tt: Rc<RefCell<TT>>,
+    pub tt: TT,
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
     repetitions: Repetitions,
@@ -101,7 +101,7 @@ impl Search {
             time_manager: TimeManager::new(&position, TimeControl::Infinite, stop_rx),
             position,
             hasher: Hasher::new(),
-            tt: Rc::new(RefCell::new(TT::new(14))),
+            tt: TT::new(14),
             visited_nodes: 0,
             pv,
             max_ply_searched: 0,
@@ -117,7 +117,7 @@ impl Search {
     pub fn root(&mut self) -> Move {
         self.time_manager.update(&self.position, self.time_control);
         self.visited_nodes = 0;
-        self.tt.borrow_mut().next_generation();
+        self.tt.next_generation();
         self.pv
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
@@ -141,7 +141,7 @@ impl Search {
         }
 
         let mut last_score = 0;
-        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
+        if let Some(ttentry) = self.tt.get(self.hasher.get_hash()) {
             let mut swap_with = 0;
             let ttmove = ttentry.best_move.expand(&self.position);
             for (i, &mov) in moves.iter().enumerate() {
@@ -199,7 +199,7 @@ impl Search {
             self.uci_info(depth, last_score);
         }
 
-        self.tt.borrow_mut().insert(
+        self.tt.insert(
             self.hasher.get_hash(),
             max_depth,
             TTScore::from_score(alpha, 0),
@@ -417,7 +417,7 @@ impl Search {
             match value {
                 None => {
                     if increased_alpha {
-                        self.tt.borrow_mut().insert(
+                        self.tt.insert(
                             self.hasher.get_hash(),
                             depth,
                             TTScore::from_score(alpha, ply),
@@ -442,7 +442,7 @@ impl Search {
                                     self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
                                 }
 
-                                self.tt.borrow_mut().insert(
+                                self.tt.insert(
                                     self.hasher.get_hash(),
                                     depth,
                                     TTScore::from_score(value, ply),
@@ -465,7 +465,7 @@ impl Search {
                 UPPER_BOUND
             };
 
-            self.tt.borrow_mut().insert(
+            self.tt.insert(
                 self.hasher.get_hash(),
                 depth,
                 TTScore::from_score(best_score, ply),
@@ -681,7 +681,7 @@ impl Search {
                         self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
                     }
 
-                    self.tt.borrow_mut().insert(
+                    self.tt.insert(
                         self.hasher.get_hash(),
                         depth,
                         TTScore::from_score(best_score, ply),
@@ -705,7 +705,7 @@ impl Search {
             }
         }
 
-        self.tt.borrow_mut().insert(
+        self.tt.insert(
             self.hasher.get_hash(),
             depth,
             TTScore::from_score(best_score, ply),
@@ -808,7 +808,7 @@ impl Search {
                             alpha = score;
                             if score >= beta {
                                 if depth == 0 || depth == INC_PLY && in_check {
-                                    self.tt.borrow_mut().insert(
+                                    self.tt.insert(
                                         self.hasher.get_hash(),
                                         0,
                                         TTScore::from_score(score, ply),
@@ -833,7 +833,7 @@ impl Search {
         }
 
         if depth == 0 || depth == INC_PLY && in_check {
-            self.tt.borrow_mut().insert(
+            self.tt.insert(
                 self.hasher.get_hash(),
                 0,
                 TTScore::from_score(best_score, ply),
@@ -844,8 +844,8 @@ impl Search {
         Some(alpha)
     }
 
-    fn get_tt_entry(&self) -> (Option<TTEntry>, Option<Move>) {
-        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
+    fn get_tt_entry(&mut self) -> (Option<TTEntry>, Option<Move>) {
+        if let Some(ttentry) = self.tt.get(self.hasher.get_hash()) {
             let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
             (mov.map(|_| ttentry), mov)
         } else {
@@ -914,7 +914,7 @@ impl Search {
             1000 * self.visited_nodes / cmp::max(1, elapsed),
             score_str,
             elapsed,
-            self.tt.borrow().usage()
+            self.tt.usage()
         );
         for mov in self.pv[0]
             .iter()
@@ -1083,7 +1083,7 @@ impl Search {
     }
 
     pub fn resize_tt(&mut self, bits: u64) {
-        self.tt = Rc::new(RefCell::new(TT::new(bits)));
+        self.tt = TT::new(bits);
     }
 
     pub fn looping(&mut self, main_rx: sync::mpsc::Receiver<UciCommand>) {
@@ -1192,7 +1192,6 @@ impl Search {
         println!("Current hash: 0x{:0>64x}", self.hasher.get_hash());
         let tt = self
             .tt
-            .borrow_mut()
             .get(self.hasher.get_hash());
         if let Some(tt) = tt {
             if let Some(best_move) = tt.best_move.expand(&self.position) {
