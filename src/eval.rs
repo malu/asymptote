@@ -189,6 +189,7 @@ impl Eval {
         score += self.material_score();
         score += self.pst[1] - self.pst[0];
         score += self.mobility_for_side(true, pos) - self.mobility_for_side(false, pos);
+        score += self.bishops_for_side(pos, true) - self.bishops_for_side(pos, false);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
 
         let mut mg = score;
@@ -283,6 +284,19 @@ impl Eval {
         }
 
         (mg, eg)
+    }
+
+    pub fn bishops_for_side(&self, pos: &Position, white: bool) -> Score {
+        let us = pos.us(white);
+        const XRAYED_SQUARE: Score = 2;
+        let mut score = 0;
+
+        for bishop in (pos.bishops() & us).squares() {
+            let xray = get_bishop_attacks_from(bishop, pos.pawns());
+            score += XRAYED_SQUARE * xray.popcount() as Score;
+        }
+
+        score
     }
 
     pub fn rooks_for_side(&self, pos: &Position, white: bool) -> Score {
