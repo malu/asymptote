@@ -315,12 +315,7 @@ impl Search {
             return Some(alpha);
         }
 
-        let (ttentry, mut ttmove) = if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
-            let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
-            (mov.map(|_| ttentry), mov)
-        } else {
-            (None, None)
-        };
+        let (mut ttentry, mut ttmove) = self.get_tt_entry();
 
         if let Some(ttentry) = ttentry {
             let score = ttentry.score.to_score(ply);
@@ -350,10 +345,11 @@ impl Search {
         // Internal iterative deepening
         // If we don't get a previous best move from the TT, do a reduced-depth search first to get one.
         if depth >= 4 * INC_PLY && ttmove.is_none() {
-            self.stack[ply as usize].borrow_mut().current_move = None;
             self.search_pv(ply, alpha, beta, depth - 2 * INC_PLY);
-            ttmove = self.stack[ply as usize].borrow().current_move;
             self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
+            let (ttentry_, ttmove_) = self.get_tt_entry();
+            ttentry = ttentry_;
+            ttmove = ttmove_;
         }
 
         let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
@@ -518,12 +514,7 @@ impl Search {
 
         let in_check = !nullmove_reply && self.position.in_check();
 
-        let (ttentry, mut ttmove) = if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
-            let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
-            (mov.map(|_| ttentry), mov)
-        } else {
-            (None, None)
-        };
+        let (mut ttentry, mut ttmove) = self.get_tt_entry();
 
         if let Some(ttentry) = ttentry {
             let score = ttentry.score.to_score(ply);
@@ -586,9 +577,10 @@ impl Search {
 
         // Internal deepening
         if depth >= 6 * INC_PLY && ttmove.is_none() {
-            self.stack[ply as usize].borrow_mut().current_move = None;
             self.search_zw(ply, beta, depth / 2);
-            ttmove = self.stack[ply as usize].borrow().current_move;
+            let (ttentry_, ttmove_) = self.get_tt_entry();
+            ttentry = ttentry_;
+            ttmove = ttmove_;
         }
 
         let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
@@ -745,27 +737,22 @@ impl Search {
             }
         }
 
+        let (ttentry, _ttmove) = self.get_tt_entry();
+
         if depth == 0 {
-            if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
-                let check_move_legality = |mov| MoveGenerator::from(&self.position).is_legal(mov);
-                if ttentry
-                    .best_move
-                    .expand(&self.position)
-                    .map_or(false, check_move_legality)
-                {
-                    let score = ttentry.score.to_score(ply);
+            if let Some(ttentry) = ttentry {
+                let score = ttentry.score.to_score(ply);
 
-                    if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
-                        return Some(score);
-                    }
+                if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
+                    return Some(score);
+                }
 
-                    if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
-                        return Some(score);
-                    }
+                if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
+                    return Some(score);
+                }
 
-                    if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
-                        return Some(score);
-                    }
+                if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
+                    return Some(score);
                 }
             }
         }
@@ -856,6 +843,15 @@ impl Search {
             );
         }
         Some(alpha)
+    }
+
+    fn get_tt_entry(&self) -> (Option<TTEntry>, Option<Move>) {
+        if let Some(ttentry) = self.tt.borrow_mut().get(self.hasher.get_hash()) {
+            let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
+            (mov.map(|_| ttentry), mov)
+        } else {
+            (None, None)
+        }
     }
 
     /// Checks for draws by fifty moves rule.
