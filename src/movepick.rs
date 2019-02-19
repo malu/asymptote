@@ -128,7 +128,6 @@ impl<'a> MovePicker<'a> {
 
     pub fn qsearch(
         position: Position,
-        killers: [Option<Move>; 2],
         history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
@@ -146,14 +145,13 @@ impl<'a> MovePicker<'a> {
             moves: &mut allocations.moves,
             scores: &mut allocations.scores,
             index: 0,
-            killers,
+            killers: [None; 2],
             skip_quiets: false,
         }
     }
 
     pub fn qsearch_in_check(
         position: Position,
-        killers: [Option<Move>; 2],
         history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
@@ -171,7 +169,7 @@ impl<'a> MovePicker<'a> {
             moves: &mut allocations.moves,
             scores: &mut allocations.scores,
             index: 0,
-            killers,
+            killers: [None; 2],
             skip_quiets: false,
         }
     }

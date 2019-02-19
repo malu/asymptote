@@ -768,14 +768,12 @@ impl Search {
         let moves = if in_check {
             MovePicker::qsearch_in_check(
                 self.position.clone(),
-                self.stack[ply as usize].killers_moves,
                 Rc::clone(&self.history),
                 &mut mp_allocations,
             )
         } else {
             MovePicker::qsearch(
                 self.position.clone(),
-                self.stack[ply as usize].killers_moves,
                 Rc::clone(&self.history),
                 &mut mp_allocations,
             )
