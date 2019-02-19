@@ -20,7 +20,6 @@ use std::rc::Rc;
 use crate::history::*;
 use crate::movegen::*;
 use crate::position::*;
-use crate::search::*;
 
 pub struct MovePickerAllocations {
     excluded: Vec<Move>,
@@ -43,10 +42,11 @@ pub struct MovePicker<'a> {
     position: Position,
     excluded: &'a mut Vec<Move>,
     stage: usize,
+    stages: &'a [Stage],
     moves: &'a mut Vec<Move>,
     scores: &'a mut Vec<i64>,
     index: usize,
-    ply_details: Rc<RefCell<PlyDetails>>,
+    killers: [Option<Move>; 2],
     history: Rc<RefCell<History>>,
     skip_quiets: bool,
 }
@@ -62,11 +62,9 @@ enum Stage {
     QuietMoves,
     GenerateBadCaptures,
     BadCaptures,
-    End,
 }
 
-const STAGE_ORDER: &[Stage] = &[
-    // 0
+const ALPHA_BETA_STAGES: &[Stage] = &[
     Stage::TTMove,
     Stage::GenerateGoodCaptures,
     Stage::GoodCaptures,
@@ -76,19 +74,20 @@ const STAGE_ORDER: &[Stage] = &[
     Stage::QuietMoves,
     Stage::GenerateBadCaptures,
     Stage::BadCaptures,
-    Stage::End,
-    // 10
+];
+
+const QUIESCENCE_STAGES: &[Stage] = &[
     Stage::GenerateGoodCaptures,
     Stage::GoodCaptures,
-    Stage::End,
-    // 13
+];
+
+const QUIESCENCE_CHECK_STAGES: &[Stage] = &[
     Stage::GenerateGoodCaptures,
     Stage::GoodCaptures,
     Stage::GenerateBadCaptures,
     Stage::BadCaptures,
     Stage::GenerateQuietMoves,
     Stage::QuietMoves,
-    Stage::End,
 ];
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -104,7 +103,7 @@ impl<'a> MovePicker<'a> {
     pub fn new(
         position: Position,
         ttmove: Option<Move>,
-        ply_details: Rc<RefCell<PlyDetails>>,
+        killers: [Option<Move>; 2],
         history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
@@ -118,17 +117,18 @@ impl<'a> MovePicker<'a> {
             position,
             excluded: &mut allocations.excluded,
             stage: 0,
+            stages: ALPHA_BETA_STAGES,
             moves: &mut allocations.moves,
             scores: &mut allocations.scores,
             index: 0,
-            ply_details,
+            killers,
             skip_quiets: false,
         }
     }
 
     pub fn qsearch(
         position: Position,
-        ply_details: Rc<RefCell<PlyDetails>>,
+        killers: [Option<Move>; 2],
         history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
@@ -141,18 +141,19 @@ impl<'a> MovePicker<'a> {
             ttmove: None,
             position,
             excluded: &mut allocations.excluded,
-            stage: 10,
+            stage: 0,
+            stages: QUIESCENCE_STAGES,
             moves: &mut allocations.moves,
             scores: &mut allocations.scores,
             index: 0,
-            ply_details,
+            killers,
             skip_quiets: false,
         }
     }
 
     pub fn qsearch_in_check(
         position: Position,
-        ply_details: Rc<RefCell<PlyDetails>>,
+        killers: [Option<Move>; 2],
         history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
@@ -165,11 +166,12 @@ impl<'a> MovePicker<'a> {
             ttmove: None,
             position,
             excluded: &mut allocations.excluded,
-            stage: 13,
+            stage: 0,
+            stages: QUIESCENCE_CHECK_STAGES,
             moves: &mut allocations.moves,
             scores: &mut allocations.scores,
             index: 0,
-            ply_details,
+            killers,
             skip_quiets: false,
         }
     }
@@ -200,7 +202,11 @@ impl<'a> Iterator for MovePicker<'a> {
     type Item = (MoveType, Move);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match STAGE_ORDER[self.stage] {
+        if self.stage >= self.stages.len() {
+            return None;
+        }
+
+        match self.stages[self.stage] {
             Stage::TTMove => {
                 self.stage += 1;
                 if let Some(mov) = self.ttmove {
@@ -239,9 +245,8 @@ impl<'a> Iterator for MovePicker<'a> {
                 self.scores.clear();
                 {
                     let pos = &self.position;
-                    let killers = self.ply_details.borrow().killers_moves;
                     self.moves.extend(
-                        killers
+                        self.killers
                             .into_iter()
                             .flatten()
                             .filter(|&&m| MoveGenerator::from(pos).is_legal(m)),
@@ -326,7 +331,6 @@ impl<'a> Iterator for MovePicker<'a> {
                     self.next()
                 }
             }
-            Stage::End => None,
         }
     }
 }

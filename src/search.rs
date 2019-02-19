@@ -57,7 +57,7 @@ impl Default for PersistentOptions {
 }
 
 pub struct Search {
-    stack: Vec<Rc<RefCell<PlyDetails>>>,
+    stack: [PlyDetails; MAX_PLY as usize],
     pub history: Rc<RefCell<History>>,
     pub position: Position,
     eval: Eval,
@@ -86,11 +86,10 @@ pub struct PlyDetails {
 impl Search {
     pub fn new(position: Position, stop_rx: sync::mpsc::Receiver<()>) -> Self {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
-        let mut stack = Vec::with_capacity(MAX_PLY as usize);
+        let stack = [PlyDetails::default(); MAX_PLY as usize];
         let mut mp_allocations = Vec::with_capacity(MAX_PLY as usize);
         for i in 0..MAX_PLY as usize {
             pv.push(vec![None; MAX_PLY as usize - i + 1]);
-            stack.push(Rc::new(RefCell::new(PlyDetails::default())));
             mp_allocations.push(Rc::new(RefCell::new(MovePickerAllocations::default())));
         }
 
@@ -358,7 +357,7 @@ impl Search {
         let moves = MovePicker::new(
             self.position.clone(),
             ttmove,
-            Rc::clone(&self.stack[ply as usize]),
+            self.stack[ply as usize].killers_moves,
             Rc::clone(&self.history),
             &mut mp_allocations,
         );
@@ -366,7 +365,7 @@ impl Search {
         let mut alpha = alpha;
         let mut increased_alpha = false;
 
-        let previous_move = self.stack[ply as usize - 1].borrow().current_move;
+        let previous_move = self.stack[ply as usize - 1].current_move;
         let mut best_move = None;
         let mut best_score = -Score::max_value();
 
@@ -509,7 +508,7 @@ impl Search {
         self.visited_nodes += 1;
         self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
 
-        let previous_move = self.stack[ply as usize - 1].borrow().current_move;
+        let previous_move = self.stack[ply as usize - 1].current_move;
         let nullmove_reply = previous_move == None;
 
         let in_check = !nullmove_reply && self.position.in_check();
@@ -589,7 +588,7 @@ impl Search {
         let mut moves = MovePicker::new(
             self.position.clone(),
             ttmove,
-            Rc::clone(&self.stack[ply as usize]),
+            self.stack[ply as usize].killers_moves,
             Rc::clone(&self.history),
             &mut mp_allocations,
         );
@@ -769,14 +768,14 @@ impl Search {
         let moves = if in_check {
             MovePicker::qsearch_in_check(
                 self.position.clone(),
-                Rc::clone(&self.stack[ply as usize]),
+                self.stack[ply as usize].killers_moves,
                 Rc::clone(&self.history),
                 &mut mp_allocations,
             )
         } else {
             MovePicker::qsearch(
                 self.position.clone(),
-                Rc::clone(&self.stack[ply as usize]),
+                self.stack[ply as usize].killers_moves,
                 Rc::clone(&self.history),
                 &mut mp_allocations,
             )
@@ -881,7 +880,7 @@ impl Search {
         let moves = MovePicker::new(
             self.position.clone(),
             None,
-            Rc::clone(&self.stack[MAX_PLY as usize - 1]),
+            [None; 2],
             Rc::clone(&self.history),
             &mut mp_allocations,
         );
@@ -944,7 +943,7 @@ impl Search {
             depth,
         );
 
-        let killers = &mut self.stack[ply as usize].borrow_mut().killers_moves;
+        let killers = &mut self.stack[ply as usize].killers_moves;
 
         if killers[0] != Some(mov) {
             killers[1] = killers[0];
@@ -968,7 +967,7 @@ impl Search {
     }
 
     fn is_draw(&self, ply: Ply) -> bool {
-        if let Some(last_move) = self.stack[ply as usize - 1].borrow().current_move {
+        if let Some(last_move) = self.stack[ply as usize - 1].current_move {
             if last_move.captured.is_some() {
                 return self.eval.is_material_draw();
             } else if last_move.piece != Piece::Pawn {
@@ -1034,7 +1033,7 @@ impl Search {
     }
 
     pub fn internal_make_move(&mut self, mov: Move, ply: Ply) {
-        let mut current_ply = self.stack[ply as usize].borrow_mut();
+        let current_ply = &mut self.stack[ply as usize];
         current_ply.irreversible_details = self.position.details;
         current_ply.current_move = Some(mov);
 
@@ -1049,8 +1048,8 @@ impl Search {
     }
 
     fn internal_make_nullmove(&mut self, ply: Ply) {
-        self.stack[ply as usize].borrow_mut().irreversible_details = self.position.details;
-        self.stack[ply as usize].borrow_mut().current_move = None;
+        self.stack[ply as usize].irreversible_details = self.position.details;
+        self.stack[ply as usize].current_move = None;
 
         self.hasher.make_nullmove(&self.position);
         self.position.make_nullmove();
@@ -1058,7 +1057,7 @@ impl Search {
     }
 
     fn internal_unmake_nullmove(&mut self, ply: Ply) {
-        let irreversible = self.stack[ply as usize].borrow().irreversible_details;
+        let irreversible = self.stack[ply as usize].irreversible_details;
         self.hasher.unmake_nullmove(&self.position, irreversible);
         self.repetitions.pop_position();
         self.position.unmake_nullmove(irreversible);
@@ -1076,7 +1075,7 @@ impl Search {
     */
 
     pub fn internal_unmake_move(&mut self, mov: Move, ply: Ply) {
-        let irreversible = self.stack[ply as usize].borrow().irreversible_details;
+        let irreversible = self.stack[ply as usize].irreversible_details;
         self.hasher.unmake_move(&self.position, mov, irreversible);
         self.repetitions.pop_position();
         self.eval.unmake_move(mov, &self.position);
