@@ -46,7 +46,11 @@ pub struct TimeManager {
 }
 
 impl TimeManager {
-    pub fn new(position: &Position, control: TimeControl, stop_rx: sync::mpsc::Receiver<()>) -> TimeManager {
+    pub fn new(
+        position: &Position,
+        control: TimeControl,
+        stop_rx: sync::mpsc::Receiver<()>,
+    ) -> TimeManager {
         TimeManager {
             started_at: time::Instant::now(),
             control,

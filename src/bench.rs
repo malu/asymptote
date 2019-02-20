@@ -73,7 +73,7 @@ use std::sync;
 use std::time;
 
 use crate::position::Position;
-use crate::search::{Search, Ply};
+use crate::search::{Ply, Search};
 use crate::time::TimeControl;
 
 pub fn run_benchmark(ply: Ply, stop_rx: sync::mpsc::Receiver<()>) {
@@ -83,7 +83,7 @@ pub fn run_benchmark(ply: Ply, stop_rx: sync::mpsc::Receiver<()>) {
     let mut nodes = 0;
     let mut rx = stop_rx;
     for (i, &fen) in BENCH_POSITIONS.iter().enumerate() {
-        println!("Position {:>2}: {}", i+1, fen);
+        println!("Position {:>2}: {}", i + 1, fen);
         let pos = Position::from(fen);
         let mut search = Search::new(pos, rx);
         search.resize_tt(17); // 8 MB hash table

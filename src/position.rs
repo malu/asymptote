@@ -262,7 +262,10 @@ impl Position {
 
     pub fn move_is_legal(&mut self, mov: Move) -> bool {
         let mut all_pieces = self.all_pieces;
-        let mut king = (self.kings() & self.us(self.white_to_move)).squares().nth(0).unwrap();
+        let mut king = (self.kings() & self.us(self.white_to_move))
+            .squares()
+            .nth(0)
+            .unwrap();
         let mut them = self.them(self.white_to_move) & all_pieces;
 
         if mov.piece == Piece::King {
@@ -322,11 +325,15 @@ impl Position {
             return false;
         }
 
-        if (get_bishop_attacks_from(king, all_pieces) & them & (self.queens() | self.bishops())).at_least_one() {
+        if (get_bishop_attacks_from(king, all_pieces) & them & (self.queens() | self.bishops()))
+            .at_least_one()
+        {
             return false;
         }
 
-        if (get_rook_attacks_from(king, all_pieces) & them & (self.queens() | self.rooks())).at_least_one() {
+        if (get_rook_attacks_from(king, all_pieces) & them & (self.queens() | self.rooks()))
+            .at_least_one()
+        {
             return false;
         }
 

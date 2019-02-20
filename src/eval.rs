@@ -407,7 +407,10 @@ impl Eval {
     }
 
     pub fn phase(&self) -> i16 {
-        cmp::min(62, self.non_pawn_material(false) + self.non_pawn_material(true))
+        cmp::min(
+            62,
+            self.non_pawn_material(false) + self.non_pawn_material(true),
+        )
     }
 
     pub fn make_move(&mut self, mov: Move, pos: &Position) {

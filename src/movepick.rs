@@ -76,10 +76,7 @@ const ALPHA_BETA_STAGES: &[Stage] = &[
     Stage::BadCaptures,
 ];
 
-const QUIESCENCE_STAGES: &[Stage] = &[
-    Stage::GenerateGoodCaptures,
-    Stage::GoodCaptures,
-];
+const QUIESCENCE_STAGES: &[Stage] = &[Stage::GenerateGoodCaptures, Stage::GoodCaptures];
 
 const QUIESCENCE_CHECK_STAGES: &[Stage] = &[
     Stage::GenerateGoodCaptures,

@@ -130,9 +130,7 @@ impl Search {
         let mut moves = MoveGenerator::from(&self.position)
             .all_moves()
             .into_iter()
-            .filter(|&mov| {
-                self.position.move_is_legal(mov)
-            })
+            .filter(|&mov| self.position.move_is_legal(mov))
             .map(|mov| (mov, 0))
             .collect::<Vec<_>>();
 
@@ -539,10 +537,7 @@ impl Search {
         }
 
         let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
-        if !in_check
-            && depth < 5 * INC_PLY
-            && eval - 128 * (depth / INC_PLY) > beta
-        {
+        if !in_check && depth < 5 * INC_PLY && eval - 128 * (depth / INC_PLY) > beta {
             return Some(beta);
         }
 
@@ -844,7 +839,10 @@ impl Search {
 
     fn get_tt_entry(&mut self) -> (Option<TTEntry>, Option<Move>) {
         if let Some(ttentry) = self.tt.get(self.hasher.get_hash()) {
-            let mov = ttentry.best_move.expand(&self.position).filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
+            let mov = ttentry
+                .best_move
+                .expand(&self.position)
+                .filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
             (mov.map(|_| ttentry), mov)
         } else {
             (None, None)
@@ -977,7 +975,8 @@ impl Search {
     }
 
     pub fn perft(&mut self, depth: usize) {
-        self.time_manager.update(&self.position, TimeControl::Infinite);
+        self.time_manager
+            .update(&self.position, TimeControl::Infinite);
 
         let mut num_moves = 0;
         let moves = MoveGenerator::from(&self.position).all_moves();
@@ -1188,9 +1187,7 @@ impl Search {
 
     fn handle_tt(&mut self) {
         println!("Current hash: 0x{:0>64x}", self.hasher.get_hash());
-        let tt = self
-            .tt
-            .get(self.hasher.get_hash());
+        let tt = self.tt.get(self.hasher.get_hash());
         if let Some(tt) = tt {
             if let Some(best_move) = tt.best_move.expand(&self.position) {
                 println!("Best move: {}", best_move.to_algebraic());
@@ -1227,12 +1224,7 @@ impl Search {
                 mg.quiet_moves(&mut moves);
                 let mut moves = moves
                     .into_iter()
-                    .map(|mov| {
-                        (
-                            mov,
-                            history.get_score(self.position.white_to_move, mov),
-                        )
-                    })
+                    .map(|mov| (mov, history.get_score(self.position.white_to_move, mov)))
                     .collect::<Vec<_>>();
                 moves.sort_by_key(|(_, hist)| -hist);
                 for (mov, hist) in moves {

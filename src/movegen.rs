@@ -25,22 +25,18 @@ pub fn initialize_magics() {
 }
 
 static mut MAGIC_TABLE: [Bitboard; 156_800] = [Bitboard(0); 156_800];
-static mut BISHOP_ATTACKS: [Magic; 64] = [
-    Magic {
-        magic: 0,
-        shift: 0,
-        mask: Bitboard(0),
-        offset: 0,
-    }; 64
-];
-static mut ROOK_ATTACKS: [Magic; 64] = [
-    Magic {
-        magic: 0,
-        shift: 0,
-        mask: Bitboard(0),
-        offset: 0,
-    }; 64
-];
+static mut BISHOP_ATTACKS: [Magic; 64] = [Magic {
+    magic: 0,
+    shift: 0,
+    mask: Bitboard(0),
+    offset: 0,
+}; 64];
+static mut ROOK_ATTACKS: [Magic; 64] = [Magic {
+    magic: 0,
+    shift: 0,
+    mask: Bitboard(0),
+    offset: 0,
+}; 64];
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 struct Magic {
@@ -52,7 +48,8 @@ struct Magic {
 
 impl Magic {
     fn index(&self, occupied: Bitboard) -> usize {
-        self.offset as usize + ((occupied & self.mask).0.wrapping_mul(self.magic)).wrapping_shr(self.shift) as usize
+        self.offset as usize
+            + ((occupied & self.mask).0.wrapping_mul(self.magic)).wrapping_shr(self.shift) as usize
     }
 }
 
@@ -115,14 +112,18 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
                     tries += 1;
                     continue 'search_magic;
                 }
-                unsafe { MAGIC_TABLE[index] = reference[i]; }
+                unsafe {
+                    MAGIC_TABLE[index] = reference[i];
+                }
                 last_used[index - offset] = tries;
             }
 
             break;
         }
 
-        unsafe { BISHOP_ATTACKS[sq as usize] = magic; }
+        unsafe {
+            BISHOP_ATTACKS[sq as usize] = magic;
+        }
         offset += size;
     }
 
@@ -244,14 +245,18 @@ fn initialize_rook_attacks(offset: usize) -> usize {
                     tries += 1;
                     continue 'search_magic;
                 }
-                unsafe { MAGIC_TABLE[index] = reference[i]; }
+                unsafe {
+                    MAGIC_TABLE[index] = reference[i];
+                }
                 last_used[index - offset] = tries;
             }
 
             break;
         }
 
-        unsafe { ROOK_ATTACKS[sq as usize] = magic; }
+        unsafe {
+            ROOK_ATTACKS[sq as usize] = magic;
+        }
         offset += size;
     }
 

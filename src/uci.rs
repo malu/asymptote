@@ -86,7 +86,9 @@ impl UCI {
                 }
                 UciCommand::UciNewGame(tx, rx) => {
                     self.stop_tx = tx.clone();
-                    self.main_thread_tx.send(UciCommand::UciNewGame(tx, rx)).unwrap();
+                    self.main_thread_tx
+                        .send(UciCommand::UciNewGame(tx, rx))
+                        .unwrap();
                 }
                 UciCommand::Bench => {
                     let (_, rx) = sync::mpsc::channel();
@@ -171,12 +173,14 @@ impl<'a> From<&'a str> for UciCommand {
         } else if line == "tt" {
             UciCommand::TT
         } else if line.starts_with("history") {
-            let mov = line
-                .split_whitespace()
-                .nth(1).map(String::from);
+            let mov = line.split_whitespace().nth(1).map(String::from);
             UciCommand::History(mov)
         } else if line.starts_with("perft") {
-            let depth = line.split_whitespace().nth(1).and_then(|d| d.parse().ok()).unwrap_or(6);
+            let depth = line
+                .split_whitespace()
+                .nth(1)
+                .and_then(|d| d.parse().ok())
+                .unwrap_or(6);
             UciCommand::Perft(depth)
         } else if line == "stop" {
             UciCommand::Stop
