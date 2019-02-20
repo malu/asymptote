@@ -121,10 +121,7 @@ impl TTMove {
                 result.captured = Some(Piece::Pawn);
             } else {
                 result.captured = pos.find_piece(result.to);
-                if result.captured.is_none() {
-                    // This move is supposed to be a capture but isn't
-                    return None;
-                }
+                result.captured?;
             }
         }
 
@@ -220,7 +217,7 @@ impl TT {
 
         {
             let entries = unsafe { self.table.get_unchecked((hash & self.bitmask) as usize).0 };
-            for (i, entry) in entries.into_iter().enumerate() {
+            for (i, entry) in entries.iter().enumerate() {
                 if entry.best_move.is_null() {
                     replace = i;
                     replace_age = None;

@@ -121,7 +121,7 @@ impl<'a> From<&'a str> for UciCommand {
                 }
             }
 
-            while let Some(word) = words.next() {
+            for word in words {
                 value_parts.push(word);
             }
 

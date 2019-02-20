@@ -245,7 +245,7 @@ impl<'a> Iterator for MovePicker<'a> {
                     let pos = &self.position;
                     self.moves.extend(
                         self.killers
-                            .into_iter()
+                            .iter()
                             .flatten()
                             .filter(|&&m| MoveGenerator::from(pos).is_legal(m)),
                     );

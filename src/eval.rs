@@ -202,9 +202,9 @@ impl Eval {
         mg += pawns_mg;
         eg += pawns_eg;
 
-        let mg = mg as i32;
-        let eg = eg as i32;
-        let phase = self.phase() as i32;
+        let mg = i32::from(mg);
+        let eg = i32::from(eg);
+        let phase = i32::from(self.phase());
 
         let score = (mg * phase + eg * (62 - phase)) / 62;
         let score = score as Score;
@@ -314,7 +314,7 @@ impl Eval {
         let them = pos.them(white);
         let side = white as usize;
 
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         const CENTER_DISTANCE: [Score; 64] = [
             3, 3, 3, 3, 3, 3, 3, 3,
             3, 2, 2, 2, 2, 2, 2, 3,
@@ -520,8 +520,8 @@ impl Eval {
         let rook = Piece::Rook.index();
         let queen = Piece::Queen.index();
 
-        for side in 0..2 {
-            if material[side][pawn] > 0 || material[side][rook] > 0 || material[side][queen] > 0 {
+        for side_mat in material.iter() {
+            if side_mat[pawn] > 0 || side_mat[rook] > 0 || side_mat[queen] > 0 {
                 return false;
             }
         }
@@ -640,7 +640,7 @@ fn init_pst_score(pos: &Position) -> [Score; 2] {
     [black, white]
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub const PAWN_PST: [Score; 64] = [
      24,  28,  35,  50,  50,  35,  28,  24,
      16,  23,  27,  34,  34,  27,  23,  16,
@@ -652,7 +652,7 @@ pub const PAWN_PST: [Score; 64] = [
       0,   0,   0,   0,   0,   0,   0,   0,
 ];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub const KNIGHT_PST: [Score; 64] = [
     -10, -10, -10, -10, -10, -10, -10, -10,
     -10,   0,  10,  15,  15,  10,   0, -10,
@@ -664,7 +664,7 @@ pub const KNIGHT_PST: [Score; 64] = [
     -10, -10, -10, -10, -10, -10, -10, -10,
 ];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub const BISHOP_PST: [Score; 64] = [
     -10, -10, -10, -10, -10, -10, -10, -10,
     -10,   0,   5,  10,  10,   5,   0, -10,
@@ -676,7 +676,7 @@ pub const BISHOP_PST: [Score; 64] = [
     -10, -10, -10, -10, -10, -10, -10, -10,
 ];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub const ROOK_PST: [Score; 64] = [
      20, 20, 20, 25, 25, 20, 20,  20,
      20, 20, 20, 25, 25, 20, 20,  20,
@@ -688,7 +688,7 @@ pub const ROOK_PST: [Score; 64] = [
     -10, -5, 10, 25, 25, 10, -5, -10,
 ];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub const QUEEN_PST: [Score; 64] = [
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -700,7 +700,7 @@ pub const QUEEN_PST: [Score; 64] = [
     0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub const KING_PST: [Score; 64] = [
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,

@@ -24,7 +24,7 @@ pub fn initialize_magics() {
     initialize_rook_attacks(offset);
 }
 
-static mut MAGIC_TABLE: [Bitboard; 156800] = [Bitboard(0); 156800];
+static mut MAGIC_TABLE: [Bitboard; 156_800] = [Bitboard(0); 156_800];
 static mut BISHOP_ATTACKS: [Magic; 64] = [
     Magic {
         magic: 0,
@@ -392,7 +392,7 @@ impl<'p> MoveGenerator<'p> {
             let mov = moves[i];
             let score = self.position.see(mov);
             if score >= 0 {
-                scores.push(score as i64);
+                scores.push(i64::from(score));
                 i += 1;
             } else {
                 moves.swap_remove(i);
@@ -441,7 +441,7 @@ impl<'p> MoveGenerator<'p> {
             let mov = moves[i];
             let score = self.position.see(mov);
             if score < 0 {
-                scores.push(score as i64);
+                scores.push(i64::from(score));
                 i += 1;
             } else {
                 moves.swap_remove(i);

@@ -160,7 +160,7 @@ impl Search {
         let mut alpha = -Score::max_value();
         let mut beta;
         let mut max_depth = 0;
-        'deepening: for d in 1_i16.. {
+        for d in 1_i16.. {
             if !self.time_manager.start_another_iteration(d) {
                 break;
             }

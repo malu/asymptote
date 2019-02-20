@@ -301,19 +301,17 @@ impl Position {
                     them ^= mov.to;
                 }
             }
+        } else if mov.en_passant {
+            all_pieces ^= mov.from;
+            all_pieces ^= mov.to;
+            all_pieces ^= mov.to.backward(self.white_to_move, 1);
+            them ^= mov.to.backward(self.white_to_move, 1);
+        } else if mov.captured.is_some() {
+            all_pieces ^= mov.from;
+            them ^= mov.to;
         } else {
-            if mov.en_passant {
-                all_pieces ^= mov.from;
-                all_pieces ^= mov.to;
-                all_pieces ^= mov.to.backward(self.white_to_move, 1);
-                them ^= mov.to.backward(self.white_to_move, 1);
-            } else if mov.captured.is_some() {
-                all_pieces ^= mov.from;
-                them ^= mov.to;
-            } else {
-                all_pieces ^= mov.from;
-                all_pieces ^= mov.to;
-            }
+            all_pieces ^= mov.from;
+            all_pieces ^= mov.to;
         }
 
         if (KNIGHT_ATTACKS[king.0 as usize] & them & self.knights()).at_least_one() {
