@@ -38,8 +38,8 @@ pub const MAX_PLY: Ply = 128 - 1;
 
 const FUTILITY_POSITIONAL_MARGIN: Score = 300;
 
-const LMR_MAX_DEPTH: Depth = 8 * INC_PLY;
-const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize + 1] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
+const LMR_MAX_DEPTH: Depth = 9 * INC_PLY;
+const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
 
 #[derive(Copy, Clone, Debug)]
 struct PersistentOptions {
@@ -644,7 +644,7 @@ impl Search {
             }
 
             if extension <= 0
-                && depth <= LMR_MAX_DEPTH
+                && depth < LMR_MAX_DEPTH
                 && num_moves > LMR_MOVES[(depth / INC_PLY) as usize]
                 && mtype != MoveType::GoodCapture
                 && mtype != MoveType::Killer
