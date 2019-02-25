@@ -50,18 +50,15 @@ pub const BISHOP_SCORE: Score = 320;
 pub const ROOK_SCORE: Score = 500;
 pub const QUEEN_SCORE: Score = 1000;
 
-const KNIGHT_MOBILITY: [Score; 9] = [-20, 40, 80, 120, 130, 140, 150, 160, 170];
-const KNIGHT_MOBILITY_AVG: Score = 108;
+const KNIGHT_MOBILITY: [Score; 9] = [-138, -68, -28, 12, 22, 32, 42, 52, 62];
 
 const BISHOP_MOBILITY: [Score; 14] = [
-    0, 40, 80, 100, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155,
+    -110, -70, -30, -10, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45,
 ];
-const BISHOP_MOBILITY_AVG: Score = 110;
 
 const ROOK_MOBILITY: [Score; 15] = [
-    0, 40, 80, 90, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150,
+    -105, -65, -25, -15, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45,
 ];
-const ROOK_MOBILITY_AVG: Score = 105;
 
 impl Eval {
     fn mobility_for_side(&mut self, white: bool, pos: &Position) -> Score {
@@ -96,7 +93,7 @@ impl Eval {
         for knight in (pos.knights() & us).squares() {
             let b = KNIGHT_ATTACKS[knight.0 as usize];
             let mobility = b & !their_pawn_attacks;
-            knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize] - KNIGHT_MOBILITY_AVG;
+            knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize];
             self.attacked_by[s][Piece::Knight.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
@@ -106,7 +103,7 @@ impl Eval {
         for bishop in (pos.bishops() & us).squares() {
             let b = get_bishop_attacks_from(bishop, pos.all_pieces);
             let x = get_bishop_attacks_from(bishop, pos.all_pieces ^ (pos.queens() & us));
-            bishop_mobility += BISHOP_MOBILITY[b.popcount() as usize] - BISHOP_MOBILITY_AVG;
+            bishop_mobility += BISHOP_MOBILITY[b.popcount() as usize];
             self.attacked_by[s][Piece::Bishop.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
             self.attacked_by_1[s] |= b;
@@ -116,7 +113,7 @@ impl Eval {
         for rook in (pos.rooks() & us).squares() {
             let b = get_rook_attacks_from(rook, pos.all_pieces);
             let x = get_rook_attacks_from(rook, pos.all_pieces ^ (pos.queens() & us));
-            rook_mobility += ROOK_MOBILITY[b.popcount() as usize] - ROOK_MOBILITY_AVG;
+            rook_mobility += ROOK_MOBILITY[b.popcount() as usize];
             self.attacked_by[s][Piece::Rook.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
             self.attacked_by_1[s] |= b;
