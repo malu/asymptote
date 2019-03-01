@@ -271,7 +271,7 @@ impl Position {
         if mov.piece == Piece::King {
             king = mov.to;
 
-            if mov.from.left(2) == mov.to {
+            if mov.from.to_bb().left(2) & mov.to {
                 // Queenside castling
                 if self.is_attacked(mov.from) || self.is_attacked(mov.from.left(1)) {
                     return false;
@@ -283,7 +283,7 @@ impl Position {
                 // Rook movement
                 all_pieces ^= mov.to.left(2);
                 all_pieces ^= mov.to.right(1);
-            } else if mov.from.right(2) == mov.to {
+            } else if mov.from.to_bb().right(2) & mov.to {
                 // Kingside castling
                 if self.is_attacked(mov.from) || self.is_attacked(mov.from.right(1)) {
                     return false;
@@ -817,8 +817,8 @@ impl<'a> From<&'a str> for Position {
             }
         }
 
-        let halfmove: u8 = split.next().unwrap().parse().unwrap();
-        let fullmove: usize = split.next().unwrap().parse().unwrap();
+        let halfmove: u8 = split.next().and_then(|n| n.parse().ok()).unwrap_or(0);
+        let fullmove: usize = split.next().and_then(|n| n.parse().ok()).unwrap_or(1);
 
         pos.details.halfmove = halfmove;
         pos.fullmove = fullmove;

@@ -20,6 +20,9 @@ use crate::position::*;
 use crate::search::*;
 use crate::time::*;
 
+#[cfg(feature = "tune")]
+use crate::tune::*;
+
 use std::io::{self, BufRead};
 use std::sync;
 use std::thread;
@@ -41,6 +44,7 @@ pub enum UciCommand {
     Quit,
     Stop,
     Bench,
+    Tune(String),
     ShowMoves,
     Debug,
     TT,
@@ -93,6 +97,9 @@ impl UCI {
                 UciCommand::Bench => {
                     let (_, rx) = sync::mpsc::channel();
                     run_benchmark(12, rx);
+                }
+                UciCommand::Tune(filename) => {
+                    tune(&filename);
                 }
                 cmd => {
                     self.main_thread_tx.send(cmd).unwrap();
@@ -166,6 +173,8 @@ impl<'a> From<&'a str> for UciCommand {
             UciCommand::Quit
         } else if line.starts_with("bench") {
             UciCommand::Bench
+        } else if line.starts_with("tune") {
+            UciCommand::Tune(line[5..].to_owned())
         } else if line.starts_with("showmoves") {
             UciCommand::ShowMoves
         } else if line == "d" {
@@ -242,4 +251,88 @@ impl<'a> From<&'a str> for GoParams {
             },
         }
     }
+}
+
+#[cfg(feature = "tune")]
+fn tune(path: &str) {
+    let mut traces;
+    if path.ends_with(".pgn") {
+        traces = pgn_to_positions(path)
+            .map(|(r, pos)| CompactTrace::from(Trace::from_position(r, pos)))
+            .collect::<Vec<_>>();
+    } else if path.ends_with(".fen") {
+        traces = fens_to_positions(path)
+            .map(|(r, pos)| CompactTrace::from(Trace::from_position(r, pos)))
+            .collect::<Vec<_>>();
+    } else if path.ends_with(".epd") {
+        traces = epd_to_positions(path)
+            .map(|(r, pos)| CompactTrace::from(Trace::from_position(r, pos)))
+            .collect::<Vec<_>>();
+    } else {
+        eprintln!("Unsupported format");
+        return;
+    }
+    let mut params = Parameters::default();
+    println!("# positions: {:>8}", traces.len());
+    params.compute_optimal_k(&traces);
+    println!("Optimized K: {:>8.6}", params.k);
+
+    let initial_error = params.total_error(&traces);
+    let mut last_printed_error = initial_error;
+    let mut best = initial_error;
+    println!("Error      : {:>8.6}", last_printed_error);
+
+    let mut f = 1.;
+
+    for i in 1.. {
+        shuffle_traces(&mut traces);
+        params.step(&traces, f);
+
+        let error = params.total_error(&traces);
+        if i % 20 == 0 {
+            println!(
+                "Error      : {:>8.6}  ({:>8.6}%)  (total {:>8.6}%)",
+                error,
+                100. * (error - last_printed_error) / last_printed_error,
+                100. * (error - initial_error) / initial_error
+            );
+            last_printed_error = error;
+            params.print_weights();
+            if error > best {
+                f /= 2.;
+                if f < 0.000001 {
+                    break;
+                }
+                println!("Decreased learning rate. Now: {:.6}", f);
+            }
+
+            best = error;
+        }
+    }
+    println!("Done");
+    let error = params.total_error(&traces);
+    println!(
+        "Total error: {:>8.6}  ({:>8.6}%)",
+        error,
+        100. * (error - initial_error) / initial_error
+    );
+    params.print_weights();
+}
+
+#[cfg(feature = "tune")]
+fn shuffle_traces(traces: &mut [CompactTrace]) {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let n = traces.len();
+
+    for _ in 0..n {
+        let a = rng.gen::<usize>() % n;
+        let b = rng.gen::<usize>() % n;
+        traces.swap(a, b);
+    }
+}
+
+#[cfg(not(feature = "tune"))]
+fn tune(_path: &str) {
+    println!("This binary was not compiled with tuning support.");
 }

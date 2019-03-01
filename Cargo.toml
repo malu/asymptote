@@ -11,3 +11,6 @@ rand = "0.5.0"
 [profile.release]
 debug = true
 codegen-units = 1
+
+[features]
+tune = []

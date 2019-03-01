@@ -339,11 +339,11 @@ impl Piece {
 
     pub fn value(self) -> Score {
         match self {
-            Piece::Pawn => PAWN_SCORE,
-            Piece::Knight => KNIGHT_SCORE,
-            Piece::Bishop => BISHOP_SCORE,
-            Piece::Rook => ROOK_SCORE,
-            Piece::Queen => QUEEN_SCORE,
+            Piece::Pawn => mg(PAWN_SCORE),
+            Piece::Knight => mg(KNIGHT_SCORE),
+            Piece::Bishop => mg(BISHOP_SCORE),
+            Piece::Rook => mg(ROOK_SCORE),
+            Piece::Queen => mg(QUEEN_SCORE),
             Piece::King => 10000,
         }
     }

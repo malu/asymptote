@@ -21,14 +21,19 @@ use crate::hash::*;
 use crate::movegen::*;
 use crate::position::*;
 
-#[derive(Debug)]
+#[cfg(feature = "tune")]
+use crate::tune::*;
+
 pub struct Eval {
     material: [[usize; 5]; 2],
-    pst: [Score; 2],
+    pst: [EScore; 2],
     pawn_table: Vec<PawnHashEntry>,
     attacked_by: [[Bitboard; 6]; 2],
     attacked_by_1: [Bitboard; 2],
     attacked_by_2: [Bitboard; 2],
+
+    #[cfg(feature = "tune")]
+    pub trace: Trace,
 }
 
 const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
@@ -36,34 +41,165 @@ const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
 #[derive(Debug, Default)]
 struct PawnHashEntry {
     hash: Hash,
-    mg: Score,
-    eg: Score,
+    score: EScore,
 }
 
 pub type Score = i16;
+type EScore = i32;
+
+const fn S(mg: i16, eg: i16) -> EScore {
+    ((eg as u32) << 16) as EScore + mg as EScore
+}
+
+pub fn mg(s: EScore) -> i16 {
+    (s & 0xFFFF) as i16
+}
+
+pub fn eg(s: EScore) -> i16 {
+    ((s + 0x8000) as u32 >> 16) as i16
+}
+
+fn interpolate(score: EScore, phase: i16) -> Score {
+    let mg = mg(score) as i32;
+    let eg = eg(score) as i32;
+    let phase = phase as i32;
+
+    ((mg * phase + eg * (62 - phase)) / 62) as Score
+}
 
 pub const MATE_SCORE: Score = 20000;
 
-pub const PAWN_SCORE: Score = 100;
-pub const KNIGHT_SCORE: Score = 300;
-pub const BISHOP_SCORE: Score = 320;
-pub const ROOK_SCORE: Score = 500;
-pub const QUEEN_SCORE: Score = 1000;
+pub const PAWN_SCORE: EScore = S(100, 121);
+pub const KNIGHT_SCORE: EScore = S(330, 290);
+pub const BISHOP_SCORE: EScore = S(324, 318);
+pub const ROOK_SCORE: EScore = S(496, 534);
+pub const QUEEN_SCORE: EScore = S(990, 1000);
 
-const KNIGHT_MOBILITY: [Score; 9] = [-138, -68, -28, 12, 22, 32, 42, 52, 62];
-
-const BISHOP_MOBILITY: [Score; 14] = [
-    -110, -70, -30, -10, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45,
+pub const PAWN_MOBILITY: EScore = S(9, 6);
+#[rustfmt::skip]
+pub const KNIGHT_MOBILITY: [EScore; 9] = [
+    S(-137, -138), S( -58,  -67), S( -18,  -23), S(   8,   14),
+    S(  28,   24), S(  32,   34), S(  43,   39), S(  53,   49),
+    S(  67,   42),
+];
+#[rustfmt::skip]
+pub const BISHOP_MOBILITY: [EScore; 14] = [
+    S(-110, -110), S( -68,  -68), S( -23,  -29), S(  -7,  -12),
+    S(   7,   -1), S(  12,    4), S(  18,   12), S(  19,   27),
+    S(  22,   22), S(  25,   25), S(  30,   30), S(  35,   35),
+    S(  40,   40), S(  45,   45),
+];
+#[rustfmt::skip]
+pub const ROOK_MOBILITY: [EScore; 15] = [
+    S(-105, -105), S( -65,  -65), S( -22,  -26), S( -17,  -18),
+    S(  -8,   -7), S(  -7,   -1), S(  -2,    4), S(   4,   11),
+    S(  10,   19), S(  20,   20), S(  25,   25), S(  30,   30),
+    S(  35,   35), S(  40,   40), S(  45,   45),
 ];
 
-const ROOK_MOBILITY: [Score; 15] = [
-    -105, -65, -25, -15, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45,
+pub const DOUBLED_PAWN: EScore = S(0, -16);
+pub const ISOLATED_PAWN: EScore = S(-24, -2);
+
+#[rustfmt::skip]
+pub const PASSED_PAWN: [EScore; 8] = [
+    S(   0,    0), S(  63,  164), S(  59,  106), S(  40,   43),
+    S(  20,   21), S(  15,    1), S(  11,    4), S(   0,    0),
+];
+
+pub const XRAYED_SQUARE: EScore = S(5, 0);
+pub const BISHOP_PAIR: EScore = S(42, 48);
+
+pub const ROOK_OPEN_FILE: EScore = S(30, 8);
+pub const ROOK_HALFOPEN_FILE: EScore = S(10, 18);
+
+#[rustfmt::skip]
+pub const KING_SAFETY: [Score; 30] = [
+    0,      -1,   -3,   -9,
+    -14,   -29,  -38,  -49,
+    -57,   -73,  -94, -118,
+    -144, -170, -196, -226,
+    -255, -289, -323, -361,
+    -400, -441, -484, -529,
+    -576, -625, -676, -729,
+    -784, -841,
+];
+pub const KING_CHECK_KNIGHT: EScore = S(-58, 0);
+pub const KING_CHECK_BISHOP: EScore = S(-18, 0);
+pub const KING_CHECK_ROOK: EScore = S(-33, 0);
+pub const KING_CHECK_QUEEN: EScore = S(-44, 0);
+
+#[rustfmt::skip]
+pub const PAWN_PST: [EScore; 64] = [
+    S(  24,   24), S(  28,   28), S(  35,   35), S(  50,   50), S(  50,   50), S(  35,   35), S(  28,   28), S(  24,   24),
+    S(  17,   21), S(  24,   25), S(  26,   25), S(  33,   31), S(  34,   32), S(  26,   25), S(  23,   22), S(  16,   16),
+    S(   7,   19), S(  10,   16), S(  12,   12), S(  18,   13), S(  19,   14), S(  12,   10), S(   7,   10), S(   3,   11),
+    S(  -4,    7), S(  -5,    0), S(   0,   -2), S(  13,   -8), S(  17,   -9), S(   4,   -6), S( -14,   -1), S( -12,   -2),
+    S( -15,   -4), S( -15,   -6), S(  -4,  -16), S(   7,  -17), S(   8,  -13), S(  -2,  -17), S( -19,   -9), S( -25,  -13),
+    S( -11,  -18), S( -18,   -9), S( -11,  -16), S( -17,  -10), S(  -3,   -8), S( -13,  -10), S(   8,  -18), S( -12,  -22),
+    S( -25,  -16), S( -20,  -16), S( -31,  -11), S( -32,  -16), S( -23,  -13), S(   0,  -10), S(   6,  -20), S( -26,  -30),
+    S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+];
+#[rustfmt::skip]
+pub const KNIGHT_PST: [EScore; 64] = [
+    S( -10,   -8), S(  -9,   -8), S(  -8,   -8), S(  -9,   -9), S(  -8,   -9), S(  -8,   -9), S(  -9,   -9), S(  -9,   -9),
+    S(  -9,   -8), S(   0,    0), S(  10,    8), S(  15,   14), S(  14,   14), S(  10,    8), S(   0,    0), S(  -8,   -9),
+    S(  -9,   -9), S(   5,    4), S(  14,   14), S(  19,   18), S(  20,   18), S(  15,   14), S(   5,    4), S(  -8,   -8),
+    S(  -8,   -6), S(   6,    5), S(  15,   15), S(  27,   22), S(  24,   21), S(  17,   15), S(   9,    7), S(  -5,   -6),
+    S(  -3,   -6), S(   0,    0), S(   9,   12), S(  15,   19), S(  19,   18), S(  19,   16), S(   2,    0), S(   2,   -5),
+    S(  -8,   -9), S(  -3,    0), S(  -1,    3), S(   7,    7), S(  11,    8), S(   8,    3), S(   9,    0), S( -11,   -9),
+    S(  -9,   -9), S(   0,    0), S(  -7,   -2), S(   3,    0), S(   4,    0), S(  -2,   -1), S(   0,    0), S(  -7,   -9),
+    S( -10,   -9), S(  -9,  -11), S( -11,  -11), S( -11,  -10), S(  -9,   -9), S( -12,  -10), S(  -8,   -9), S(  -9,   -9),
+];
+#[rustfmt::skip]
+pub const BISHOP_PST: [EScore; 64] = [
+    S(  -9,   -9), S(  -9,   -8), S(  -9,   -9), S( -10,   -9), S(  -9,   -9), S(  -8,   -8), S(  -8,   -8), S( -10,   -9),
+    S(  -8,   -7), S(   0,    0), S(   3,    4), S(   9,    8), S(   8,    9), S(   5,    5), S(   0,    0), S( -10,   -9),
+    S(  -8,   -7), S(   5,    4), S(   8,    8), S(  19,   16), S(  19,   18), S(  10,    9), S(   5,    5), S(  -6,   -6),
+    S(  -8,   -7), S(   1,    5), S(   8,    7), S(  19,   16), S(  17,   16), S(  10,    9), S(   2,    4), S(  -6,   -6),
+    S(  -7,   -7), S(   0,    1), S(   0,    9), S(  12,   12), S(  12,   10), S(   0,    7), S(   0,    0), S(  -5,   -7),
+    S(  -6,   -7), S(   8,    6), S(   6,    7), S(   1,    7), S(   4,    6), S(  10,    7), S(   9,    4), S(  -6,   -7),
+    S(  -7,   -8), S(   4,    4), S(   4,    0), S(  -4,    1), S(   0,    3), S(   1,    0), S(  23,    7), S(  -7,   -8),
+    S(  -9,  -10), S(  -7,   -8), S(   0,   -7), S( -11,   -9), S(  -9,   -8), S(   4,   -8), S(  -9,   -9), S( -10,   -9),
+];
+#[rustfmt::skip]
+pub const ROOK_PST: [EScore; 64] = [
+    S(  19,   21), S(  19,   19), S(  19,   19), S(  23,   22), S(  23,   23), S(  19,   19), S(  19,   19), S(  19,   19),
+    S(  21,   25), S(  20,   23), S(  20,   22), S(  24,   24), S(  24,   22), S(  20,   19), S(  19,   19), S(  20,   21),
+    S(   2,    7), S(   3,    7), S(   2,    4), S(   6,    8), S(   6,    6), S(   0,    2), S(   0,    2), S(   1,    3),
+    S(   1,    6), S(   1,    4), S(   2,    4), S(   6,    6), S(   5,    5), S(   1,    2), S(   0,    0), S(   1,    4),
+    S(  -2,    1), S(   0,    2), S(   0,    2), S(   3,    3), S(   4,    4), S(   0,    0), S(   0,    0), S(   0,    0),
+    S(  -7,   -3), S(   0,    0), S(   0,   -1), S(   6,    4), S(   7,    4), S(  -1,   -1), S(   0,    0), S(  -8,   -6),
+    S( -11,   -5), S(  -5,   -5), S(  -1,   -1), S(   8,    6), S(   8,    6), S(   0,   -1), S(  -6,   -5), S( -14,   -5),
+    S(   2,    0), S(   1,    0), S(   7,    8), S(  19,    9), S(  15,   11), S(  28,    7), S( -17,   -3), S(  -3,   -8),
+];
+#[rustfmt::skip]
+pub const QUEEN_PST: [EScore; 64] = [
+    S(  -4,   -2), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+    S(  -1,    0), S(  -5,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   1,    0),
+    S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    1), S(   0,    0), S(   0,    0), S(   1,    1),
+    S(   0,    0), S(  -1,    0), S(   0,    0), S(  -1,    0), S(   0,    1), S(   0,    1), S(   0,    0), S(   0,    0),
+    S(  -4,    0), S(  -1,    0), S(  -1,    0), S(  -6,    1), S(   0,    1), S(   2,    1), S(   2,    1), S(   0,    0),
+    S(   0,    0), S(   1,    0), S(   0,    0), S(   0,    0), S(   1,    0), S(   3,    1), S(   3,    0), S(   0,    0),
+    S(  -2,   -1), S(  -1,    0), S(   2,   -1), S(   3,   -1), S(   6,   -1), S(   1,    0), S(   0,    0), S(   0,    0),
+    S(  -1,   -1), S(  -3,   -1), S(  -4,   -1), S(  11,   -2), S(  -3,    0), S(  -3,   -1), S(   0,    0), S(   0,    0),
+];
+#[rustfmt::skip]
+pub const KING_PST: [EScore; 64] = [
+    S(   0,  -15), S(   0,  -15), S(   0,  -15), S(   0,  -15), S(   0,  -15), S(   0,  -14), S(   0,  -14), S(   0,  -15),
+    S(   0,  -15), S(   0,   -8), S(   0,   -8), S(   0,   -8), S(   0,   -8), S(   0,   -7), S(   0,   -8), S(   0,  -14),
+    S(   0,  -13), S(   0,   -8), S(   0,   -3), S(   0,   -3), S(   0,   -2), S(   0,    0), S(   0,   -5), S(   0,  -13),
+    S(   0,  -14), S(   0,   -6), S(   0,    0), S(   0,    2), S(   0,    3), S(   0,    1), S(   0,   -4), S(   0,  -13),
+    S(   0,  -15), S(   0,   -9), S(   0,   -1), S(   0,    3), S(   0,    5), S(   0,    3), S(   0,   -6), S(   0,  -17),
+    S(   0,  -15), S(   0,   -9), S(   0,   -2), S(   0,   -1), S(   1,    3), S(   1,    2), S(   2,   -3), S(   0,  -17),
+    S(   0,  -17), S(   0,  -11), S(   0,   -9), S(  -3,   -9), S(  -5,   -6), S(  -4,   -6), S(   1,   -9), S(   5,  -21),
+    S(  -2,  -19), S(   2,  -19), S(   0,  -18), S(  -9,  -22), S(   6,  -23), S( -18,  -25), S(  13,  -28), S(  -2,  -34),
 ];
 
 impl Eval {
-    fn mobility_for_side(&mut self, white: bool, pos: &Position) -> Score {
+    fn mobility_for_side(&mut self, white: bool, pos: &Position) -> EScore {
         let us = pos.us(white);
         let them = pos.them(white);
+
         let rank3 = if white { RANK_3 } else { RANK_6 };
 
         let s = white as usize;
@@ -86,37 +222,49 @@ impl Eval {
         self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
         self.attacked_by_1[s] |= b;
 
-        let mut knight_mobility = 0;
+        let mut score = S(0, 0);
         let their_pawns = pos.pawns() & !us;
         let their_pawn_attacks =
             their_pawns.forward(!white, 1).left(1) | their_pawns.forward(!white, 1).right(1);
         for knight in (pos.knights() & us).squares() {
             let b = KNIGHT_ATTACKS[knight.0 as usize];
             let mobility = b & !their_pawn_attacks;
-            knight_mobility += KNIGHT_MOBILITY[mobility.popcount() as usize];
+            score += KNIGHT_MOBILITY[mobility.popcount() as usize];
             self.attacked_by[s][Piece::Knight.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
+            #[cfg(feature = "tune")]
+            {
+                self.trace.mobility_knight[mobility.popcount() as usize][white as usize] += 1;
+            }
         }
 
-        let mut bishop_mobility = 0;
         for bishop in (pos.bishops() & us).squares() {
             let b = get_bishop_attacks_from(bishop, pos.all_pieces);
             let x = get_bishop_attacks_from(bishop, pos.all_pieces ^ (pos.queens() & us));
-            bishop_mobility += BISHOP_MOBILITY[b.popcount() as usize];
+            score += BISHOP_MOBILITY[b.popcount() as usize];
             self.attacked_by[s][Piece::Bishop.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
             self.attacked_by_1[s] |= b;
+
+            #[cfg(feature = "tune")]
+            {
+                self.trace.mobility_bishop[b.popcount() as usize][white as usize] += 1;
+            }
         }
 
-        let mut rook_mobility = 0;
         for rook in (pos.rooks() & us).squares() {
             let b = get_rook_attacks_from(rook, pos.all_pieces);
             let x = get_rook_attacks_from(rook, pos.all_pieces ^ (pos.queens() & us));
-            rook_mobility += ROOK_MOBILITY[b.popcount() as usize];
+            score += ROOK_MOBILITY[b.popcount() as usize];
             self.attacked_by[s][Piece::Rook.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
             self.attacked_by_1[s] |= b;
+
+            #[cfg(feature = "tune")]
+            {
+                self.trace.mobility_rook[b.popcount() as usize][white as usize] += 1;
+            }
         }
 
         for queen in (pos.queens() & us).squares() {
@@ -136,76 +284,71 @@ impl Eval {
             self.attacked_by_1[s] |= b;
         }
 
-        6 * pawn_mobility.popcount() as Score + knight_mobility + bishop_mobility + rook_mobility
+        let pawn_mobility = pawn_mobility.popcount() as i32;
+        #[cfg(feature = "tune")]
+        {
+            self.trace.mobility_pawn[white as usize] = pawn_mobility as i8;
+        }
+        score += PAWN_MOBILITY * pawn_mobility;
+        score
     }
 
-    fn material_score(&self) -> Score {
+    fn material(&mut self, white: bool) -> EScore {
         let pawn = Piece::Pawn.index();
         let knight = Piece::Knight.index();
         let bishop = Piece::Bishop.index();
         let rook = Piece::Rook.index();
         let queen = Piece::Queen.index();
-        let black = 0;
-        let white = 1;
+        let side = white as usize;
 
         let mut score = 0;
-        score += PAWN_SCORE * self.material[white][pawn] as Score;
-        score += KNIGHT_SCORE * self.material[white][knight] as Score;
-        score += BISHOP_SCORE * self.material[white][bishop] as Score;
-        score += ROOK_SCORE * self.material[white][rook] as Score;
-        score += QUEEN_SCORE * self.material[white][queen] as Score;
+        score += PAWN_SCORE * self.material[side][pawn] as EScore;
+        score += KNIGHT_SCORE * self.material[side][knight] as EScore;
+        score += BISHOP_SCORE * self.material[side][bishop] as EScore;
+        score += ROOK_SCORE * self.material[side][rook] as EScore;
+        score += QUEEN_SCORE * self.material[side][queen] as EScore;
 
-        score -= PAWN_SCORE * self.material[black][pawn] as Score;
-        score -= KNIGHT_SCORE * self.material[black][knight] as Score;
-        score -= BISHOP_SCORE * self.material[black][bishop] as Score;
-        score -= ROOK_SCORE * self.material[black][rook] as Score;
-        score -= QUEEN_SCORE * self.material[black][queen] as Score;
-
-        // encourage trading pieces if ahead in material or pawns if behind in material
-        if score > 50 {
-            score += 4 * self.material[white][pawn] as Score;
-            score += 4 * self.material[black][pawn] as Score;
-        } else if score < -50 {
-            score -= 4 * self.material[black][pawn] as Score;
-            score -= 4 * self.material[white][pawn] as Score;
+        if self.material[side][bishop] > 1 {
+            score += BISHOP_PAIR;
         }
 
-        if self.material[white][bishop] > 1 {
-            score += 40;
-        }
+        #[cfg(feature = "tune")]
+        {
+            let king = Piece::King.index();
+            self.trace.material[pawn][side] = self.material[side][pawn] as i8;
+            self.trace.material[knight][side] = self.material[side][knight] as i8;
+            self.trace.material[bishop][side] = self.material[side][bishop] as i8;
+            self.trace.material[rook][side] = self.material[side][rook] as i8;
+            self.trace.material[queen][side] = self.material[side][queen] as i8;
+            self.trace.material[king][side] = 1;
 
-        if self.material[black][bishop] > 1 {
-            score -= 40;
+            if self.material[side][bishop] > 1 {
+                self.trace.bishops_pair[white as usize] = 1;
+            }
         }
 
         score
     }
 
     pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
-        let mut score = 0;
-        score += self.material_score();
+        let mut score = S(0, 0);
+
         score += self.pst[1] - self.pst[0];
         score += self.mobility_for_side(true, pos) - self.mobility_for_side(false, pos);
         score += self.bishops_for_side(pos, true) - self.bishops_for_side(pos, false);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
+        score += self.material(true) - self.material(false);
+        score += self.king_safety_for_side(pos, true) - self.king_safety_for_side(pos, false);
+        score += self.pawns(pos, pawn_hash);
 
-        let mut mg = score;
-        let mut eg = score;
+        let phase = self.phase();
+        let score = interpolate(score, phase);
 
-        let (king_mg, king_eg) = self.king_safety(pos);
-        mg += king_mg;
-        eg += king_eg;
-
-        let (pawns_mg, pawns_eg) = self.pawns(pos, pawn_hash);
-        mg += pawns_mg;
-        eg += pawns_eg;
-
-        let mg = i32::from(mg);
-        let eg = i32::from(eg);
-        let phase = i32::from(self.phase());
-
-        let score = (mg * phase + eg * (62 - phase)) / 62;
-        let score = score as Score;
+        #[cfg(feature = "tune")]
+        {
+            self.trace_pst(pos, true);
+            self.trace_pst(pos, false);
+        }
 
         if pos.white_to_move {
             score
@@ -214,38 +357,31 @@ impl Eval {
         }
     }
 
-    fn pawns(&mut self, pos: &Position, pawn_hash: Hash) -> (Score, Score) {
+    fn pawns(&mut self, pos: &Position, pawn_hash: Hash) -> EScore {
+        // Don't do pawn hash lookups if we are tuning
+        #[cfg(not(feature = "tune"))]
         {
             let pawn_hash_entry = &self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
             if pawn_hash_entry.hash == pawn_hash {
-                return (pawn_hash_entry.mg, pawn_hash_entry.eg);
+                return pawn_hash_entry.score;
             }
         }
 
-        let (wmg, weg) = self.pawns_for_side(pos, true);
-        let (bmg, beg) = self.pawns_for_side(pos, false);
+        let score = self.pawns_for_side(pos, true) - self.pawns_for_side(pos, false);
 
         let pawn_hash_entry = &mut self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
         pawn_hash_entry.hash = pawn_hash;
-        pawn_hash_entry.mg = wmg - bmg;
-        pawn_hash_entry.eg = weg - beg;
-        (wmg - bmg, weg - beg)
+        pawn_hash_entry.score = score;
+        score
     }
 
-    fn pawns_for_side(&mut self, pos: &Position, white: bool) -> (Score, Score) {
+    fn pawns_for_side(&mut self, pos: &Position, white: bool) -> EScore {
         let us = pos.us(white);
         let them = pos.them(white);
         let side = white as usize;
 
-        const PASSER_ON_RANK_BONUS_EG: [Score; 8] = [0, 160, 80, 40, 20, 10, 10, 0];
-        const PASSER_ON_RANK_BONUS_MG: [Score; 8] = [0, 60, 50, 40, 30, 20, 10, 0];
-        const ISOLATED_PAWN_PENALTY_EG: Score = 10;
-        const ISOLATED_PAWN_PENALTY_MG: Score = 10;
-        const DOUBLED_PAWN_PENALTY_EG: Score = 30;
-        const DOUBLED_PAWN_PENALTY_MG: Score = 30;
+        let mut score = S(0, 0);
 
-        let mut mg = 0;
-        let mut eg = 0;
         for pawn in (pos.pawns() & us).squares() {
             let sq = pawn.0 as usize;
             let corridor_bb = PAWN_CORRIDOR[side][sq];
@@ -256,8 +392,12 @@ impl Eval {
             let isolated = ((file_bb.left(1) | file_bb.right(1)) & pos.pawns() & us).is_empty();
 
             if doubled {
-                mg -= DOUBLED_PAWN_PENALTY_MG;
-                eg -= DOUBLED_PAWN_PENALTY_EG;
+                score += DOUBLED_PAWN;
+
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.pawns_doubled[side] += 1;
+                }
             }
 
             if passed && !doubled {
@@ -267,75 +407,70 @@ impl Eval {
                     pawn.rank() as usize
                 };
 
-                mg += PASSER_ON_RANK_BONUS_MG[relative_rank];
-                eg += PASSER_ON_RANK_BONUS_EG[relative_rank];
+                score += PASSED_PAWN[relative_rank];
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.pawns_passed[relative_rank][side] += 1;
+                }
             }
 
             if isolated {
-                mg -= ISOLATED_PAWN_PENALTY_MG;
-
-                if !passed {
-                    eg -= ISOLATED_PAWN_PENALTY_EG;
+                score += ISOLATED_PAWN;
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.pawns_isolated[side] += 1;
                 }
             }
-        }
-
-        (mg, eg)
-    }
-
-    pub fn bishops_for_side(&self, pos: &Position, white: bool) -> Score {
-        let us = pos.us(white);
-        const XRAYED_SQUARE: Score = 2;
-        let mut score = 0;
-
-        for bishop in (pos.bishops() & us).squares() {
-            let xray = get_bishop_attacks_from(bishop, pos.pawns());
-            score += XRAYED_SQUARE * xray.popcount() as Score;
         }
 
         score
     }
 
-    pub fn rooks_for_side(&self, pos: &Position, white: bool) -> Score {
+    pub fn bishops_for_side(&mut self, pos: &Position, white: bool) -> EScore {
         let us = pos.us(white);
-        const OPEN_FILE_BONUS: Score = 15;
-        const HALF_OPEN_FILE_BONUS: Score = 5;
+        let mut score = 0;
+
+        for bishop in (pos.bishops() & us).squares() {
+            let xray = get_bishop_attacks_from(bishop, pos.pawns());
+            score += XRAYED_SQUARE * xray.popcount() as EScore;
+            #[cfg(feature = "tune")]
+            {
+                self.trace.bishops_xray[white as usize] += xray.popcount() as i8;
+            }
+        }
+
+        score
+    }
+
+    pub fn rooks_for_side(&mut self, pos: &Position, white: bool) -> EScore {
+        let us = pos.us(white);
+
         let mut score = 0;
 
         for rook in (pos.rooks() & us).squares() {
             let file_bb = FILES[rook.file() as usize];
             if (pos.pawns() & file_bb).is_empty() {
-                score += OPEN_FILE_BONUS;
+                score += ROOK_OPEN_FILE;
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.rooks_open_file[white as usize] += 1;
+                }
             } else if (pos.pawns() & us & file_bb).is_empty() {
-                score += HALF_OPEN_FILE_BONUS;
+                score += ROOK_HALFOPEN_FILE;
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.rooks_halfopen_file[white as usize] += 1;
+                }
             }
         }
 
         score
     }
 
-    pub fn king_safety(&self, pos: &Position) -> (Score, Score) {
-        let (wmg, weg) = self.king_safety_for_side(pos, true);
-        let (bmg, beg) = self.king_safety_for_side(pos, false);
-        (wmg - bmg, weg - beg)
-    }
-
-    fn king_safety_for_side(&self, pos: &Position, white: bool) -> (Score, Score) {
+    fn king_safety_for_side(&mut self, pos: &Position, white: bool) -> EScore {
         let us = pos.us(white);
         let them = pos.them(white);
         let side = white as usize;
-
-        #[rustfmt::skip]
-        const CENTER_DISTANCE: [Score; 64] = [
-            3, 3, 3, 3, 3, 3, 3, 3,
-            3, 2, 2, 2, 2, 2, 2, 3,
-            3, 2, 1, 1, 1, 1, 2, 3,
-            3, 2, 1, 0, 0, 1, 2, 3,
-            3, 2, 1, 0, 0, 1, 2, 3,
-            3, 2, 1, 1, 1, 1, 2, 3,
-            3, 2, 2, 2, 2, 2, 2, 3,
-            3, 3, 3, 3, 3, 3, 3, 3,
-        ];
 
         let mut index = 0;
 
@@ -347,12 +482,10 @@ impl Eval {
         let front = adjacent_files.forward(white, 1);
         let distant_front = adjacent_files.forward(white, 2);
 
-        let eg_penalty = 5 * CENTER_DISTANCE[king_sq.0 as usize];
-
         let skip_king_safety = self.material[1 - side][Piece::Queen.index()] == 0
             && self.material[1 - side][Piece::Rook.index()] <= 1;
         if skip_king_safety {
-            return (0, -eg_penalty);
+            return S(0, 0);
         }
 
         index += (3 - (front & pos.pawns() & us).popcount()) * 2;
@@ -393,35 +526,62 @@ impl Eval {
             index += 5;
         }
 
-        let mut mg_penalty = (index * index) as Score;
+        let mut score = S(KING_SAFETY[index], 0);
+        #[cfg(feature = "tune")]
+        {
+            self.trace.king_safety[index][white as usize] += 1;
+        }
 
         if (safe_knight_checks & self.attacked_by[1 - side][Piece::Knight.index()]).at_least_one() {
-            mg_penalty += 50;
+            score += KING_CHECK_KNIGHT;
+            #[cfg(feature = "tune")]
+            {
+                self.trace.king_check_knight[white as usize] += 1;
+            }
         }
 
         if (safe_bishop_checks & self.attacked_by[1 - side][Piece::Bishop.index()]).at_least_one() {
-            mg_penalty += 25;
+            score += KING_CHECK_BISHOP;
+            #[cfg(feature = "tune")]
+            {
+                self.trace.king_check_bishop[white as usize] += 1;
+            }
         }
 
         if (safe_rook_checks & self.attacked_by[1 - side][Piece::Rook.index()]).at_least_one() {
-            mg_penalty += 25;
+            score += KING_CHECK_ROOK;
+            #[cfg(feature = "tune")]
+            {
+                self.trace.king_check_rook[white as usize] += 1;
+            }
         }
 
         if ((safe_bishop_checks | safe_rook_checks)
             & self.attacked_by[1 - side][Piece::Queen.index()])
         .at_least_one()
         {
-            mg_penalty += 50;
+            score += KING_CHECK_QUEEN;
+            #[cfg(feature = "tune")]
+            {
+                self.trace.king_check_queen[white as usize] += 1;
+            }
         }
 
-        (-mg_penalty, -eg_penalty)
+        score
     }
 
-    pub fn phase(&self) -> i16 {
-        cmp::min(
+    pub fn phase(&mut self) -> i16 {
+        let phase = cmp::min(
             62,
             self.non_pawn_material(false) + self.non_pawn_material(true),
-        )
+        );
+
+        #[cfg(feature = "tune")]
+        {
+            self.trace.phase = phase as i8;
+        }
+
+        phase
     }
 
     pub fn make_move(&mut self, mov: Move, pos: &Position) {
@@ -563,6 +723,65 @@ impl Eval {
         material += 9 * self.material[side][Piece::Queen.index()] as Score;
         material
     }
+
+    #[cfg(feature = "tune")]
+    fn trace_pst(&mut self, pos: &Position, white: bool) {
+        let us = pos.us(white);
+        let side = white as usize;
+        for pawn in (pos.pawns() & us).squares() {
+            let relative = if white {
+                Square(pawn.0 ^ 0b11_1000)
+            } else {
+                pawn
+            };
+            self.trace.pst_pawn[relative.0 as usize][side] += 1;
+        }
+
+        for knight in (pos.knights() & us).squares() {
+            let relative = if white {
+                Square(knight.0 ^ 0b11_1000)
+            } else {
+                knight
+            };
+            self.trace.pst_knight[relative.0 as usize][side] += 1;
+        }
+
+        for bishop in (pos.bishops() & us).squares() {
+            let relative = if white {
+                Square(bishop.0 ^ 0b11_1000)
+            } else {
+                bishop
+            };
+            self.trace.pst_bishop[relative.0 as usize][side] += 1;
+        }
+
+        for rook in (pos.rooks() & us).squares() {
+            let relative = if white {
+                Square(rook.0 ^ 0b11_1000)
+            } else {
+                rook
+            };
+            self.trace.pst_rook[relative.0 as usize][side] += 1;
+        }
+
+        for queen in (pos.queens() & us).squares() {
+            let relative = if white {
+                Square(queen.0 ^ 0b11_1000)
+            } else {
+                queen
+            };
+            self.trace.pst_queen[relative.0 as usize][side] += 1;
+        }
+
+        for king in (pos.kings() & us).squares() {
+            let relative = if white {
+                Square(king.0 ^ 0b11_1000)
+            } else {
+                king
+            };
+            self.trace.pst_king[relative.0 as usize][side] += 1;
+        }
+    }
 }
 
 impl<'p> From<&'p Position> for Eval {
@@ -594,146 +813,102 @@ impl<'p> From<&'p Position> for Eval {
             attacked_by: [[Bitboard::from(0); 6]; 2],
             attacked_by_1: [Bitboard::from(0); 2],
             attacked_by_2: [Bitboard::from(0); 2],
+
+            #[cfg(feature = "tune")]
+            trace: Trace::default(),
         }
     }
 }
 
-fn init_pst_score(pos: &Position) -> [Score; 2] {
-    let mut white = 0;
+fn init_pst_score(pos: &Position) -> [EScore; 2] {
+    let mut white = S(0, 0);
     white += (pos.white_pieces() & pos.pawns())
         .squares()
         .map(|sq| pst(&PST[Piece::Pawn.index()], true, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     white += (pos.white_pieces() & pos.knights())
         .squares()
         .map(|sq| pst(&PST[Piece::Knight.index()], true, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     white += (pos.white_pieces() & pos.bishops())
         .squares()
         .map(|sq| pst(&PST[Piece::Bishop.index()], true, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     white += (pos.white_pieces() & pos.rooks())
         .squares()
         .map(|sq| pst(&PST[Piece::Rook.index()], true, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     white += (pos.white_pieces() & pos.queens())
         .squares()
         .map(|sq| pst(&PST[Piece::Queen.index()], true, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     white += (pos.white_pieces() & pos.kings())
         .squares()
         .map(|sq| pst(&PST[Piece::King.index()], true, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
 
-    let mut black = 0;
+    let mut black = S(0, 0);
     black += (pos.black_pieces() & pos.pawns())
         .squares()
         .map(|sq| pst(&PST[Piece::Pawn.index()], false, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     black += (pos.black_pieces() & pos.knights())
         .squares()
         .map(|sq| pst(&PST[Piece::Knight.index()], false, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     black += (pos.black_pieces() & pos.bishops())
         .squares()
         .map(|sq| pst(&PST[Piece::Bishop.index()], false, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     black += (pos.black_pieces() & pos.rooks())
         .squares()
         .map(|sq| pst(&PST[Piece::Rook.index()], false, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     black += (pos.black_pieces() & pos.queens())
         .squares()
         .map(|sq| pst(&PST[Piece::Queen.index()], false, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
     black += (pos.black_pieces() & pos.kings())
         .squares()
         .map(|sq| pst(&PST[Piece::King.index()], false, sq))
-        .sum::<Score>();
+        .sum::<EScore>();
 
     [black, white]
 }
 
-#[rustfmt::skip]
-pub const PAWN_PST: [Score; 64] = [
-     24,  28,  35,  50,  50,  35,  28,  24,
-     16,  23,  27,  34,  34,  27,  23,  16,
-      5,   7,  11,  20,  20,  11,   7,   5,
-    -12,  -9,  -2,  11,  11,  -2,  -9, -12,
-    -21, -20, -12,   2,   2, -12, -20, -21,
-    -17, -14, -14,  -6,  -6, -14, -14, -17,
-    -21, -20, -18, -15, -15, -18, -20, -21,
-      0,   0,   0,   0,   0,   0,   0,   0,
-];
-
-#[rustfmt::skip]
-pub const KNIGHT_PST: [Score; 64] = [
-    -10, -10, -10, -10, -10, -10, -10, -10,
-    -10,   0,  10,  15,  15,  10,   0, -10,
-    -10,   5,  15,  20,  20,  15,   5, -10,
-    -10,   5,  15,  20,  20,  15,   5, -10,
-    -10,   0,  15,  20,  20,  15,   0, -10,
-    -10,   0,  10,  10,  10,  10,   0, -10,
-    -10,   0,   0,   5,   5,   0,   0, -10,
-    -10, -10, -10, -10, -10, -10, -10, -10,
-];
-
-#[rustfmt::skip]
-pub const BISHOP_PST: [Score; 64] = [
-    -10, -10, -10, -10, -10, -10, -10, -10,
-    -10,   0,   5,  10,  10,   5,   0, -10,
-    -10,   5,  10,  20,  20,  10,   5, -10,
-    -10,   5,  10,  20,  20,  10,   5, -10,
-    -10,   0,  10,  15,  15,  10,   0, -10,
-    -10,   5,  10,  10,  10,  10,   5, -10,
-    -10,  10,   0,   5,   5,   0,  10, -10,
-    -10, -10, -10, -10, -10, -10, -10, -10,
-];
-
-#[rustfmt::skip]
-pub const ROOK_PST: [Score; 64] = [
-     20, 20, 20, 25, 25, 20, 20,  20,
-     20, 20, 20, 25, 25, 20, 20,  20,
-      0,  0,  0,  5,  5,  0,  0,   0,
-      0,  0,  0,  5,  5,  0,  0,   0,
-      0,  0,  0,  5,  5,  0,  0,   0,
-     -5,  0,  0, 10, 10,  0,  0,  -5,
-     -5, -5,  0, 15, 15,  0, -5,  -5,
-    -10, -5, 10, 25, 25, 10, -5, -10,
-];
-
-#[rustfmt::skip]
-pub const QUEEN_PST: [Score; 64] = [
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-];
-
-#[rustfmt::skip]
-pub const KING_PST: [Score; 64] = [
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-];
-
-pub const PST: &[[Score; 64]] = &[
+pub const PST: &[[EScore; 64]] = &[
     PAWN_PST, KNIGHT_PST, BISHOP_PST, ROOK_PST, QUEEN_PST, KING_PST,
 ];
 
-pub fn pst(pst: &[Score; 64], from_white_perspective: bool, sq: Square) -> Score {
+pub fn pst(pst: &[EScore; 64], from_white_perspective: bool, sq: Square) -> EScore {
     if from_white_perspective {
         pst[sq.0 as usize ^ 0b11_1000]
     } else {
         pst[sq.0 as usize]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_escore() {
+        assert_eq!(mg(S(1, 1)), 1);
+        assert_eq!(eg(S(1, 1)), 1);
+        assert_eq!(mg(S(1, -1)), 1);
+        assert_eq!(eg(S(1, -1)), -1);
+        assert_eq!(mg(S(-1, 1)), -1);
+        assert_eq!(eg(S(-1, 1)), 1);
+        assert_eq!(mg(S(-1, -1)), -1);
+        assert_eq!(eg(S(-1, -1)), -1);
+    }
+
+    #[test]
+    fn test_escore_calculus() {
+        assert_eq!(S(1, 2) + S(3, 4), S(4, 6));
+        assert_eq!(S(-1, -2) + S(3, 4), S(2, 2));
+        assert_eq!(S(3, 4) - S(1, 2), S(2, 2));
+        assert_eq!(S(3, 0) - S(1, 2), S(2, -2));
     }
 }

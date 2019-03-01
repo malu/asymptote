@@ -35,6 +35,8 @@ mod repetitions;
 mod search;
 mod time;
 mod tt;
+#[cfg(feature = "tune")]
+mod tune;
 mod uci;
 
 use crate::uci::*;
