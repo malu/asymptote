@@ -1252,9 +1252,9 @@ fn print_single((x, y): (f32, f32), name: &str) {
 
 fn print_array(array: &[(f32, f32)], name: &str) {
     println!("#[rustfmt::skip]");
-    println!("pub const {}: [EScore; {}] = [", name, array.len());
+    print!("pub const {}: [EScore; {}] = [", name, array.len());
     for (i, &x) in array.iter().enumerate() {
-        if (i + 1) % 4 == 0 {
+        if i % 4 == 0 {
             println!();
             print!("    ");
         }
