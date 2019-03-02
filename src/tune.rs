@@ -748,7 +748,7 @@ impl Parameters {
             }
 
             if TUNE_MOBILITY_BISHOP {
-                for i in 0..9 {
+                for i in 0..14 {
                     let x = trace.mobility_bishop[i] as f32;
                     g_mobility_bishop[i].0 += x * grad * phase / 62.;
                     g_mobility_bishop[i].1 += x * grad * (62. - phase) / 62.;
@@ -756,7 +756,7 @@ impl Parameters {
             }
 
             if TUNE_MOBILITY_ROOK {
-                for i in 0..9 {
+                for i in 0..15 {
                     let x = trace.mobility_rook[i] as f32;
                     g_mobility_rook[i].0 += x * grad * phase / 62.;
                     g_mobility_rook[i].1 += x * grad * (62. - phase) / 62.;
@@ -898,12 +898,12 @@ impl Parameters {
             norm += g_mobility_knight[i].1.powf(2.);
         }
 
-        for i in 0..9 {
+        for i in 0..14 {
             norm += g_mobility_bishop[i].0.powf(2.);
             norm += g_mobility_bishop[i].1.powf(2.);
         }
 
-        for i in 0..9 {
+        for i in 0..15 {
             norm += g_mobility_rook[i].0.powf(2.);
             norm += g_mobility_rook[i].1.powf(2.);
         }
