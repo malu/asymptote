@@ -57,6 +57,7 @@ const TUNE_MOBILITY_PAWN: bool = false;
 const TUNE_MOBILITY_KNIGHT: bool = false;
 const TUNE_MOBILITY_BISHOP: bool = false;
 const TUNE_MOBILITY_ROOK: bool = false;
+const TUNE_MOBILITY_QUEEN: bool = false;
 
 const TUNE_PAWNS_DOUBLED: bool = false;
 const TUNE_PAWNS_ISOLATED: bool = false;
@@ -90,6 +91,7 @@ pub struct Trace {
     pub mobility_knight: [[i8; 2]; 9],
     pub mobility_bishop: [[i8; 2]; 14],
     pub mobility_rook: [[i8; 2]; 15],
+    pub mobility_queen: [[i8; 2]; 29],
 
     pub pawns_doubled: [i8; 2],
     pub pawns_passed: [[i8; 2]; 8],
@@ -126,6 +128,7 @@ pub struct CompactTrace {
     mobility_knight: [i8; 9],
     mobility_bishop: [i8; 14],
     mobility_rook: [i8; 15],
+    mobility_queen: [i8; 29],
 
     pawns_doubled: i8,
     pawns_passed: [i8; 8],
@@ -175,6 +178,11 @@ impl From<Trace> for CompactTrace {
             mobility_rook[i] = t.mobility_rook[i][1] - t.mobility_rook[i][0];
         }
 
+        let mut mobility_queen = [0; 29];
+        for i in 0..29 {
+            mobility_queen[i] = t.mobility_queen[i][1] - t.mobility_queen[i][0];
+        }
+
         let mut pawns_passed = [0; 8];
         for i in 0..8 {
             pawns_passed[i] = t.pawns_passed[i][1] - t.pawns_passed[i][0];
@@ -208,6 +216,7 @@ impl From<Trace> for CompactTrace {
             mobility_knight,
             mobility_bishop,
             mobility_rook,
+            mobility_queen,
 
             pawns_doubled: t.pawns_doubled[1] - t.pawns_doubled[0],
             pawns_passed,
@@ -246,6 +255,7 @@ pub struct Parameters {
     mobility_knight: [(f32, f32); 9],
     mobility_bishop: [(f32, f32); 14],
     mobility_rook: [(f32, f32); 15],
+    mobility_queen: [(f32, f32); 29],
 
     pawns_doubled: (f32, f32),
     pawns_passed: [(f32, f32); 8],
@@ -368,6 +378,7 @@ impl Default for Trace {
             mobility_knight: [[0; 2]; 9],
             mobility_bishop: [[0; 2]; 14],
             mobility_rook: [[0; 2]; 15],
+            mobility_queen: [[0; 2]; 29],
 
             pawns_doubled: [0; 2],
             pawns_passed: [[0; 2]; 8],
@@ -433,6 +444,11 @@ impl CompactTrace {
         for i in 0..15 {
             score.0 += params.mobility_rook[i].0 * self.mobility_rook[i] as f32;
             score.1 += params.mobility_rook[i].1 * self.mobility_rook[i] as f32;
+        }
+
+        for i in 0..29{
+            score.0 += params.mobility_queen[i].0 * self.mobility_queen[i] as f32;
+            score.1 += params.mobility_queen[i].1 * self.mobility_queen[i] as f32;
         }
 
         score.0 += params.pawns_doubled.0 * self.pawns_doubled as f32;
@@ -534,6 +550,10 @@ impl Parameters {
 
         if TUNE_MOBILITY_ROOK {
             print_array(&self.mobility_rook, "ROOK_MOBILITY");
+        }
+
+        if TUNE_MOBILITY_QUEEN {
+            print_array(&self.mobility_queen, "QUEEN_MOBILITY");
         }
 
         if TUNE_PAWNS_DOUBLED {
@@ -665,6 +685,7 @@ impl Parameters {
         let mut g_mobility_knight = [(0., 0.); 9];
         let mut g_mobility_bishop = [(0., 0.); 14];
         let mut g_mobility_rook = [(0., 0.); 15];
+        let mut g_mobility_queen = [(0., 0.); 29];
 
         let mut g_pawns_doubled = (0., 0.);
         let mut g_pawns_passed = [(0., 0.); 8];
@@ -760,6 +781,14 @@ impl Parameters {
                     let x = trace.mobility_rook[i] as f32;
                     g_mobility_rook[i].0 += x * grad * phase / 62.;
                     g_mobility_rook[i].1 += x * grad * (62. - phase) / 62.;
+                }
+            }
+
+            if TUNE_MOBILITY_QUEEN {
+                for i in 0..29 {
+                    let x = trace.mobility_queen[i] as f32;
+                    g_mobility_queen[i].0 += x * grad * phase / 62.;
+                    g_mobility_queen[i].1 += x * grad * (62. - phase) / 62.;
                 }
             }
 
@@ -908,6 +937,11 @@ impl Parameters {
             norm += g_mobility_rook[i].1.powf(2.);
         }
 
+        for i in 0..29 {
+            norm += g_mobility_queen[i].0.powf(2.);
+            norm += g_mobility_queen[i].1.powf(2.);
+        }
+
         norm += g_pawns_doubled.0.powf(2.);
         norm += g_pawns_doubled.1.powf(2.);
 
@@ -980,6 +1014,11 @@ impl Parameters {
         for i in 0..15 {
             self.mobility_rook[i].0 -= 2. / n * f * g_mobility_rook[i].0;
             self.mobility_rook[i].1 -= 2. / n * f * g_mobility_rook[i].1;
+        }
+
+        for i in 0..29 {
+            self.mobility_queen[i].0 -= 2. / n * f * g_mobility_queen[i].0;
+            self.mobility_queen[i].1 -= 2. / n * f * g_mobility_queen[i].1;
         }
 
         self.pawns_doubled.0 -= 2. / n * f * g_pawns_doubled.0;
@@ -1056,6 +1095,11 @@ impl Default for Parameters {
             mobility_rook[i] = (mg(ROOK_MOBILITY[i]) as f32, eg(ROOK_MOBILITY[i]) as f32);
         }
 
+        let mut mobility_queen = [(0., 0.); 29];
+        for i in 0..29 {
+            mobility_queen[i] = (mg(QUEEN_MOBILITY[i]) as f32, eg(QUEEN_MOBILITY[i]) as f32);
+        }
+
         let pawns_doubled = (mg(DOUBLED_PAWN) as f32, eg(DOUBLED_PAWN) as f32);
         let pawns_isolated = (mg(ISOLATED_PAWN) as f32, eg(ISOLATED_PAWN) as f32);
         let mut pawns_passed = [(0., 0.); 8];
@@ -1098,6 +1142,7 @@ impl Default for Parameters {
             mobility_knight,
             mobility_bishop,
             mobility_rook,
+            mobility_queen,
 
             pawns_doubled,
             pawns_passed,

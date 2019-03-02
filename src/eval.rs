@@ -97,6 +97,18 @@ pub const ROOK_MOBILITY: [EScore; 15] = [
     S(  35,   35), S(  40,   40), S(  45,   45),
 ];
 
+#[rustfmt::skip]
+pub const QUEEN_MOBILITY: [EScore; 29] = [
+    S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+    S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+    S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+    S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+    S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+    S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+    S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
+    S(   0,    0),
+];
+
 pub const DOUBLED_PAWN: EScore = S(0, -16);
 pub const ISOLATED_PAWN: EScore = S(-24, -2);
 
@@ -272,9 +284,15 @@ impl Eval {
                 | get_rook_attacks_from(queen, pos.all_pieces);
             let x = get_bishop_attacks_from(queen, pos.all_pieces ^ (pos.queens() & us))
                 | get_rook_attacks_from(queen, pos.all_pieces ^ (pos.queens() & us));
+            score += QUEEN_MOBILITY[b.popcount()];
             self.attacked_by[s][Piece::Queen.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
             self.attacked_by_1[s] |= b;
+
+            #[cfg(feature = "tune")]
+            {
+                self.trace.mobility_queen[b.popcount() as usize][white as usize] += 1;
+            }
         }
 
         for king in (pos.kings() & us).squares() {
