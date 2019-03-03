@@ -656,6 +656,11 @@ impl Search {
 
             let new_depth = depth - INC_PLY + extension;
 
+            // If we drop into qsearch anyway, don't reduce.
+            if new_depth < INC_PLY {
+                reduction = 0;
+            }
+
             let mut value = self
                 .search_zw(ply + 1, -alpha, new_depth - reduction)
                 .map(|v| -v);
