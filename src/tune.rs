@@ -1266,13 +1266,13 @@ fn print_array(array: &[(f32, f32)], name: &str) {
 
 fn print_array_mg(array: &[f32], name: &str) {
     println!("#[rustfmt::skip]");
-    println!("pub const {}: [Score; {}] = [", name, array.len());
+    print!("pub const {}: [Score; {}] = [", name, array.len());
     for (i, &x) in array.iter().enumerate() {
-        if (i + 1) % 4 == 0 {
+        if i % 4 == 0 {
             println!();
             print!("    ");
         }
-        print!("{}, ", x as isize);
+        print!("{:>4}, ", x as isize);
     }
     println!();
     println!("];");

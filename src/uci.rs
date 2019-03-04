@@ -290,6 +290,7 @@ fn tune(path: &str) {
 
         let error = params.total_error(&traces);
         if i % 20 == 0 {
+            params.print_weights();
             println!(
                 "Error      : {:>8.6}  ({:>8.6}%)  (total {:>8.6}%)",
                 error,
@@ -297,7 +298,6 @@ fn tune(path: &str) {
                 100. * (error - initial_error) / initial_error
             );
             last_printed_error = error;
-            params.print_weights();
             if error > best {
                 f /= 2.;
                 if f < 0.000001 {
@@ -316,7 +316,6 @@ fn tune(path: &str) {
         error,
         100. * (error - initial_error) / initial_error
     );
-    params.print_weights();
 }
 
 #[cfg(feature = "tune")]
