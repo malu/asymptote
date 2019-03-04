@@ -36,7 +36,7 @@ pub type Depth = i16;
 pub const INC_PLY: Depth = 64;
 pub const MAX_PLY: Ply = 128 - 1;
 
-const FUTILITY_POSITIONAL_MARGIN: Score = 300;
+const FUTILITY_MARGIN: Score = 200;
 
 const LMR_MAX_DEPTH: Depth = 9 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
@@ -567,7 +567,7 @@ impl Search {
         // If the futility limit is positive, a move has to gain material or else it gets pruned.
         // Therefore we can skip all quiet moves since they don't change material.
         let futility_skip_quiets =
-            !in_check && depth < 3 * INC_PLY && alpha > eval + FUTILITY_POSITIONAL_MARGIN;
+            !in_check && depth < 3 * INC_PLY && eval + FUTILITY_MARGIN * (depth / INC_PLY) < alpha;
 
         // Internal deepening
         if depth >= 6 * INC_PLY && ttmove.is_none() {
