@@ -153,11 +153,11 @@ impl<'a> From<&'a str> for UciCommand {
             UciCommand::Go(params)
         } else if line.starts_with("position") {
             let pos;
-            let fen = line.trim_left_matches("position ");
+            let fen = line.trim_start_matches("position ");
             if fen.starts_with("startpos") {
                 pos = STARTING_POSITION;
             } else {
-                pos = Position::from(fen.trim_left_matches("fen"));
+                pos = Position::from(fen.trim_start_matches("fen"));
             }
 
             let mut moves = Vec::new();
