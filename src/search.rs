@@ -155,8 +155,6 @@ impl Search {
             moves.swap(0, swap_with);
         }
 
-        let mut alpha = -Score::max_value();
-        let mut beta;
         let mut max_depth = 0;
         for d in 1_i16.. {
             if !self.time_manager.start_another_iteration(d) {
@@ -166,46 +164,48 @@ impl Search {
             max_depth = cmp::max(max_depth, depth);
 
             self.max_ply_searched = 0;
-            let mut delta = 50;
-            alpha = cmp::max(last_score - delta, -MATE_SCORE);
-            beta = cmp::min(last_score + delta, MATE_SCORE);
-            'aspiration: loop {
-                match self.search_root(&mut moves, alpha, beta, depth) {
-                    None => break 'aspiration,
-                    Some((best_score, best_move_index)) => {
-                        if best_move_index > 0 {
-                            let best_move = moves[best_move_index];
-                            moves.insert(0, best_move);
-                            moves.remove(best_move_index + 1);
-                        }
 
-                        if best_score >= beta {
-                            delta += delta / 2;
-                            beta = cmp::min(MATE_SCORE, best_score + delta);
-                        } else if best_score <= alpha {
-                            delta += delta / 2;
-                            alpha = cmp::max(best_score - delta, -MATE_SCORE);
-                        } else {
-                            last_score = best_score;
-                            break 'aspiration;
-                        }
-                    }
-                }
+            if let Some(best_score) = self.aspiration(last_score, &mut moves, depth) {
+                last_score = best_score;
+                moves[1..].sort_by_key(|&(_, subtree_size)| -subtree_size);
             }
 
-            moves[1..].sort_by_key(|&(_, subtree_size)| -subtree_size);
             self.uci_info(depth, last_score);
         }
 
         self.tt.insert(
             self.hasher.get_hash(),
             max_depth,
-            TTScore::from_score(alpha, 0),
+            TTScore::from_score(last_score, 0),
             moves[0].0,
             EXACT_BOUND,
         );
 
         moves[0].0
+    }
+
+    fn aspiration(&mut self, last_score: Score, moves: &mut Vec<(Move, i64)>, depth: Depth) -> Option<Score> {
+        let mut delta = 50;
+        let mut alpha = cmp::max(last_score - delta, -MATE_SCORE);
+        let mut beta = cmp::min(last_score + delta, MATE_SCORE);
+
+        loop {
+            let (score, index) = self.search_root(moves, alpha, beta, depth)?;
+            if index > 0 {
+                let best_move = moves[index];
+                moves.insert(0, best_move);
+                moves.remove(index + 1);
+            }
+
+            delta += delta / 2;
+            if score >= beta {
+                beta = cmp::min(MATE_SCORE, score + delta);
+            } else if score <= alpha {
+                alpha = cmp::max(score - delta, -MATE_SCORE);
+            } else {
+                return Some(score);
+            }
+        }
     }
 
     fn search_root(
