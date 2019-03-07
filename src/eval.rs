@@ -20,6 +20,7 @@ use crate::bitboard::*;
 use crate::hash::*;
 use crate::movegen::*;
 use crate::position::*;
+use crate::types::SquareMap;
 
 #[cfg(feature = "tune")]
 use crate::tune::*;
@@ -141,7 +142,7 @@ pub const KING_CHECK_ROOK: EScore = S(-33, 0);
 pub const KING_CHECK_QUEEN: EScore = S(-44, 0);
 
 #[rustfmt::skip]
-pub const PAWN_PST: [EScore; 64] = [
+pub const PAWN_PST: SquareMap<EScore> = SquareMap::from_array([
     S(  24,   24), S(  28,   28), S(  35,   35), S(  50,   50), S(  50,   50), S(  35,   35), S(  28,   28), S(  24,   24),
     S(  17,   21), S(  24,   25), S(  26,   25), S(  33,   31), S(  34,   32), S(  26,   25), S(  23,   22), S(  16,   16),
     S(   7,   19), S(  10,   16), S(  12,   12), S(  18,   13), S(  19,   14), S(  12,   10), S(   7,   10), S(   3,   11),
@@ -150,9 +151,9 @@ pub const PAWN_PST: [EScore; 64] = [
     S( -11,  -18), S( -18,   -9), S( -11,  -16), S( -17,  -10), S(  -3,   -8), S( -13,  -10), S(   8,  -18), S( -12,  -22),
     S( -25,  -16), S( -20,  -16), S( -31,  -11), S( -32,  -16), S( -23,  -13), S(   0,  -10), S(   6,  -20), S( -26,  -30),
     S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
-];
+]);
 #[rustfmt::skip]
-pub const KNIGHT_PST: [EScore; 64] = [
+pub const KNIGHT_PST: SquareMap<EScore> = SquareMap::from_array([
     S( -10,   -8), S(  -9,   -8), S(  -8,   -8), S(  -9,   -9), S(  -8,   -9), S(  -8,   -9), S(  -9,   -9), S(  -9,   -9),
     S(  -9,   -8), S(   0,    0), S(  10,    8), S(  15,   14), S(  14,   14), S(  10,    8), S(   0,    0), S(  -8,   -9),
     S(  -9,   -9), S(   5,    4), S(  14,   14), S(  19,   18), S(  20,   18), S(  15,   14), S(   5,    4), S(  -8,   -8),
@@ -161,9 +162,9 @@ pub const KNIGHT_PST: [EScore; 64] = [
     S(  -8,   -9), S(  -3,    0), S(  -1,    3), S(   7,    7), S(  11,    8), S(   8,    3), S(   9,    0), S( -11,   -9),
     S(  -9,   -9), S(   0,    0), S(  -7,   -2), S(   3,    0), S(   4,    0), S(  -2,   -1), S(   0,    0), S(  -7,   -9),
     S( -10,   -9), S(  -9,  -11), S( -11,  -11), S( -11,  -10), S(  -9,   -9), S( -12,  -10), S(  -8,   -9), S(  -9,   -9),
-];
+]);
 #[rustfmt::skip]
-pub const BISHOP_PST: [EScore; 64] = [
+pub const BISHOP_PST: SquareMap<EScore> = SquareMap::from_array([
     S(  -9,   -9), S(  -9,   -8), S(  -9,   -9), S( -10,   -9), S(  -9,   -9), S(  -8,   -8), S(  -8,   -8), S( -10,   -9),
     S(  -8,   -7), S(   0,    0), S(   3,    4), S(   9,    8), S(   8,    9), S(   5,    5), S(   0,    0), S( -10,   -9),
     S(  -8,   -7), S(   5,    4), S(   8,    8), S(  19,   16), S(  19,   18), S(  10,    9), S(   5,    5), S(  -6,   -6),
@@ -172,9 +173,9 @@ pub const BISHOP_PST: [EScore; 64] = [
     S(  -6,   -7), S(   8,    6), S(   6,    7), S(   1,    7), S(   4,    6), S(  10,    7), S(   9,    4), S(  -6,   -7),
     S(  -7,   -8), S(   4,    4), S(   4,    0), S(  -4,    1), S(   0,    3), S(   1,    0), S(  23,    7), S(  -7,   -8),
     S(  -9,  -10), S(  -7,   -8), S(   0,   -7), S( -11,   -9), S(  -9,   -8), S(   4,   -8), S(  -9,   -9), S( -10,   -9),
-];
+]);
 #[rustfmt::skip]
-pub const ROOK_PST: [EScore; 64] = [
+pub const ROOK_PST: SquareMap<EScore> = SquareMap::from_array([
     S(  19,   21), S(  19,   19), S(  19,   19), S(  23,   22), S(  23,   23), S(  19,   19), S(  19,   19), S(  19,   19),
     S(  21,   25), S(  20,   23), S(  20,   22), S(  24,   24), S(  24,   22), S(  20,   19), S(  19,   19), S(  20,   21),
     S(   2,    7), S(   3,    7), S(   2,    4), S(   6,    8), S(   6,    6), S(   0,    2), S(   0,    2), S(   1,    3),
@@ -183,9 +184,9 @@ pub const ROOK_PST: [EScore; 64] = [
     S(  -7,   -3), S(   0,    0), S(   0,   -1), S(   6,    4), S(   7,    4), S(  -1,   -1), S(   0,    0), S(  -8,   -6),
     S( -11,   -5), S(  -5,   -5), S(  -1,   -1), S(   8,    6), S(   8,    6), S(   0,   -1), S(  -6,   -5), S( -14,   -5),
     S(   2,    0), S(   1,    0), S(   7,    8), S(  19,    9), S(  15,   11), S(  28,    7), S( -17,   -3), S(  -3,   -8),
-];
+]);
 #[rustfmt::skip]
-pub const QUEEN_PST: [EScore; 64] = [
+pub const QUEEN_PST: SquareMap<EScore> = SquareMap::from_array([
     S(  -4,   -2), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
     S(  -1,    0), S(  -5,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   1,    0),
     S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    1), S(   0,    0), S(   0,    0), S(   1,    1),
@@ -194,9 +195,9 @@ pub const QUEEN_PST: [EScore; 64] = [
     S(   0,    0), S(   1,    0), S(   0,    0), S(   0,    0), S(   1,    0), S(   3,    1), S(   3,    0), S(   0,    0),
     S(  -2,   -1), S(  -1,    0), S(   2,   -1), S(   3,   -1), S(   6,   -1), S(   1,    0), S(   0,    0), S(   0,    0),
     S(  -1,   -1), S(  -3,   -1), S(  -4,   -1), S(  11,   -2), S(  -3,    0), S(  -3,   -1), S(   0,    0), S(   0,    0),
-];
+]);
 #[rustfmt::skip]
-pub const KING_PST: [EScore; 64] = [
+pub const KING_PST: SquareMap<EScore> = SquareMap::from_array([
     S(   0,  -15), S(   0,  -15), S(   0,  -15), S(   0,  -15), S(   0,  -15), S(   0,  -14), S(   0,  -14), S(   0,  -15),
     S(   0,  -15), S(   0,   -8), S(   0,   -8), S(   0,   -8), S(   0,   -8), S(   0,   -7), S(   0,   -8), S(   0,  -14),
     S(   0,  -13), S(   0,   -8), S(   0,   -3), S(   0,   -3), S(   0,   -2), S(   0,    0), S(   0,   -5), S(   0,  -13),
@@ -205,7 +206,7 @@ pub const KING_PST: [EScore; 64] = [
     S(   0,  -15), S(   0,   -9), S(   0,   -2), S(   0,   -1), S(   1,    3), S(   1,    2), S(   2,   -3), S(   0,  -17),
     S(   0,  -17), S(   0,  -11), S(   0,   -9), S(  -3,   -9), S(  -5,   -6), S(  -4,   -6), S(   1,   -9), S(   5,  -21),
     S(  -2,  -19), S(   2,  -19), S(   0,  -18), S(  -9,  -22), S(   6,  -23), S( -18,  -25), S(  13,  -28), S(  -2,  -34),
-];
+]);
 
 impl Eval {
     fn mobility_for_side(&mut self, white: bool, pos: &Position) -> EScore {
@@ -239,7 +240,7 @@ impl Eval {
         let their_pawn_attacks =
             their_pawns.forward(!white, 1).left(1) | their_pawns.forward(!white, 1).right(1);
         for knight in (pos.knights() & us).squares() {
-            let b = KNIGHT_ATTACKS[knight.0 as usize];
+            let b = KNIGHT_ATTACKS[knight];
             let mobility = b & !their_pawn_attacks;
             score += KNIGHT_MOBILITY[mobility.popcount() as usize];
             self.attacked_by[s][Piece::Knight.index()] |= b;
@@ -296,7 +297,7 @@ impl Eval {
         }
 
         for king in (pos.kings() & us).squares() {
-            let b = KING_ATTACKS[king.0 as usize];
+            let b = KING_ATTACKS[king];
             self.attacked_by[s][Piece::King.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
@@ -401,8 +402,7 @@ impl Eval {
         let mut score = S(0, 0);
 
         for pawn in (pos.pawns() & us).squares() {
-            let sq = pawn.0 as usize;
-            let corridor_bb = PAWN_CORRIDOR[side][sq];
+            let corridor_bb = PAWN_CORRIDOR[side][pawn];
             let file_bb = FILES[pawn.file() as usize];
             let file_forward_bb = corridor_bb & file_bb;
             let passed = (corridor_bb & them & pos.pawns()).is_empty();
@@ -526,17 +526,17 @@ impl Eval {
             index += 1;
         }
 
-        let safe_squares = KING_ATTACKS[king_sq.0 as usize] & !us & !self.attacked_by_1[1 - side];
+        let safe_squares = KING_ATTACKS[king_sq] & !us & !self.attacked_by_1[1 - side];
         const SAFE_SQUARES_PENALTY: [usize; 9] = [3, 2, 1, 0, 0, 0, 0, 0, 0];
         index += SAFE_SQUARES_PENALTY[safe_squares.popcount()];
 
-        let safe_knight_checks = !self.attacked_by_1[side] & KNIGHT_ATTACKS[king_sq.0 as usize];
+        let safe_knight_checks = !self.attacked_by_1[side] & KNIGHT_ATTACKS[king_sq];
         let safe_bishop_checks =
             !self.attacked_by_1[side] & get_bishop_attacks_from(king_sq, pos.all_pieces);
         let safe_rook_checks =
             !self.attacked_by_1[side] & get_rook_attacks_from(king_sq, pos.all_pieces);
 
-        let queen_contact_checks = KING_ATTACKS[king_sq.0 as usize]
+        let queen_contact_checks = KING_ATTACKS[king_sq]
             & self.attacked_by[1 - side][Piece::Queen.index()]
             & self.attacked_by_2[1 - side]
             & !self.attacked_by_2[side];
@@ -628,7 +628,7 @@ impl Eval {
         }
 
         if mov.piece == Piece::King {
-            if mov.to.0 == mov.from.0 + 2 {
+            if mov.from.right(2) == mov.to {
                 // castle kingside
                 self.pst[side] -= pst(
                     &PST[Piece::Rook.index()],
@@ -636,7 +636,7 @@ impl Eval {
                     mov.to.right(1),
                 );
                 self.pst[side] += pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(1));
-            } else if mov.from.0 == mov.to.0 + 2 {
+            } else if mov.from.left(2) == mov.to {
                 // castle queenside
                 self.pst[side] -= pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(2));
                 self.pst[side] += pst(
@@ -676,7 +676,7 @@ impl Eval {
         }
 
         if mov.piece == Piece::King {
-            if mov.to.0 == mov.from.0 + 2 {
+            if mov.from.right(2) == mov.to {
                 // castle kingside
                 self.pst[side] += pst(
                     &PST[Piece::Rook.index()],
@@ -688,7 +688,7 @@ impl Eval {
                     unmaking_white_move,
                     mov.to.left(1),
                 );
-            } else if mov.from.0 == mov.to.0 + 2 {
+            } else if mov.from.left(2) == mov.to {
                 // castle queenside
                 self.pst[side] += pst(
                     &PST[Piece::Rook.index()],
@@ -894,15 +894,15 @@ fn init_pst_score(pos: &Position) -> [EScore; 2] {
     [black, white]
 }
 
-pub const PST: &[[EScore; 64]] = &[
+pub const PST: &[SquareMap<EScore>] = &[
     PAWN_PST, KNIGHT_PST, BISHOP_PST, ROOK_PST, QUEEN_PST, KING_PST,
 ];
 
-pub fn pst(pst: &[EScore; 64], from_white_perspective: bool, sq: Square) -> EScore {
+pub fn pst(pst: &SquareMap<EScore>, from_white_perspective: bool, sq: Square) -> EScore {
     if from_white_perspective {
-        pst[sq.0 as usize ^ 0b11_1000]
+        pst[sq.flip_rank()]
     } else {
-        pst[sq.0 as usize]
+        pst[sq]
     }
 }
 

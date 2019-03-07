@@ -37,6 +37,7 @@ mod time;
 mod tt;
 #[cfg(feature = "tune")]
 mod tune;
+mod types;
 mod uci;
 
 use crate::uci::*;

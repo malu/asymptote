@@ -17,6 +17,7 @@
 use crate::bitboard::*;
 use crate::eval::*;
 use crate::position::*;
+use crate::types::SquareMap;
 use rand::{prelude::*, prng::ChaChaRng};
 
 pub fn initialize_magics() {
@@ -25,18 +26,18 @@ pub fn initialize_magics() {
 }
 
 static mut MAGIC_TABLE: [Bitboard; 156_800] = [Bitboard(0); 156_800];
-static mut BISHOP_ATTACKS: [Magic; 64] = [Magic {
+static mut BISHOP_ATTACKS: SquareMap<Magic> = SquareMap::from_array([Magic {
     magic: 0,
     shift: 0,
     mask: Bitboard(0),
     offset: 0,
-}; 64];
-static mut ROOK_ATTACKS: [Magic; 64] = [Magic {
+}; 64]);
+static mut ROOK_ATTACKS: SquareMap<Magic> = SquareMap::from_array([Magic {
     magic: 0,
     shift: 0,
     mask: Bitboard(0),
     offset: 0,
-}; 64];
+}; 64]);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 struct Magic {
@@ -66,7 +67,7 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
     let mut offset = offset;
 
     for sq in 0..64 {
-        let from = Square(sq);
+        let from = Square::from(sq);
         let mask = bishop_from(from, Bitboard::from(0)) & !border;
         let bits = mask.popcount() as u32;
         let shift = 64 - bits;
@@ -122,7 +123,7 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
         }
 
         unsafe {
-            BISHOP_ATTACKS[sq as usize] = magic;
+            BISHOP_ATTACKS[from] = magic;
         }
         offset += size;
     }
@@ -131,9 +132,8 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
 }
 
 pub fn get_bishop_attacks_from(from: Square, blockers: Bitboard) -> Bitboard {
-    let sq_index = from.0 as usize;
     unsafe {
-        let magic = &BISHOP_ATTACKS.get_unchecked(sq_index);
+        let magic = &BISHOP_ATTACKS[from];
         *MAGIC_TABLE.get_unchecked(magic.index(blockers))
     }
 }
@@ -198,7 +198,7 @@ fn initialize_rook_attacks(offset: usize) -> usize {
     let mut offset = offset;
 
     for sq in 0..64 {
-        let from = Square(sq);
+        let from = Square::from(sq);
         let mask = (FILES[from.file() as usize] & !border_ranks)
             ^ (RANKS[from.rank() as usize] & !border_files);
         let bits = mask.popcount() as u32;
@@ -255,7 +255,7 @@ fn initialize_rook_attacks(offset: usize) -> usize {
         }
 
         unsafe {
-            ROOK_ATTACKS[sq as usize] = magic;
+            ROOK_ATTACKS[from] = magic;
         }
         offset += size;
     }
@@ -264,9 +264,8 @@ fn initialize_rook_attacks(offset: usize) -> usize {
 }
 
 pub fn get_rook_attacks_from(from: Square, blockers: Bitboard) -> Bitboard {
-    let sq_index = from.0 as usize;
     unsafe {
-        let magic = &ROOK_ATTACKS.get_unchecked(sq_index);
+        let magic = &ROOK_ATTACKS[from];
         *MAGIC_TABLE.get_unchecked(magic.index(blockers))
     }
 }
@@ -664,7 +663,7 @@ impl<'p> MoveGenerator<'p> {
     }
 
     pub fn knight_from(&self, from: Square) -> Bitboard {
-        KNIGHT_ATTACKS[from.0 as usize]
+        KNIGHT_ATTACKS[from]
     }
 
     pub fn bishop(&self, targets: Bitboard, moves: &mut Vec<Move>) {
@@ -728,20 +727,20 @@ impl<'p> MoveGenerator<'p> {
             castle_kside = (self.position.details.castling & CASTLE_WHITE_KSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60))
                     .is_empty()
-                && (self.position.rooks() & us & Square(7));
+                && (self.position.rooks() & us & SQUARE_A8);
             castle_qside = (self.position.details.castling & CASTLE_WHITE_QSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_0E))
                     .is_empty()
-                && (self.position.rooks() & us & Square(0));
+                && (self.position.rooks() & us & SQUARE_A1);
         } else {
             castle_kside = (self.position.details.castling & CASTLE_BLACK_KSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x60_00_00_00_00_00_00_00))
                     .is_empty()
-                && (self.position.rooks() & us & Square(63));
+                && (self.position.rooks() & us & SQUARE_H8);
             castle_qside = (self.position.details.castling & CASTLE_BLACK_QSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x0E_00_00_00_00_00_00_00))
                     .is_empty()
-                && (self.position.rooks() & us & Square(56));
+                && (self.position.rooks() & us & SQUARE_H1);
         }
 
         let from: Square = (self.position.kings() & us).squares().nth(0).unwrap();
@@ -781,7 +780,7 @@ impl<'p> MoveGenerator<'p> {
     }
 
     pub fn king_from(&self, from: Square) -> Bitboard {
-        KING_ATTACKS[from.0 as usize]
+        KING_ATTACKS[from]
     }
 }
 

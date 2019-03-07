@@ -108,9 +108,9 @@ impl TTMove {
     // Expands this `TTMove` to a `Move`value.
     pub fn expand(self, pos: &Position) -> Option<Move> {
         let mut result = Move {
-            from: Square(self.from & SQUARE_MASK),
-            to: Square(self.to & SQUARE_MASK),
-            piece: pos.find_piece(Square(self.from & SQUARE_MASK))?,
+            from: Square::from(self.from & SQUARE_MASK),
+            to: Square::from(self.to & SQUARE_MASK),
+            piece: pos.find_piece(Square::from(self.from & SQUARE_MASK))?,
             captured: None,
             promoted: None,
             en_passant: self.from & EN_PASSANT_FLAG > 0,
@@ -141,9 +141,11 @@ impl TTMove {
 
 impl From<Move> for TTMove {
     fn from(mov: Move) -> TTMove {
+        let from: u8 = mov.from.into();
+        let to: u8 = mov.to.into();
         let mut result = TTMove {
-            from: mov.from.0 & SQUARE_MASK,
-            to: mov.to.0 & SQUARE_MASK,
+            from: from & SQUARE_MASK,
+            to: to & SQUARE_MASK,
         };
 
         if mov.captured.is_some() {

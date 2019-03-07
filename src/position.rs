@@ -184,7 +184,7 @@ impl Position {
             return (Piece::Pawn, capturers);
         }
 
-        capturers = self.knights() & us & KNIGHT_ATTACKS[sq.0 as usize];
+        capturers = self.knights() & us & KNIGHT_ATTACKS[sq];
         if capturers.at_least_one() {
             return (Piece::Knight, capturers);
         }
@@ -206,7 +206,7 @@ impl Position {
             return (Piece::Queen, capturers);
         }
 
-        capturers = self.kings() & us & KING_ATTACKS[sq.0 as usize];
+        capturers = self.kings() & us & KING_ATTACKS[sq];
         (Piece::King, capturers)
     }
 
@@ -317,11 +317,11 @@ impl Position {
             all_pieces ^= mov.to;
         }
 
-        if (KNIGHT_ATTACKS[king.0 as usize] & them & self.knights()).at_least_one() {
+        if (KNIGHT_ATTACKS[king] & them & self.knights()).at_least_one() {
             return false;
         }
 
-        if (KING_ATTACKS[king.0 as usize] & them & self.kings()).at_least_one() {
+        if (KING_ATTACKS[king] & them & self.kings()).at_least_one() {
             return false;
         }
 
@@ -390,7 +390,7 @@ impl Position {
                 self.details.halfmove = 0;
             }
             Piece::King => {
-                if mov.to.0 == mov.from.0 + 2 {
+                if mov.from.right(2) == mov.to {
                     // castle kingside
                     self.bb[Piece::Rook.index()] ^= mov.to.right(1);
                     self.bb[Piece::Rook.index()] ^= mov.to.left(1);
@@ -398,7 +398,7 @@ impl Position {
                         self.color ^= mov.to.right(1);
                         self.color ^= mov.to.left(1);
                     }
-                } else if mov.from.0 == mov.to.0 + 2 {
+                } else if mov.from.left(2) == mov.to {
                     // castle queenside
                     self.bb[Piece::Rook.index()] ^= mov.to.left(2);
                     self.bb[Piece::Rook.index()] ^= mov.to.right(1);
@@ -417,19 +417,19 @@ impl Position {
             _ => {}
         }
 
-        if mov.from.0 == 0 || mov.to.0 == 0 {
+        if mov.from == SQUARE_A1 || mov.to == SQUARE_A1 {
             self.details.castling &= !CASTLE_WHITE_QSIDE;
         }
 
-        if mov.from.0 == 7 || mov.to.0 == 7 {
+        if mov.from == SQUARE_A8 || mov.to == SQUARE_A8 {
             self.details.castling &= !CASTLE_WHITE_KSIDE;
         }
 
-        if mov.from.0 == 56 || mov.to.0 == 56 {
+        if mov.from == SQUARE_H1 || mov.to == SQUARE_H1 {
             self.details.castling &= !CASTLE_BLACK_QSIDE;
         }
 
-        if mov.from.0 == 63 || mov.to.0 == 63 {
+        if mov.from == SQUARE_H8 || mov.to == SQUARE_H8 {
             self.details.castling &= !CASTLE_BLACK_KSIDE;
         }
 
@@ -487,7 +487,7 @@ impl Position {
         }
 
         if mov.piece == Piece::King {
-            if mov.to.0 == mov.from.0 + 2 {
+            if mov.from.right(2) == mov.to {
                 // castle kingside
                 self.bb[Piece::Rook.index()] ^= mov.to.right(1);
                 self.bb[Piece::Rook.index()] ^= mov.to.left(1);
@@ -495,7 +495,7 @@ impl Position {
                     self.color ^= mov.to.right(1);
                     self.color ^= mov.to.left(1);
                 }
-            } else if mov.from.0 == mov.to.0 + 2 {
+            } else if mov.from.left(2) == mov.to {
                 // castle queenside
                 self.bb[Piece::Rook.index()] ^= mov.to.left(2);
                 self.bb[Piece::Rook.index()] ^= mov.to.right(1);
@@ -671,68 +671,80 @@ impl<'a> From<&'a str> for Position {
         let mut file = 0;
         let mut rank = 7;
         for c in split.next().unwrap().chars() {
-            let sq = Square::file_rank(file, rank);
+            let sq;
             let piece;
             let white;
             match c {
                 'P' => {
                     piece = Piece::Pawn;
                     white = true;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'N' => {
                     piece = Piece::Knight;
                     white = true;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'B' => {
                     piece = Piece::Bishop;
                     white = true;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'R' => {
                     piece = Piece::Rook;
                     white = true;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'Q' => {
                     piece = Piece::Queen;
                     white = true;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'K' => {
                     piece = Piece::King;
                     white = true;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'p' => {
                     piece = Piece::Pawn;
                     white = false;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'n' => {
                     piece = Piece::Knight;
                     white = false;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'b' => {
                     piece = Piece::Bishop;
                     white = false;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'r' => {
                     piece = Piece::Rook;
                     white = false;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'q' => {
                     piece = Piece::Queen;
                     white = false;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 'k' => {
                     piece = Piece::King;
                     white = false;
+                    sq = Square::file_rank(file, rank);
                     file += 1;
                 }
                 '/' => {

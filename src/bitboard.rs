@@ -16,11 +16,13 @@
 */
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, Shr};
 
+use crate::types::SquareMap;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub struct Bitboard(pub u64);
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct Square(pub u8);
+pub struct Square(u8);
 
 pub struct SquareIterator {
     bb: Bitboard,
@@ -167,6 +169,8 @@ impl Square {
     }
 
     pub fn file_rank(file: u8, rank: u8) -> Self {
+        assert!(file < 8);
+        assert!(rank < 8);
         Square(rank * 8 + file)
     }
 
@@ -202,7 +206,30 @@ impl Square {
     pub fn file(self) -> u8 {
         self.0 & 0x7
     }
+
+    pub fn flip_rank(self) -> Square {
+        Square(self.0 ^ 0b11_1000)
+    }
 }
+
+impl Into<u8> for Square {
+    fn into(self) -> u8 {
+        self.0
+    }
+}
+
+// TODO: Should be TryFrom, really.
+impl From<u8> for Square {
+    fn from(other: u8) -> Square {
+        assert!(other < 64);
+        Square(other)
+    }
+}
+
+pub const SQUARE_A1: Square = Square(0);
+pub const SQUARE_A8: Square = Square(7);
+pub const SQUARE_H1: Square = Square(56);
+pub const SQUARE_H8: Square = Square(63);
 
 // =========================================================
 // SquareIterator impls
@@ -274,7 +301,7 @@ pub const EN_PASSANT_FILES: [Bitboard; 8] = [
     FILE_G,
 ];
 
-pub const KNIGHT_ATTACKS: [Bitboard; 64] = [
+pub const KNIGHT_ATTACKS: SquareMap<Bitboard> = SquareMap::from_array([
     // rank 1
     Bitboard(0x00_00_00_00_00_02_04_00),
     Bitboard(0x00_00_00_00_00_05_08_00),
@@ -347,9 +374,9 @@ pub const KNIGHT_ATTACKS: [Bitboard; 64] = [
     Bitboard(0x00_88_50_00_00_00_00_00),
     Bitboard(0x00_10_A0_00_00_00_00_00),
     Bitboard(0x00_20_40_00_00_00_00_00),
-];
+]);
 
-pub const KING_ATTACKS: [Bitboard; 64] = [
+pub const KING_ATTACKS: SquareMap<Bitboard> = SquareMap::from_array([
     // rank 1
     Bitboard(0x00_00_00_00_00_00_03_02),
     Bitboard(0x00_00_00_00_00_00_07_05),
@@ -422,7 +449,7 @@ pub const KING_ATTACKS: [Bitboard; 64] = [
     Bitboard(0x50_70_00_00_00_00_00_00),
     Bitboard(0xA0_E0_00_00_00_00_00_00),
     Bitboard(0x40_C0_00_00_00_00_00_00),
-];
+]);
 
 const LEFT_FILES: [Bitboard; 9] = [
     Bitboard(0x00_00_00_00_00_00_00_00),
@@ -448,9 +475,9 @@ const RIGHT_FILES: [Bitboard; 9] = [
     Bitboard(0xFF_FF_FF_FF_FF_FF_FF_FF),
 ];
 
-pub const PAWN_CORRIDOR: [[Bitboard; 64]; 2] = [
+pub const PAWN_CORRIDOR: [SquareMap<Bitboard>; 2] = [
     // Black
-    [
+    SquareMap::from_array([
         // Rank 1. Black pawns never are on rank 1
         Bitboard(0x0),
         Bitboard(0x0),
@@ -523,9 +550,9 @@ pub const PAWN_CORRIDOR: [[Bitboard; 64]; 2] = [
         Bitboard(0),
         Bitboard(0),
         Bitboard(0),
-    ],
+    ]),
     // White
-    [
+    SquareMap::from_array([
         // Rank 1. White pawns never are on rank 1
         Bitboard(0),
         Bitboard(0),
@@ -598,5 +625,5 @@ pub const PAWN_CORRIDOR: [[Bitboard; 64]; 2] = [
         Bitboard(0),
         Bitboard(0),
         Bitboard(0),
-    ],
+    ]),
 ];

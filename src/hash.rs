@@ -19,12 +19,13 @@ use rand::{prelude::*, prng::ChaChaRng};
 use crate::bitboard::*;
 use crate::movegen::*;
 use crate::position::*;
+use crate::types::SquareMap;
 
 pub type Hash = u64;
 
 pub struct Hasher {
-    color: [Hash; 64],
-    hashes: [[Hash; 64]; 6],
+    color: SquareMap<Hash>,
+    hashes: [SquareMap<Hash>; 6],
     white_to_move: Hash,
     en_passant: [Hash; 8],
     castle: [Hash; 16],
@@ -71,8 +72,8 @@ impl Hasher {
 
         let mut rng = ChaChaRng::from_seed(seed);
         let mut hasher = Hasher {
-            color: [0; 64],
-            hashes: [[0; 64]; 6],
+            color: SquareMap::default(),
+            hashes: [SquareMap::default(); 6],
             white_to_move: 0,
             en_passant: [0; 8],
             castle: [0; 16],
@@ -122,29 +123,29 @@ impl Hasher {
         if mov.captured == Some(Piece::Pawn) {
             if mov.en_passant {
                 self.pawn_hash ^= self.hashes[Piece::Pawn.index()]
-                    [mov.to.backward(pos.white_to_move, 1).0 as usize];
+                    [mov.to.backward(pos.white_to_move, 1)];
                 if !pos.white_to_move {
-                    self.pawn_hash ^= self.color[mov.to.backward(pos.white_to_move, 1).0 as usize];
+                    self.pawn_hash ^= self.color[mov.to.backward(pos.white_to_move, 1)];
                 }
             } else {
-                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to.0 as usize];
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to];
 
                 if !pos.white_to_move {
-                    self.pawn_hash ^= self.color[mov.to.0 as usize];
+                    self.pawn_hash ^= self.color[mov.to];
                 }
             }
         }
 
         if mov.piece == Piece::Pawn {
-            self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.from.0 as usize];
+            self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.from];
             if pos.white_to_move {
-                self.pawn_hash ^= self.color[mov.from.0 as usize];
+                self.pawn_hash ^= self.color[mov.from];
             }
 
             if mov.promoted.is_none() {
-                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to.0 as usize];
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to];
                 if pos.white_to_move {
-                    self.pawn_hash ^= self.color[mov.to.0 as usize];
+                    self.pawn_hash ^= self.color[mov.to];
                 }
             }
         }
@@ -152,45 +153,45 @@ impl Hasher {
         let mut castling = pos.details.castling;
         self.hash ^= self.castle[castling as usize];
 
-        self.hash ^= self.hashes[mov.piece.index()][mov.from.0 as usize];
+        self.hash ^= self.hashes[mov.piece.index()][mov.from];
 
         if let Some(piece) = mov.captured {
             if mov.en_passant {
                 self.hash ^= self.hashes[Piece::Pawn.index()]
-                    [mov.to.backward(pos.white_to_move, 1).0 as usize];
+                    [mov.to.backward(pos.white_to_move, 1)];
                 if !pos.white_to_move {
-                    self.hash ^= self.color[mov.to.backward(pos.white_to_move, 1).0 as usize];
+                    self.hash ^= self.color[mov.to.backward(pos.white_to_move, 1)];
                 }
             } else {
-                self.hash ^= self.hashes[piece.index()][mov.to.0 as usize];
+                self.hash ^= self.hashes[piece.index()][mov.to];
                 if !pos.white_to_move {
-                    self.hash ^= self.color[mov.to.0 as usize];
+                    self.hash ^= self.color[mov.to];
                 }
             }
         }
 
         if let Some(piece) = mov.promoted {
-            self.hash ^= self.hashes[piece.index()][mov.to.0 as usize];
+            self.hash ^= self.hashes[piece.index()][mov.to];
         } else {
-            self.hash ^= self.hashes[mov.piece.index()][mov.to.0 as usize];
+            self.hash ^= self.hashes[mov.piece.index()][mov.to];
         }
 
         if mov.piece == Piece::King {
-            if mov.to.0 == mov.from.0 + 2 {
+            if mov.from.right(2) == mov.to {
                 // castle kingside
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1).0 as usize];
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(1).0 as usize];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1)];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(1)];
                 if pos.white_to_move {
-                    self.hash ^= self.color[mov.to.right(1).0 as usize];
-                    self.hash ^= self.color[mov.to.left(1).0 as usize];
+                    self.hash ^= self.color[mov.to.right(1)];
+                    self.hash ^= self.color[mov.to.left(1)];
                 }
-            } else if mov.from.0 == mov.to.0 + 2 {
+            } else if mov.from.left(2) == mov.to {
                 // castle queenside
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(2).0 as usize];
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1).0 as usize];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(2)];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1)];
                 if pos.white_to_move {
-                    self.hash ^= self.color[mov.to.left(2).0 as usize];
-                    self.hash ^= self.color[mov.to.right(1).0 as usize];
+                    self.hash ^= self.color[mov.to.left(2)];
+                    self.hash ^= self.color[mov.to.right(1)];
                 }
             }
 
@@ -201,25 +202,25 @@ impl Hasher {
             }
         }
 
-        if mov.from.0 == 0 || mov.to.0 == 0 {
+        if mov.from == SQUARE_A1 || mov.to == SQUARE_A1 {
             castling &= !CASTLE_WHITE_QSIDE;
         }
 
-        if mov.from.0 == 7 || mov.to.0 == 7 {
+        if mov.from == SQUARE_A8 || mov.to == SQUARE_A8 {
             castling &= !CASTLE_WHITE_KSIDE;
         }
 
-        if mov.from.0 == 56 || mov.to.0 == 56 {
+        if mov.from == SQUARE_H1 || mov.to == SQUARE_H1 {
             castling &= !CASTLE_BLACK_QSIDE;
         }
 
-        if mov.from.0 == 63 || mov.to.0 == 63 {
+        if mov.from == SQUARE_H8 || mov.to == SQUARE_H8 {
             castling &= !CASTLE_BLACK_KSIDE;
         }
 
         if pos.white_to_move {
-            self.hash ^= self.color[mov.to.0 as usize];
-            self.hash ^= self.color[mov.from.0 as usize];
+            self.hash ^= self.color[mov.to];
+            self.hash ^= self.color[mov.from];
         }
 
         self.hash ^= self.castle[castling as usize];
@@ -247,78 +248,78 @@ impl Hasher {
         if mov.captured == Some(Piece::Pawn) {
             if mov.en_passant {
                 self.pawn_hash ^= self.hashes[Piece::Pawn.index()]
-                    [mov.to.backward(unmaking_white_move, 1).0 as usize];
+                    [mov.to.backward(unmaking_white_move, 1)];
                 if !unmaking_white_move {
                     self.pawn_hash ^=
-                        self.color[mov.to.backward(unmaking_white_move, 1).0 as usize];
+                        self.color[mov.to.backward(unmaking_white_move, 1)];
                 }
             } else {
-                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to.0 as usize];
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to];
 
                 if !unmaking_white_move {
-                    self.pawn_hash ^= self.color[mov.to.0 as usize];
+                    self.pawn_hash ^= self.color[mov.to];
                 }
             }
         }
 
         if mov.piece == Piece::Pawn {
-            self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.from.0 as usize];
+            self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.from];
             if unmaking_white_move {
-                self.pawn_hash ^= self.color[mov.from.0 as usize];
+                self.pawn_hash ^= self.color[mov.from];
             }
 
             if mov.promoted.is_none() {
-                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to.0 as usize];
+                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to];
                 if unmaking_white_move {
-                    self.pawn_hash ^= self.color[mov.to.0 as usize];
+                    self.pawn_hash ^= self.color[mov.to];
                 }
             }
         }
 
         if unmaking_white_move {
-            self.hash ^= self.color[mov.from.0 as usize];
-            self.hash ^= self.color[mov.to.0 as usize];
+            self.hash ^= self.color[mov.from];
+            self.hash ^= self.color[mov.to];
         }
 
-        self.hash ^= self.hashes[mov.piece.index()][mov.from.0 as usize];
+        self.hash ^= self.hashes[mov.piece.index()][mov.from];
 
         if let Some(piece) = mov.captured {
             if mov.en_passant {
                 self.hash ^= self.hashes[Piece::Pawn.index()]
-                    [mov.to.backward(unmaking_white_move, 1).0 as usize];
+                    [mov.to.backward(unmaking_white_move, 1)];
                 if !unmaking_white_move {
-                    self.hash ^= self.color[mov.to.backward(unmaking_white_move, 1).0 as usize];
+                    self.hash ^= self.color[mov.to.backward(unmaking_white_move, 1)];
                 }
             } else {
-                self.hash ^= self.hashes[piece.index()][mov.to.0 as usize];
+                self.hash ^= self.hashes[piece.index()][mov.to];
                 if !unmaking_white_move {
-                    self.hash ^= self.color[mov.to.0 as usize];
+                    self.hash ^= self.color[mov.to];
                 }
             }
         }
 
         if let Some(piece) = mov.promoted {
-            self.hash ^= self.hashes[piece.index()][mov.to.0 as usize];
+            self.hash ^= self.hashes[piece.index()][mov.to];
         } else {
-            self.hash ^= self.hashes[mov.piece.index()][mov.to.0 as usize];
+            self.hash ^= self.hashes[mov.piece.index()][mov.to];
         }
 
         if mov.piece == Piece::King {
-            if mov.to.0 == mov.from.0 + 2 {
+            if mov.from.right(2) == mov.to {
                 // castle kingside
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1).0 as usize];
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(1).0 as usize];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1)];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(1)];
                 if unmaking_white_move {
-                    self.hash ^= self.color[mov.to.right(1).0 as usize];
-                    self.hash ^= self.color[mov.to.left(1).0 as usize];
+                    self.hash ^= self.color[mov.to.right(1)];
+                    self.hash ^= self.color[mov.to.left(1)];
                 }
-            } else if mov.from.0 == mov.to.0 + 2 {
+            } else if mov.from.left(2) == mov.to {
                 // castle queenside
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(2).0 as usize];
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1).0 as usize];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(2)];
+                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1)];
                 if unmaking_white_move {
-                    self.hash ^= self.color[mov.to.left(2).0 as usize];
-                    self.hash ^= self.color[mov.to.right(1).0 as usize];
+                    self.hash ^= self.color[mov.to.left(2)];
+                    self.hash ^= self.color[mov.to.right(1)];
                 }
             }
         }
