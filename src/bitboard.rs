@@ -251,6 +251,22 @@ impl Iterator for SquareIterator {
         let popcount = self.bb.popcount();
         (popcount, Some(popcount))
     }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        for _ in 0..n {
+            self.bb.0 &= self.bb.0 - 1;
+        }
+
+        self.next()
+    }
+}
+
+impl std::iter::FusedIterator for SquareIterator {}
+
+impl ExactSizeIterator for SquareIterator {
+    fn len(&self) -> usize {
+        self.bb.popcount()
+    }
 }
 
 // =========================================================
