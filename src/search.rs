@@ -14,9 +14,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use std::cell::RefCell;
 use std::cmp;
-use std::rc::Rc;
 use std::sync;
 
 use crate::eval::*;
@@ -34,7 +32,7 @@ pub type Ply = i16;
 pub type Depth = i16;
 
 pub const INC_PLY: Depth = 64;
-pub const MAX_PLY: Ply = 128 - 1;
+pub const MAX_PLY: Ply = 128;
 
 const FUTILITY_MARGIN: Score = 200;
 
@@ -72,7 +70,7 @@ pub struct Search {
     pub made_moves: Vec<Move>,
     options: PersistentOptions,
 
-    mp_allocations: Vec<Rc<RefCell<MovePickerAllocations>>>,
+    mp_allocations: Vec<MovePickerAllocations>,
     quiets: [[Option<Move>; 256]; MAX_PLY as usize],
 }
 
@@ -90,7 +88,7 @@ impl Search {
         let mut mp_allocations = Vec::with_capacity(MAX_PLY as usize);
         for i in 0..MAX_PLY as usize {
             pv.push(vec![None; MAX_PLY as usize - i + 1]);
-            mp_allocations.push(Rc::new(RefCell::new(MovePickerAllocations::default())));
+            mp_allocations.push(MovePickerAllocations::default());
         }
 
         Search {
@@ -346,8 +344,7 @@ impl Search {
             ttmove = ttmove_;
         }
 
-        let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
-        let mut mp_allocations = mp_allocations.borrow_mut();
+        let mut mp_allocations = self.mp_allocations.pop().unwrap();
 
         let mut moves = MovePicker::new(
             self.position.clone(),
@@ -421,6 +418,7 @@ impl Search {
                     }
 
                     self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
+                    self.mp_allocations.push(mp_allocations);
                     return None;
                 }
                 Some(value) => {
@@ -444,6 +442,7 @@ impl Search {
                                     LOWER_BOUND,
                                 );
                                 self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
+                                self.mp_allocations.push(mp_allocations);
                                 return Some(value);
                             }
                         }
@@ -452,6 +451,7 @@ impl Search {
             }
         }
 
+        self.mp_allocations.push(mp_allocations);
         if let Some(best_move) = best_move {
             let tt_bound = if increased_alpha {
                 EXACT_BOUND
@@ -573,8 +573,7 @@ impl Search {
             ttmove = ttmove_;
         }
 
-        let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
-        let mut mp_allocations = mp_allocations.borrow_mut();
+        let mut mp_allocations = self.mp_allocations.pop().unwrap();
 
         let mut moves = MovePicker::new(
             self.position.clone(),
@@ -683,12 +682,16 @@ impl Search {
                         mov,
                         LOWER_BOUND,
                     );
+                    self.mp_allocations.push(mp_allocations);
                     return Some(value);
                 }
             } else {
+                self.mp_allocations.push(mp_allocations);
                 return None;
             }
         }
+
+        self.mp_allocations.push(mp_allocations);
 
         if num_moves == 0 {
             if pruned {
@@ -757,8 +760,7 @@ impl Search {
             depth += INC_PLY;
         }
 
-        let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
-        let mut mp_allocations = mp_allocations.borrow_mut();
+        let mut mp_allocations = self.mp_allocations.pop().unwrap();
 
         let mut moves = if in_check {
             MovePicker::qsearch_in_check(
@@ -807,6 +809,7 @@ impl Search {
                                         LOWER_BOUND,
                                     );
                                 }
+                                self.mp_allocations.push(mp_allocations);
                                 return value;
                             }
                         }
@@ -815,6 +818,7 @@ impl Search {
             }
         }
 
+        self.mp_allocations.push(mp_allocations);
         if num_moves == 0 {
             if in_check {
                 return Some(-MATE_SCORE + ply);
@@ -868,14 +872,13 @@ impl Search {
             return false;
         }
 
-        let mp_allocations = Rc::clone(&self.mp_allocations[0]);
-        let mut mp_allocations = mp_allocations.borrow_mut();
+        let mp_allocations = &mut self.mp_allocations[0];
 
         let mut moves = MovePicker::new(
             self.position.clone(),
             None,
             [None; 2],
-            &mut mp_allocations,
+            mp_allocations,
         );
 
         for (_, mov) in moves.next(&self.history) {
