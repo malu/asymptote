@@ -41,7 +41,7 @@ pub struct TimeManager {
     started_at: time::Instant,
     control: TimeControl,
     searching_for_white: bool,
-    pub stop_rx: sync::mpsc::Receiver<()>,
+    pub abort: sync::Arc<sync::atomic::AtomicBool>,
     force_stop: bool,
 }
 
@@ -49,13 +49,13 @@ impl TimeManager {
     pub fn new(
         position: &Position,
         control: TimeControl,
-        stop_rx: sync::mpsc::Receiver<()>,
+        abort: sync::Arc<sync::atomic::AtomicBool>,
     ) -> TimeManager {
         TimeManager {
             started_at: time::Instant::now(),
             control,
             searching_for_white: position.white_to_move,
-            stop_rx,
+            abort,
             force_stop: false,
         }
     }
@@ -65,6 +65,7 @@ impl TimeManager {
         self.started_at = time::Instant::now();
         self.control = control;
         self.searching_for_white = position.white_to_move;
+        self.abort.store(false, sync::atomic::Ordering::SeqCst);
     }
 
     pub fn elapsed_millis(&self) -> u64 {
@@ -73,7 +74,7 @@ impl TimeManager {
     }
 
     pub fn check_for_stop(&mut self) {
-        if self.stop_rx.try_recv().is_ok() {
+        if self.abort.load(sync::atomic::Ordering::Relaxed) {
             self.force_stop = true;
         }
     }
@@ -83,7 +84,7 @@ impl TimeManager {
             return false;
         }
 
-        match self.control {
+        let start_another = match self.control {
             TimeControl::Infinite => true,
             TimeControl::FixedMillis(millis) => {
                 let elapsed = self.elapsed_millis();
@@ -108,7 +109,12 @@ impl TimeManager {
                 let movestogo = movestogo.unwrap_or(40);
                 elapsed <= cmp::min(time, time / movestogo + inc) / 2
             }
+        };
+
+        if !start_another {
+            self.abort.store(true, sync::atomic::Ordering::Relaxed);
         }
+        start_another
     }
 
     pub fn should_stop(&mut self, visited_nodes: u64) -> bool {
@@ -120,7 +126,7 @@ impl TimeManager {
             return true;
         }
 
-        match self.control {
+        let stop = match self.control {
             TimeControl::Infinite => false,
             TimeControl::FixedMillis(millis) => {
                 if visited_nodes & 0x7F == 0 {
@@ -151,6 +157,11 @@ impl TimeManager {
                 }
                 false
             }
+        };
+
+        if stop {
+            self.abort.store(true, sync::atomic::Ordering::Relaxed);
         }
+        stop
     }
 }

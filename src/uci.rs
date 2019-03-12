@@ -30,13 +30,13 @@ use std::thread;
 pub struct UCI {
     _main_thread: thread::JoinHandle<()>,
     main_thread_tx: sync::mpsc::Sender<UciCommand>,
-    stop_tx: sync::mpsc::Sender<()>,
+    abort: sync::Arc<sync::atomic::AtomicBool>,
 }
 
 pub enum UciCommand {
     Unknown(String),
-    UciNewGame(sync::mpsc::Sender<()>, sync::mpsc::Receiver<()>),
-    Uci(sync::mpsc::Sender<()>, sync::mpsc::Receiver<()>),
+    UciNewGame,
+    Uci,
     IsReady,
     SetOption(String, String),
     Position(Position, Vec<String>),
@@ -60,13 +60,13 @@ impl UCI {
     pub fn new() -> UCI {
         initialize_magics();
         let (main_tx, main_rx) = sync::mpsc::channel();
-        let (stop_tx, stop_rx) = sync::mpsc::channel();
+        let abort = sync::Arc::new(sync::atomic::AtomicBool::new(false));
         UCI {
+            abort: sync::Arc::clone(&abort),
             _main_thread: thread::spawn(move || {
-                Search::new(STARTING_POSITION, stop_rx).looping(main_rx)
+                Search::new(STARTING_POSITION, abort).looping(main_rx)
             }),
             main_thread_tx: main_tx,
-            stop_tx,
         }
     }
 
@@ -82,21 +82,18 @@ impl UCI {
             match cmd {
                 UciCommand::Quit => return,
                 UciCommand::Stop => {
-                    self.stop_tx.send(()).unwrap();
+                    self.abort.store(true, sync::atomic::Ordering::SeqCst);
                 }
-                UciCommand::Uci(tx, rx) => {
-                    self.stop_tx = tx.clone();
-                    self.main_thread_tx.send(UciCommand::Uci(tx, rx)).unwrap();
+                UciCommand::Uci => {
+                    self.main_thread_tx.send(UciCommand::Uci).unwrap();
                 }
-                UciCommand::UciNewGame(tx, rx) => {
-                    self.stop_tx = tx.clone();
+                UciCommand::UciNewGame => {
                     self.main_thread_tx
-                        .send(UciCommand::UciNewGame(tx, rx))
+                        .send(UciCommand::UciNewGame)
                         .unwrap();
                 }
                 UciCommand::Bench => {
-                    let (_, rx) = sync::mpsc::channel();
-                    run_benchmark(12, rx);
+                    run_benchmark(12, sync::Arc::clone(&self.abort));
                 }
                 UciCommand::Tune(filename) => {
                     tune(&filename);
@@ -112,8 +109,7 @@ impl UCI {
 impl<'a> From<&'a str> for UciCommand {
     fn from(line: &str) -> Self {
         if line.starts_with("ucinewgame") {
-            let (tx, rx) = sync::mpsc::channel();
-            UciCommand::UciNewGame(tx, rx)
+            UciCommand::UciNewGame
         } else if line.starts_with("setoption") {
             let mut words = line.split_whitespace();
             assert!(words.next() == Some("setoption"));
@@ -144,8 +140,7 @@ impl<'a> From<&'a str> for UciCommand {
 
             UciCommand::SetOption(name, value)
         } else if line.starts_with("uci") {
-            let (tx, rx) = sync::mpsc::channel();
-            UciCommand::Uci(tx, rx)
+            UciCommand::Uci
         } else if line.starts_with("isready") {
             UciCommand::IsReady
         } else if line.starts_with("go") {

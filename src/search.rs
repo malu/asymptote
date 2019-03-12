@@ -82,7 +82,7 @@ pub struct PlyDetails {
 }
 
 impl Search {
-    pub fn new(position: Position, stop_rx: sync::mpsc::Receiver<()>) -> Self {
+    pub fn new(position: Position, abort: sync::Arc<sync::atomic::AtomicBool>) -> Self {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         let stack = [PlyDetails::default(); MAX_PLY as usize];
         let mut mp_allocations = Vec::with_capacity(MAX_PLY as usize);
@@ -96,7 +96,7 @@ impl Search {
             stack,
             eval: Eval::from(&position),
             time_control: TimeControl::Infinite,
-            time_manager: TimeManager::new(&position, TimeControl::Infinite, stop_rx),
+            time_manager: TimeManager::new(&position, TimeControl::Infinite, abort),
             position,
             hasher: Hasher::new(),
             tt: TT::new(14),
@@ -1086,8 +1086,8 @@ impl Search {
         for cmd in main_rx {
             match cmd {
                 UciCommand::Unknown(cmd) => eprintln!("Unknown command: {}", cmd),
-                UciCommand::UciNewGame(_, rx) => self.handle_ucinewgame(rx),
-                UciCommand::Uci(_, rx) => self.handle_uci(rx),
+                UciCommand::UciNewGame => self.handle_ucinewgame(),
+                UciCommand::Uci => self.handle_uci(),
                 UciCommand::IsReady => self.handle_isready(),
                 UciCommand::SetOption(name, value) => self.handle_setoption(name, value),
                 UciCommand::Position(pos, moves) => self.handle_position(pos, moves),
@@ -1102,16 +1102,16 @@ impl Search {
         }
     }
 
-    fn handle_ucinewgame(&mut self, rx: sync::mpsc::Receiver<()>) {
+    fn handle_ucinewgame(&mut self) {
         let options = self.options;
-        *self = Search::new(STARTING_POSITION, rx);
+        *self = Search::new(STARTING_POSITION, sync::Arc::clone(&self.time_manager.abort));
         self.options = options;
         self.resize_tt(self.options.hash_bits);
     }
 
-    fn handle_uci(&mut self, rx: sync::mpsc::Receiver<()>) {
+    fn handle_uci(&mut self) {
         let options = self.options;
-        *self = Search::new(STARTING_POSITION, rx);
+        *self = Search::new(STARTING_POSITION, sync::Arc::clone(&self.time_manager.abort));
         self.options = options;
         println!("id name Asymptote v0.4.2");
         println!("id author Maximilian Lupke");
