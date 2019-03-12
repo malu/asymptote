@@ -56,18 +56,18 @@ impl Default for PersistentOptions {
 
 pub struct Search {
     stack: [PlyDetails; MAX_PLY as usize],
-    pub history: History,
-    pub position: Position,
+    history: History,
+    position: Position,
     eval: Eval,
     pub time_control: TimeControl,
     pub time_manager: TimeManager,
-    pub hasher: Hasher,
+    hasher: Hasher,
     pub visited_nodes: u64,
-    pub tt: TT,
+    tt: TT,
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
     repetitions: Repetitions,
-    pub made_moves: Vec<Move>,
+    made_moves: Vec<Move>,
     options: PersistentOptions,
 
     mp_allocations: Vec<MovePickerAllocations>,
