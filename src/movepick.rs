@@ -14,9 +14,6 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use crate::history::*;
 use crate::movegen::*;
 use crate::position::*;
@@ -47,7 +44,6 @@ pub struct MovePicker<'a> {
     scores: &'a mut Vec<i64>,
     index: usize,
     killers: [Option<Move>; 2],
-    history: Rc<RefCell<History>>,
     skip_quiets: bool,
 }
 
@@ -101,7 +97,6 @@ impl<'a> MovePicker<'a> {
         position: Position,
         ttmove: Option<Move>,
         killers: [Option<Move>; 2],
-        history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
         allocations.excluded.clear();
@@ -109,7 +104,6 @@ impl<'a> MovePicker<'a> {
         allocations.scores.clear();
 
         MovePicker {
-            history,
             ttmove,
             position,
             excluded: &mut allocations.excluded,
@@ -125,7 +119,6 @@ impl<'a> MovePicker<'a> {
 
     pub fn qsearch(
         position: Position,
-        history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
         allocations.excluded.clear();
@@ -133,7 +126,6 @@ impl<'a> MovePicker<'a> {
         allocations.scores.clear();
 
         MovePicker {
-            history,
             ttmove: None,
             position,
             excluded: &mut allocations.excluded,
@@ -149,7 +141,6 @@ impl<'a> MovePicker<'a> {
 
     pub fn qsearch_in_check(
         position: Position,
-        history: Rc<RefCell<History>>,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
         allocations.excluded.clear();
@@ -157,7 +148,6 @@ impl<'a> MovePicker<'a> {
         allocations.scores.clear();
 
         MovePicker {
-            history,
             ttmove: None,
             position,
             excluded: &mut allocations.excluded,
@@ -191,12 +181,8 @@ impl<'a> MovePicker<'a> {
         self.index += 1;
         mov
     }
-}
 
-impl<'a> Iterator for MovePicker<'a> {
-    type Item = (MoveType, Move);
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn next(&mut self, history: &History) -> Option<(MoveType, Move)> {
         if self.stage >= self.stages.len() {
             return None;
         }
@@ -208,32 +194,32 @@ impl<'a> Iterator for MovePicker<'a> {
                     self.excluded.push(mov);
                     return Some((MoveType::TTMove, mov));
                 }
-                self.next()
+                self.next(history)
             }
             Stage::GenerateGoodCaptures => {
                 MoveGenerator::from(&self.position)
                     .good_captures(&mut self.moves, &mut self.scores);
                 self.index = 0;
                 self.stage += 1;
-                self.next()
+                self.next(history)
             }
             Stage::GoodCaptures => {
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {
-                        self.next()
+                        self.next(history)
                     } else {
                         Some((MoveType::GoodCapture, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next()
+                    self.next(history)
                 }
             }
             Stage::GenerateKillers => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next();
+                    return self.next(history);
                 }
 
                 self.moves.clear();
@@ -250,36 +236,35 @@ impl<'a> Iterator for MovePicker<'a> {
                 }
                 self.index = 0;
                 self.stage += 1;
-                self.next()
+                self.next(history)
             }
             Stage::Killers => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next();
+                    return self.next(history);
                 }
 
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {
-                        self.next()
+                        self.next(history)
                     } else {
                         self.excluded.push(mov);
                         Some((MoveType::Killer, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next()
+                    self.next(history)
                 }
             }
             Stage::GenerateQuietMoves => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next();
+                    return self.next(history);
                 }
 
                 MoveGenerator::from(&self.position).quiet_moves(&mut self.moves);
                 {
-                    let history = self.history.borrow();
                     let wtm = self.position.white_to_move;
                     self.scores.clear();
                     self.scores
@@ -287,43 +272,43 @@ impl<'a> Iterator for MovePicker<'a> {
                 }
                 self.index = 0;
                 self.stage += 1;
-                self.next()
+                self.next(history)
             }
             Stage::QuietMoves => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next();
+                    return self.next(history);
                 }
 
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {
-                        self.next()
+                        self.next(history)
                     } else {
                         Some((MoveType::Quiet, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next()
+                    self.next(history)
                 }
             }
             Stage::GenerateBadCaptures => {
                 MoveGenerator::from(&self.position).bad_captures(&mut self.moves, &mut self.scores);
                 self.index = 0;
                 self.stage += 1;
-                self.next()
+                self.next(history)
             }
             Stage::BadCaptures => {
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {
-                        self.next()
+                        self.next(history)
                     } else {
                         Some((MoveType::BadCapture, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next()
+                    self.next(history)
                 }
             }
         }

@@ -58,7 +58,7 @@ impl Default for PersistentOptions {
 
 pub struct Search {
     stack: [PlyDetails; MAX_PLY as usize],
-    pub history: Rc<RefCell<History>>,
+    pub history: History,
     pub position: Position,
     eval: Eval,
     pub time_control: TimeControl,
@@ -94,7 +94,7 @@ impl Search {
         }
 
         Search {
-            history: Rc::new(RefCell::new(History::default())),
+            history: History::default(),
             stack,
             eval: Eval::from(&position),
             time_control: TimeControl::Infinite,
@@ -122,10 +122,7 @@ impl Search {
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
 
-        {
-            let mut history = self.history.borrow_mut();
-            history.rescale();
-        }
+        self.history.rescale();
 
         let mut moves = MoveGenerator::from(&self.position)
             .all_moves()
@@ -352,11 +349,10 @@ impl Search {
         let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
         let mut mp_allocations = mp_allocations.borrow_mut();
 
-        let moves = MovePicker::new(
+        let mut moves = MovePicker::new(
             self.position.clone(),
             ttmove,
             self.stack[ply as usize].killers_moves,
-            Rc::clone(&self.history),
             &mut mp_allocations,
         );
 
@@ -369,7 +365,7 @@ impl Search {
 
         let mut num_moves = 0;
         let mut num_quiets = 0;
-        for (_mtype, mov) in moves {
+        while let Some((_mtype, mov)) = moves.next(&self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
             }
@@ -584,7 +580,6 @@ impl Search {
             self.position.clone(),
             ttmove,
             self.stack[ply as usize].killers_moves,
-            Rc::clone(&self.history),
             &mut mp_allocations,
         );
         moves.skip_quiets(futility_skip_quiets);
@@ -592,7 +587,7 @@ impl Search {
 
         let mut num_moves = 0;
         let mut num_quiets = 0;
-        for (mtype, mov) in moves {
+        while let Some((mtype, mov)) = moves.next(&self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
             }
@@ -765,16 +760,14 @@ impl Search {
         let mp_allocations = Rc::clone(&self.mp_allocations[ply as usize]);
         let mut mp_allocations = mp_allocations.borrow_mut();
 
-        let moves = if in_check {
+        let mut moves = if in_check {
             MovePicker::qsearch_in_check(
                 self.position.clone(),
-                Rc::clone(&self.history),
                 &mut mp_allocations,
             )
         } else {
             MovePicker::qsearch(
                 self.position.clone(),
-                Rc::clone(&self.history),
                 &mut mp_allocations,
             )
         };
@@ -783,7 +776,7 @@ impl Search {
         let mut best_score = -MATE_SCORE;
 
         let mut num_moves = 0;
-        for (_mtype, mov) in moves {
+        while let Some((_mtype, mov)) = moves.next(&self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
             }
@@ -878,15 +871,14 @@ impl Search {
         let mp_allocations = Rc::clone(&self.mp_allocations[0]);
         let mut mp_allocations = mp_allocations.borrow_mut();
 
-        let moves = MovePicker::new(
+        let mut moves = MovePicker::new(
             self.position.clone(),
             None,
             [None; 2],
-            Rc::clone(&self.history),
             &mut mp_allocations,
         );
 
-        for (_, mov) in moves {
+        for (_, mov) in moves.next(&self.history) {
             if self.position.move_is_legal(mov) {
                 return false;
             }
@@ -936,9 +928,8 @@ impl Search {
     fn update_quiet_stats(&mut self, mov: Move, ply: Ply, depth: Depth, num_failed_quiets: usize) {
         assert!(mov.is_quiet());
 
-        let mut history = self.history.borrow_mut();
-        history.increase_score(self.position.white_to_move, mov, depth);
-        history.decrease_score(
+        self.history.increase_score(self.position.white_to_move, mov, depth);
+        self.history.decrease_score(
             self.position.white_to_move,
             &self.quiets[ply as usize][0..num_failed_quiets],
             depth,
@@ -1218,18 +1209,16 @@ impl Search {
             Some(mov) => {
                 let score = self
                     .history
-                    .borrow()
                     .get_score(self.position.white_to_move, mov);
                 println!("History score: {}", score);
             }
             None => {
                 let mg = MoveGenerator::from(&self.position);
-                let history = self.history.borrow();
                 let mut moves = Vec::new();
                 mg.quiet_moves(&mut moves);
                 let mut moves = moves
                     .into_iter()
-                    .map(|mov| (mov, history.get_score(self.position.white_to_move, mov)))
+                    .map(|mov| (mov, self.history.get_score(self.position.white_to_move, mov)))
                     .collect::<Vec<_>>();
                 moves.sort_by_key(|(_, hist)| -hist);
                 for (mov, hist) in moves {
