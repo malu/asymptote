@@ -844,7 +844,7 @@ impl Search {
             let mov = ttentry
                 .best_move
                 .expand(&self.position)
-                .filter(|&mov| MoveGenerator::from(&self.position).is_legal(mov));
+                .filter(|&mov| MoveGenerator::from(&self.position).is_pseudo_legal(mov));
             (mov.map(|_| ttentry), mov)
         } else {
             (None, None)

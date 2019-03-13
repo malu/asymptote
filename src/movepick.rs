@@ -230,7 +230,7 @@ impl<'a> MovePicker<'a> {
                         self.killers
                             .iter()
                             .flatten()
-                            .filter(|&&m| MoveGenerator::from(pos).is_legal(m)),
+                            .filter(|&&m| MoveGenerator::from(pos).is_pseudo_legal(m)),
                     );
                     self.scores.extend(self.moves.iter().map(|_| 0));
                 }

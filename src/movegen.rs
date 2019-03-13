@@ -466,7 +466,7 @@ impl<'p> MoveGenerator<'p> {
         moves
     }
 
-    pub fn is_legal(&self, mov: Move) -> bool {
+    pub fn is_pseudo_legal(&self, mov: Move) -> bool {
         let us = self.position.us(self.position.white_to_move);
         let mut moves = Vec::with_capacity(28);
         match self.position.find_piece(mov.from) {
