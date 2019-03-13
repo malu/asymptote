@@ -18,16 +18,9 @@ use crate::movegen::*;
 use crate::search::*;
 use crate::types::SquareMap;
 
+#[derive(Default)]
 pub struct History {
     piece_to: [[SquareMap<i64>; 6]; 2],
-}
-
-impl Default for History {
-    fn default() -> History {
-        History {
-            piece_to: [[SquareMap::default(); 6]; 2],
-        }
-    }
 }
 
 impl History {
