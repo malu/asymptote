@@ -549,6 +549,119 @@ impl Position {
         }
     }
 
+    pub fn move_is_pseudo_legal(&self, mov: Move) -> bool {
+        let us = self.us(self.white_to_move);
+
+        // Check piece actually belongs to us
+        if !(us & mov.from) {
+            return false;
+        }
+
+        // Check target square is not occupied by us
+        if us & mov.to {
+            return false;
+        }
+
+        // Check the moving piece is correct
+        if self.find_piece(mov.from) != Some(mov.piece) {
+            return false;
+        }
+
+        // Check the captured piece is correct
+        if self.find_piece(mov.to) != mov.captured && !mov.en_passant {
+            return false;
+        }
+
+        // Check for en passant and promotion only when it's a pawn move
+        if mov.piece != Piece::Pawn && (mov.en_passant || mov.promoted.is_some()) {
+            return false;
+        }
+
+        match mov.piece {
+            Piece::Pawn => {
+                if mov.en_passant {
+                    if self.details.en_passant == 255 {
+                        return false;
+                    }
+
+                    let ep_capturers_rank = 3 + self.white_to_move as u8;
+                    let ep_square = Square::file_rank(self.details.en_passant, ep_capturers_rank);
+                    let their_pawns = self.pawns() & !us;
+                    return mov.to == ep_square.forward(self.white_to_move, 1)
+                        && their_pawns & ep_square;
+                }
+
+                let mut possible_targets = mov.from.forward(self.white_to_move, 1).to_bb();
+                if mov.captured.is_some() {
+                    possible_targets |= possible_targets.left(1);
+                    possible_targets |= possible_targets.right(1);
+                    possible_targets ^= mov.from.forward(self.white_to_move, 1);
+                }
+
+                let start_rank = if self.white_to_move {
+                    RANK_2
+                } else {
+                    RANK_7
+                };
+
+                possible_targets |= (possible_targets & start_rank).forward(self.white_to_move, 1);
+                if !(possible_targets & mov.to) {
+                    return false;
+                }
+
+                if (RANK_1 | RANK_8) & mov.to {
+                    return mov.promoted.is_some();
+                }
+
+                return true;
+            }
+            Piece::Knight => {
+                KNIGHT_ATTACKS[mov.from] & mov.to
+            }
+            Piece::Bishop => {
+                get_bishop_attacks_from(mov.from, self.all_pieces) & mov.to
+            }
+            Piece::Rook => {
+                get_rook_attacks_from(mov.from, self.all_pieces) & mov.to
+            }
+            Piece::Queen => {
+                (get_bishop_attacks_from(mov.from, self.all_pieces) | get_rook_attacks_from(mov.from, self.all_pieces)) & mov.to
+            }
+            Piece::King => {
+                if mov.to == mov.from.right(2) {
+                    if self.white_to_move {
+                        return (self.details.castling & CASTLE_WHITE_KSIDE) > 0
+                            && (self.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60))
+                                .is_empty()
+                            && (self.rooks() & us & SQUARE_A8);
+                    } else {
+                        return (self.details.castling & CASTLE_BLACK_KSIDE) > 0
+                            && (self.all_pieces & Bitboard::from(0x60_00_00_00_00_00_00_00))
+                                .is_empty()
+                            && (self.rooks() & us & SQUARE_H8);
+                    }
+                }
+
+                if mov.to == mov.from.left(2) {
+                    if self.white_to_move {
+                        return (self.details.castling & CASTLE_WHITE_QSIDE) > 0
+                            && (self.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_0E))
+                                .is_empty()
+                            && (self.rooks() & us & SQUARE_A1);
+                    } else {
+                        return (self.details.castling & CASTLE_BLACK_QSIDE) > 0
+                            && (self.all_pieces & Bitboard::from(0x0E_00_00_00_00_00_00_00))
+                                .is_empty()
+                            && (self.rooks() & us & SQUARE_H1);
+                    }
+                }
+
+                KING_ATTACKS[mov.from] & mov.to
+            }
+        }
+    }
+
+
     /// Prints the board state.
     pub fn print(&self, pre: &str) {
         println!("{}     a b c d e f g h", pre);
