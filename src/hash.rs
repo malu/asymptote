@@ -206,11 +206,11 @@ impl Hasher {
             castling &= !CASTLE_WHITE_QSIDE;
         }
 
-        if mov.from == SQUARE_A8 || mov.to == SQUARE_A8 {
+        if mov.from == SQUARE_H1 || mov.to == SQUARE_H1 {
             castling &= !CASTLE_WHITE_KSIDE;
         }
 
-        if mov.from == SQUARE_H1 || mov.to == SQUARE_H1 {
+        if mov.from == SQUARE_A8 || mov.to == SQUARE_A8 {
             castling &= !CASTLE_BLACK_QSIDE;
         }
 

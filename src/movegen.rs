@@ -695,7 +695,7 @@ impl<'p> MoveGenerator<'p> {
             castle_kside = (self.position.details.castling & CASTLE_WHITE_KSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60))
                     .is_empty()
-                && (self.position.rooks() & us & SQUARE_A8);
+                && (self.position.rooks() & us & SQUARE_H1);
             castle_qside = (self.position.details.castling & CASTLE_WHITE_QSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_0E))
                     .is_empty()
@@ -708,7 +708,7 @@ impl<'p> MoveGenerator<'p> {
             castle_qside = (self.position.details.castling & CASTLE_BLACK_QSIDE) > 0
                 && (self.position.all_pieces & Bitboard::from(0x0E_00_00_00_00_00_00_00))
                     .is_empty()
-                && (self.position.rooks() & us & SQUARE_H1);
+                && (self.position.rooks() & us & SQUARE_A8);
         }
 
         let from: Square = (self.position.kings() & us).squares().nth(0).unwrap();

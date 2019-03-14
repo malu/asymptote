@@ -421,11 +421,11 @@ impl Position {
             self.details.castling &= !CASTLE_WHITE_QSIDE;
         }
 
-        if mov.from == SQUARE_A8 || mov.to == SQUARE_A8 {
+        if mov.from == SQUARE_H1 || mov.to == SQUARE_H1 {
             self.details.castling &= !CASTLE_WHITE_KSIDE;
         }
 
-        if mov.from == SQUARE_H1 || mov.to == SQUARE_H1 {
+        if mov.from == SQUARE_A8 || mov.to == SQUARE_A8 {
             self.details.castling &= !CASTLE_BLACK_QSIDE;
         }
 
@@ -633,7 +633,7 @@ impl Position {
                         return (self.details.castling & CASTLE_WHITE_KSIDE) > 0
                             && (self.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60))
                                 .is_empty()
-                            && (self.rooks() & us & SQUARE_A8);
+                            && (self.rooks() & us & SQUARE_H1);
                     } else {
                         return (self.details.castling & CASTLE_BLACK_KSIDE) > 0
                             && (self.all_pieces & Bitboard::from(0x60_00_00_00_00_00_00_00))
@@ -652,7 +652,7 @@ impl Position {
                         return (self.details.castling & CASTLE_BLACK_QSIDE) > 0
                             && (self.all_pieces & Bitboard::from(0x0E_00_00_00_00_00_00_00))
                                 .is_empty()
-                            && (self.rooks() & us & SQUARE_H1);
+                            && (self.rooks() & us & SQUARE_A8);
                     }
                 }
 

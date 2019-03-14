@@ -227,8 +227,8 @@ impl From<u8> for Square {
 }
 
 pub const SQUARE_A1: Square = Square(0);
-pub const SQUARE_A8: Square = Square(7);
-pub const SQUARE_H1: Square = Square(56);
+pub const SQUARE_H1: Square = Square(7);
+pub const SQUARE_A8: Square = Square(56);
 pub const SQUARE_H8: Square = Square(63);
 
 // =========================================================
