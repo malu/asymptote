@@ -296,12 +296,10 @@ impl Eval {
             }
         }
 
-        for king in (pos.kings() & us).squares() {
-            let b = KING_ATTACKS[king];
-            self.attacked_by[s][Piece::King.index()] |= b;
-            self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
-            self.attacked_by_1[s] |= b;
-        }
+        let b = KING_ATTACKS[pos.king_sq(white)];
+        self.attacked_by[s][Piece::King.index()] |= b;
+        self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
+        self.attacked_by_1[s] |= b;
 
         let pawn_mobility = pawn_mobility.popcount() as i32;
         #[cfg(feature = "tune")]
@@ -493,7 +491,7 @@ impl Eval {
         let mut index = 0;
 
         let king = pos.kings() & us;
-        let king_sq = king.squares().nth(0).unwrap();
+        let king_sq = pos.king_sq(white);
         let file = king_sq.file();
         let king_file = FILES[file as usize];
         let adjacent_files = king.left(1) | king | king.right(1);

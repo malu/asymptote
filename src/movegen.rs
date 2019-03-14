@@ -711,7 +711,7 @@ impl<'p> MoveGenerator<'p> {
                 && (self.position.rooks() & us & SQUARE_A8);
         }
 
-        let from: Square = (self.position.kings() & us).squares().nth(0).unwrap();
+        let from = self.position.king_sq(self.position.white_to_move);
         for to in (targets & self.king_from(from)).squares() {
             moves.push(Move {
                 from,

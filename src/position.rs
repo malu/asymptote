@@ -59,6 +59,10 @@ pub struct Position {
 
     /// A bitboard of all pieces on the board.
     pub all_pieces: Bitboard,
+
+    /// The squares the [black, white] king is occupying.
+    /// Could be calculate from the `pieces` bitboard, but cached here for speed.
+    pub king_sq: [Square; 2],
 }
 
 /// Some not easily reverted changes in a position.
@@ -103,6 +107,10 @@ impl Position {
 
     pub fn kings(&self) -> Bitboard {
         self.bb[Piece::King.index()]
+    }
+
+    pub fn king_sq(&self, white: bool) -> Square {
+        self.king_sq[white as usize]
     }
 
     pub fn white_pieces(&self) -> Bitboard {
@@ -255,17 +263,12 @@ impl Position {
 
     /// Checks whether the current side to move is in check.
     pub fn in_check(&self) -> bool {
-        let us = self.us(self.white_to_move);
-        let king = (us & self.kings()).squares().nth(0).unwrap();
-        self.is_attacked(king)
+        self.is_attacked(self.king_sq(self.white_to_move))
     }
 
     pub fn move_is_legal(&mut self, mov: Move) -> bool {
         let mut all_pieces = self.all_pieces;
-        let mut king = (self.kings() & self.us(self.white_to_move))
-            .squares()
-            .nth(0)
-            .unwrap();
+        let mut king = self.king_sq(self.white_to_move);
         let mut them = self.them(self.white_to_move) & all_pieces;
 
         if mov.piece == Piece::King {
@@ -390,6 +393,7 @@ impl Position {
                 self.details.halfmove = 0;
             }
             Piece::King => {
+                self.king_sq[self.white_to_move as usize] = mov.to;
                 if mov.from.right(2) == mov.to {
                     // castle kingside
                     self.bb[Piece::Rook.index()] ^= mov.to.right(1);
@@ -487,6 +491,7 @@ impl Position {
         }
 
         if mov.piece == Piece::King {
+            self.king_sq[unmaking_white_move as usize] = mov.from;
             if mov.from.right(2) == mov.to {
                 // castle kingside
                 self.bb[Piece::Rook.index()] ^= mov.to.right(1);
@@ -777,6 +782,9 @@ impl<'a> From<&'a str> for Position {
             fullmove: 1,
 
             all_pieces: Bitboard::from(0x0),
+
+            // probably wrong but need to initialize value
+            king_sq: [SQUARE_E8, SQUARE_E1],
         };
 
         let mut split = fen.split(' ').filter(|s| !s.is_empty());
@@ -948,6 +956,9 @@ impl<'a> From<&'a str> for Position {
         pos.details.halfmove = halfmove;
         pos.fullmove = fullmove;
 
+        pos.king_sq[0] = (pos.kings() & pos.black_pieces()).squares().next().unwrap();
+        pos.king_sq[1] = (pos.kings() & pos.white_pieces()).squares().next().unwrap();
+
         pos
     }
 }
@@ -973,6 +984,8 @@ pub const STARTING_POSITION: Position = Position {
     fullmove: 1,
 
     all_pieces: STARTING_ALL,
+
+    king_sq: [SQUARE_E8, SQUARE_E1],
 };
 
 #[cfg(test)]
