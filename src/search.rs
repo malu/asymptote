@@ -179,7 +179,12 @@ impl Search {
         moves[0].0
     }
 
-    fn aspiration(&mut self, last_score: Score, moves: &mut Vec<(Move, i64)>, depth: Depth) -> Option<Score> {
+    fn aspiration(
+        &mut self,
+        last_score: Score,
+        moves: &mut Vec<(Move, i64)>,
+        depth: Depth,
+    ) -> Option<Score> {
         let mut delta = 50;
         let mut alpha = cmp::max(last_score - delta, -MATE_SCORE);
         let mut beta = cmp::min(last_score + delta, MATE_SCORE);
@@ -763,15 +768,9 @@ impl Search {
         let mut mp_allocations = self.mp_allocations.pop().unwrap();
 
         let mut moves = if in_check {
-            MovePicker::qsearch_in_check(
-                self.position.clone(),
-                &mut mp_allocations,
-            )
+            MovePicker::qsearch_in_check(self.position.clone(), &mut mp_allocations)
         } else {
-            MovePicker::qsearch(
-                self.position.clone(),
-                &mut mp_allocations,
-            )
+            MovePicker::qsearch(self.position.clone(), &mut mp_allocations)
         };
 
         let mut best_move = None;
@@ -874,12 +873,7 @@ impl Search {
 
         let mp_allocations = &mut self.mp_allocations[0];
 
-        let mut moves = MovePicker::new(
-            self.position.clone(),
-            None,
-            [None; 2],
-            mp_allocations,
-        );
+        let mut moves = MovePicker::new(self.position.clone(), None, [None; 2], mp_allocations);
 
         for (_, mov) in moves.next(&self.history) {
             if self.position.move_is_legal(mov) {
@@ -931,7 +925,8 @@ impl Search {
     fn update_quiet_stats(&mut self, mov: Move, ply: Ply, depth: Depth, num_failed_quiets: usize) {
         assert!(mov.is_quiet());
 
-        self.history.increase_score(self.position.white_to_move, mov, depth);
+        self.history
+            .increase_score(self.position.white_to_move, mov, depth);
         self.history.decrease_score(
             self.position.white_to_move,
             &self.quiets[ply as usize][0..num_failed_quiets],
@@ -1104,14 +1099,20 @@ impl Search {
 
     fn handle_ucinewgame(&mut self) {
         let options = self.options;
-        *self = Search::new(STARTING_POSITION, sync::Arc::clone(&self.time_manager.abort));
+        *self = Search::new(
+            STARTING_POSITION,
+            sync::Arc::clone(&self.time_manager.abort),
+        );
         self.options = options;
         self.resize_tt(self.options.hash_bits);
     }
 
     fn handle_uci(&mut self) {
         let options = self.options;
-        *self = Search::new(STARTING_POSITION, sync::Arc::clone(&self.time_manager.abort));
+        *self = Search::new(
+            STARTING_POSITION,
+            sync::Arc::clone(&self.time_manager.abort),
+        );
         self.options = options;
         println!("id name Asymptote v0.4.2");
         println!("id author Maximilian Lupke");
@@ -1210,9 +1211,7 @@ impl Search {
     fn handle_history(&self, mov: Option<String>) {
         match mov.map(|m| Move::from_algebraic(&self.position, &m)) {
             Some(mov) => {
-                let score = self
-                    .history
-                    .get_score(self.position.white_to_move, mov);
+                let score = self.history.get_score(self.position.white_to_move, mov);
                 println!("History score: {}", score);
             }
             None => {
@@ -1221,7 +1220,12 @@ impl Search {
                 mg.quiet_moves(&mut moves);
                 let mut moves = moves
                     .into_iter()
-                    .map(|mov| (mov, self.history.get_score(self.position.white_to_move, mov)))
+                    .map(|mov| {
+                        (
+                            mov,
+                            self.history.get_score(self.position.white_to_move, mov),
+                        )
+                    })
                     .collect::<Vec<_>>();
                 moves.sort_by_key(|(_, hist)| -hist);
                 for (mov, hist) in moves {

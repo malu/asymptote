@@ -12,9 +12,7 @@ impl<T> SquareMap<T> {
     }
 
     pub const fn from_array(data: [T; 64]) -> SquareMap<T> {
-        SquareMap {
-            data,
-        }
+        SquareMap { data }
     }
 }
 
@@ -28,7 +26,10 @@ impl<T: Clone> Clone for SquareMap<T> {
     }
 }
 
-impl<T> rand::AsByteSliceMut for SquareMap<T> where [T]: rand::AsByteSliceMut {
+impl<T> rand::AsByteSliceMut for SquareMap<T>
+where
+    [T]: rand::AsByteSliceMut,
+{
     fn as_byte_slice_mut(&mut self) -> &mut [u8] {
         self.data.as_byte_slice_mut()
     }
@@ -48,9 +49,7 @@ impl<T: Copy + Default> Default for SquareMap<T> {
 
 impl<T> From<[T; 64]> for SquareMap<T> {
     fn from(data: [T; 64]) -> SquareMap<T> {
-        SquareMap {
-            data,
-        }
+        SquareMap { data }
     }
 }
 

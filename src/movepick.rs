@@ -117,10 +117,7 @@ impl<'a> MovePicker<'a> {
         }
     }
 
-    pub fn qsearch(
-        position: Position,
-        allocations: &'a mut MovePickerAllocations,
-    ) -> Self {
+    pub fn qsearch(position: Position, allocations: &'a mut MovePickerAllocations) -> Self {
         allocations.excluded.clear();
         allocations.moves.clear();
         allocations.scores.clear();

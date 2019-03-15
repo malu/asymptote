@@ -26,18 +26,22 @@ pub fn initialize_magics() {
 }
 
 static mut MAGIC_TABLE: [Bitboard; 156_800] = [Bitboard(0); 156_800];
-static mut BISHOP_ATTACKS: SquareMap<Magic> = SquareMap::from_array([Magic {
-    magic: 0,
-    shift: 0,
-    mask: Bitboard(0),
-    offset: 0,
-}; 64]);
-static mut ROOK_ATTACKS: SquareMap<Magic> = SquareMap::from_array([Magic {
-    magic: 0,
-    shift: 0,
-    mask: Bitboard(0),
-    offset: 0,
-}; 64]);
+static mut BISHOP_ATTACKS: SquareMap<Magic> = SquareMap::from_array(
+    [Magic {
+        magic: 0,
+        shift: 0,
+        mask: Bitboard(0),
+        offset: 0,
+    }; 64],
+);
+static mut ROOK_ATTACKS: SquareMap<Magic> = SquareMap::from_array(
+    [Magic {
+        magic: 0,
+        shift: 0,
+        mask: Bitboard(0),
+        offset: 0,
+    }; 64],
+);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 struct Magic {

@@ -446,7 +446,7 @@ impl CompactTrace {
             score.1 += params.mobility_rook[i].1 * self.mobility_rook[i] as f32;
         }
 
-        for i in 0..29{
+        for i in 0..29 {
             score.0 += params.mobility_queen[i].0 * self.mobility_queen[i] as f32;
             score.1 += params.mobility_queen[i].1 * self.mobility_queen[i] as f32;
         }

@@ -603,11 +603,7 @@ impl Position {
                     possible_targets ^= mov.from.forward(self.white_to_move, 1);
                 }
 
-                let start_rank = if self.white_to_move {
-                    RANK_2
-                } else {
-                    RANK_7
-                };
+                let start_rank = if self.white_to_move { RANK_2 } else { RANK_7 };
 
                 possible_targets |= (possible_targets & start_rank).forward(self.white_to_move, 1);
                 if !(possible_targets & mov.to) {
@@ -620,17 +616,13 @@ impl Position {
 
                 return true;
             }
-            Piece::Knight => {
-                KNIGHT_ATTACKS[mov.from] & mov.to
-            }
-            Piece::Bishop => {
-                get_bishop_attacks_from(mov.from, self.all_pieces) & mov.to
-            }
-            Piece::Rook => {
-                get_rook_attacks_from(mov.from, self.all_pieces) & mov.to
-            }
+            Piece::Knight => KNIGHT_ATTACKS[mov.from] & mov.to,
+            Piece::Bishop => get_bishop_attacks_from(mov.from, self.all_pieces) & mov.to,
+            Piece::Rook => get_rook_attacks_from(mov.from, self.all_pieces) & mov.to,
             Piece::Queen => {
-                (get_bishop_attacks_from(mov.from, self.all_pieces) | get_rook_attacks_from(mov.from, self.all_pieces)) & mov.to
+                (get_bishop_attacks_from(mov.from, self.all_pieces)
+                    | get_rook_attacks_from(mov.from, self.all_pieces))
+                    & mov.to
             }
             Piece::King => {
                 if mov.to == mov.from.right(2) {
@@ -665,7 +657,6 @@ impl Position {
             }
         }
     }
-
 
     /// Prints the board state.
     pub fn print(&self, pre: &str) {

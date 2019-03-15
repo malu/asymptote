@@ -88,9 +88,7 @@ impl UCI {
                     self.main_thread_tx.send(UciCommand::Uci).unwrap();
                 }
                 UciCommand::UciNewGame => {
-                    self.main_thread_tx
-                        .send(UciCommand::UciNewGame)
-                        .unwrap();
+                    self.main_thread_tx.send(UciCommand::UciNewGame).unwrap();
                 }
                 UciCommand::Bench => {
                     run_benchmark(12, sync::Arc::clone(&self.abort));

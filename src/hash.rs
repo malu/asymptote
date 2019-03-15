@@ -122,8 +122,8 @@ impl Hasher {
         // Update Pawn Hash
         if mov.captured == Some(Piece::Pawn) {
             if mov.en_passant {
-                self.pawn_hash ^= self.hashes[Piece::Pawn.index()]
-                    [mov.to.backward(pos.white_to_move, 1)];
+                self.pawn_hash ^=
+                    self.hashes[Piece::Pawn.index()][mov.to.backward(pos.white_to_move, 1)];
                 if !pos.white_to_move {
                     self.pawn_hash ^= self.color[mov.to.backward(pos.white_to_move, 1)];
                 }
@@ -157,8 +157,8 @@ impl Hasher {
 
         if let Some(piece) = mov.captured {
             if mov.en_passant {
-                self.hash ^= self.hashes[Piece::Pawn.index()]
-                    [mov.to.backward(pos.white_to_move, 1)];
+                self.hash ^=
+                    self.hashes[Piece::Pawn.index()][mov.to.backward(pos.white_to_move, 1)];
                 if !pos.white_to_move {
                     self.hash ^= self.color[mov.to.backward(pos.white_to_move, 1)];
                 }
@@ -247,11 +247,10 @@ impl Hasher {
         // Update Pawn Hash
         if mov.captured == Some(Piece::Pawn) {
             if mov.en_passant {
-                self.pawn_hash ^= self.hashes[Piece::Pawn.index()]
-                    [mov.to.backward(unmaking_white_move, 1)];
+                self.pawn_hash ^=
+                    self.hashes[Piece::Pawn.index()][mov.to.backward(unmaking_white_move, 1)];
                 if !unmaking_white_move {
-                    self.pawn_hash ^=
-                        self.color[mov.to.backward(unmaking_white_move, 1)];
+                    self.pawn_hash ^= self.color[mov.to.backward(unmaking_white_move, 1)];
                 }
             } else {
                 self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to];
@@ -285,8 +284,8 @@ impl Hasher {
 
         if let Some(piece) = mov.captured {
             if mov.en_passant {
-                self.hash ^= self.hashes[Piece::Pawn.index()]
-                    [mov.to.backward(unmaking_white_move, 1)];
+                self.hash ^=
+                    self.hashes[Piece::Pawn.index()][mov.to.backward(unmaking_white_move, 1)];
                 if !unmaking_white_move {
                     self.hash ^= self.color[mov.to.backward(unmaking_white_move, 1)];
                 }
