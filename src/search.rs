@@ -394,6 +394,7 @@ impl Search {
                 }
             }
 
+            extension = cmp::min(extension, INC_PLY);
             let new_depth = depth - INC_PLY + extension;
 
             let mut value = if num_moves > 1 {
@@ -653,6 +654,7 @@ impl Search {
                 reduction += INC_PLY;
             }
 
+            extension = cmp::min(extension, INC_PLY);
             let new_depth = depth - INC_PLY + extension;
 
             // If we drop into qsearch anyway, don't reduce.
