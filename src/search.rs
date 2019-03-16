@@ -875,7 +875,7 @@ impl Search {
 
         let mut moves = MovePicker::new(self.position.clone(), None, [None; 2], mp_allocations);
 
-        for (_, mov) in moves.next(&self.history) {
+        while let Some((_, mov)) = moves.next(&self.history) {
             if self.position.move_is_legal(mov) {
                 return false;
             }
