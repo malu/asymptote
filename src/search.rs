@@ -831,7 +831,7 @@ impl Search {
             self.tt.insert(
                 self.hasher.get_hash(),
                 0,
-                TTScore::from_score(best_score, ply),
+                TTScore::from_score(alpha, ply),
                 best_move.unwrap(),
                 UPPER_BOUND,
             );
