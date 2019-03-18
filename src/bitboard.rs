@@ -56,6 +56,10 @@ impl Bitboard {
         self.0.count_ones() as usize
     }
 
+    pub fn lsb_bb(&mut self) -> Bitboard {
+        Bitboard::from(self.0 ^ (self.0 & (self.0 - 1)))
+    }
+
     pub fn is_empty(self) -> bool {
         self.0 == 0
     }

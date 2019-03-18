@@ -342,11 +342,22 @@ impl Piece {
 
     pub fn value(self) -> Score {
         match self {
-            Piece::Pawn => mg(PAWN_SCORE),
-            Piece::Knight => mg(KNIGHT_SCORE),
-            Piece::Bishop => mg(BISHOP_SCORE),
-            Piece::Rook => mg(ROOK_SCORE),
-            Piece::Queen => mg(QUEEN_SCORE),
+            Piece::Pawn => eg(PAWN_SCORE),
+            Piece::Knight => eg(KNIGHT_SCORE),
+            Piece::Bishop => eg(BISHOP_SCORE),
+            Piece::Rook => eg(ROOK_SCORE),
+            Piece::Queen => eg(QUEEN_SCORE),
+            Piece::King => 10000,
+        }
+    }
+
+    pub fn see_value(self) -> Score {
+        match self {
+            Piece::Pawn => 120,
+            Piece::Knight => 300,
+            Piece::Bishop => 300,
+            Piece::Rook => 550,
+            Piece::Queen => 1000,
             Piece::King => 10000,
         }
     }
@@ -398,9 +409,14 @@ impl<'p> MoveGenerator<'p> {
         let mut i = 0;
         while i < moves.len() {
             let mov = moves[i];
-            let score = self.position.see(mov);
-            if score >= 0 {
-                scores.push(i64::from(score));
+            if self.position.see(mov, 0) {
+                let mut score = 0;
+                score += mov.captured.map_or(0, Piece::value) as i64 * 128;
+                if mov.promoted == Some(Piece::Queen) {
+                    score += Piece::Queen.value() as i64;
+                }
+                score -= mov.piece.value() as i64;
+                scores.push(score);
                 i += 1;
             } else {
                 moves.swap_remove(i);
@@ -447,9 +463,14 @@ impl<'p> MoveGenerator<'p> {
         let mut i = 0;
         while i < moves.len() {
             let mov = moves[i];
-            let score = self.position.see(mov);
-            if score < 0 {
-                scores.push(i64::from(score));
+            if !self.position.see(mov, 0) {
+                let mut score = 0;
+                score += mov.captured.map_or(0, Piece::value) as i64 * 128;
+                if mov.promoted == Some(Piece::Queen) {
+                    score += Piece::Queen.value() as i64;
+                }
+                score -= mov.piece.value() as i64;
+                scores.push(score);
                 i += 1;
             } else {
                 moves.swap_remove(i);

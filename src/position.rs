@@ -17,8 +17,6 @@
 use crate::bitboard::*;
 use crate::movegen::*;
 
-use std::cmp;
-
 /// Bit indicating if white can castle kingside.
 pub const CASTLE_WHITE_KSIDE: u8 = 0x1;
 
@@ -129,93 +127,118 @@ impl Position {
         self.pieces[1 - white as usize]
     }
 
-    /// Static exchange evaluation
-    pub fn see(&self, mov: Move) -> i16 {
-        let allowed_pieces = self.all_pieces ^ mov.from.to_bb() & !mov.to.to_bb();
-        let piece_value = mov.captured.map_or(0, Piece::value);
-        let piece_after_move = mov.promoted.unwrap_or(mov.piece);
-        let promotion_value = piece_after_move.value() - mov.piece.value();
-        piece_value + promotion_value
-            - self.see_square(
-                mov.to,
-                piece_after_move,
-                allowed_pieces,
-                !self.white_to_move,
-            )
-    }
+    pub fn see(&self, mov: Move, threshold: i16) -> bool {
+        let mut white = !self.white_to_move;
+        let mut score = mov.captured.map_or(0, Piece::see_value)
+            + mov
+                .promoted
+                .map_or(0, |p| p.see_value() - Piece::Pawn.see_value())
+            - threshold;
+        let mut next_victim = mov.promoted.unwrap_or(mov.piece);
 
-    fn see_square(
-        &self,
-        sq: Square,
-        occupier: Piece,
-        allowed_pieces: Bitboard,
-        white: bool,
-    ) -> i16 {
-        let mut value = 0;
-        let (piece, from_bb) = self.get_cheapest_captures(sq, allowed_pieces, white);
+        if score < 0 {
+            return false;
+        }
 
-        let capture_value = occupier.value();
-        let promotion =
-            piece == Piece::Pawn && (white && sq.rank() == 7 || !white && sq.rank() == 0);
-        let piece_after_move = if promotion { Piece::Queen } else { piece };
-        let promotion_value = piece_after_move.value() - piece.value();
+        if score - next_victim.see_value() >= 0 {
+            return true;
+        }
 
-        for from in from_bb.squares() {
-            value = cmp::max(
-                value,
-                capture_value + promotion_value
-                    - self.see_square(sq, piece_after_move, allowed_pieces ^ from.to_bb(), !white),
-            );
+        let mut occupancy = self.all_pieces & !(mov.from.to_bb() | mov.to.to_bb());
+        if mov.en_passant {
+            occupancy ^= mov.to.backward(self.white_to_move, 1);
+        }
 
-            if value >= capture_value + promotion_value {
+        let promotion = mov.to.rank() == 0 || mov.to.rank() == 7;
+
+        let to_bb = mov.to.to_bb();
+
+        let mut attackers =
+            (to_bb.left(1) | to_bb.right(1)).forward(true, 1) & self.pawns() & self.black_pieces()
+                | (to_bb.left(1) | to_bb.right(1)).backward(true, 1)
+                    & self.pawns()
+                    & self.white_pieces()
+                | KNIGHT_ATTACKS[mov.to] & self.knights()
+                | get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens())
+                | get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens())
+                | KING_ATTACKS[mov.to] & self.kings();
+        attackers &= occupancy;
+
+        loop {
+            let us = self.us(white) & attackers;
+            if !promotion && (attackers & us & self.pawns()).at_least_one() {
+                score = -score - 1 + next_victim.see_value();
+                next_victim = Piece::Pawn;
+
+                let lsb_bb = (attackers & us & self.pawns()).lsb_bb();
+                occupancy ^= lsb_bb;
+                attackers |=
+                    get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
+            } else if (attackers & us & self.knights()).at_least_one() {
+                score = -score - 1 + next_victim.see_value();
+                next_victim = Piece::Knight;
+
+                let lsb_bb = (attackers & us & self.knights()).lsb_bb();
+                occupancy ^= lsb_bb;
+            } else if (attackers & us & self.bishops()).at_least_one() {
+                score = -score - 1 + next_victim.see_value();
+                next_victim = Piece::Bishop;
+
+                let lsb_bb = (attackers & us & self.bishops()).lsb_bb();
+                occupancy ^= lsb_bb;
+                attackers |=
+                    get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
+            } else if (attackers & us & self.rooks()).at_least_one() {
+                score = -score - 1 + next_victim.see_value();
+                next_victim = Piece::Rook;
+
+                let lsb_bb = (attackers & us & self.rooks()).lsb_bb();
+                occupancy ^= lsb_bb;
+                attackers |=
+                    get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
+            } else if promotion && (attackers & us & self.pawns()).at_least_one() {
+                score = -score - 1 + next_victim.see_value() + Piece::Queen.see_value()
+                    - Piece::Pawn.see_value();
+                next_victim = Piece::Queen;
+
+                let lsb_bb = (attackers & us & self.pawns()).lsb_bb();
+                occupancy ^= lsb_bb;
+                attackers |=
+                    get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
+            } else if (attackers & us & self.queens()).at_least_one() {
+                score = -score - 1 + next_victim.see_value();
+                next_victim = Piece::Queen;
+
+                let lsb_bb = (attackers & us & self.queens()).lsb_bb();
+                occupancy ^= lsb_bb;
+                attackers |= get_bishop_attacks_from(mov.to, occupancy)
+                    & (self.bishops() | self.queens())
+                    | get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
+            } else if (attackers & us & self.kings()).at_least_one() {
+                score = -score - 1 + next_victim.see_value();
+                next_victim = Piece::King;
+
+                let lsb_bb = (attackers & us & self.kings()).lsb_bb();
+                occupancy ^= lsb_bb;
+
+                // Do not need to update attackers because we will stop now, either because there are no more captures or the king would be recaptured.
+                if (self.them(white) & attackers).at_least_one() {
+                    break;
+                }
+            } else {
+                // no more captures
                 break;
             }
+
+            if score < 0 {
+                break;
+            }
+
+            white = !white;
+            attackers &= occupancy;
         }
 
-        value
-    }
-
-    fn get_cheapest_captures(
-        &self,
-        sq: Square,
-        allowed_pieces: Bitboard,
-        white: bool,
-    ) -> (Piece, Bitboard) {
-        let us = self.us(white) & allowed_pieces;
-        let mut capturers;
-
-        // TODO currently doesn't account for en passant moves.
-        capturers = self.pawns()
-            & us
-            & (sq.to_bb().backward(white, 1).left(1) | sq.to_bb().backward(white, 1).right(1));
-        if capturers.at_least_one() {
-            return (Piece::Pawn, capturers);
-        }
-
-        capturers = self.knights() & us & KNIGHT_ATTACKS[sq];
-        if capturers.at_least_one() {
-            return (Piece::Knight, capturers);
-        }
-
-        let bishop_attacker_squares = us & get_bishop_attacks_from(sq, allowed_pieces);
-        capturers = self.bishops() & bishop_attacker_squares;
-        if capturers.at_least_one() {
-            return (Piece::Bishop, capturers);
-        }
-
-        let rook_attacker_squares = us & get_rook_attacks_from(sq, allowed_pieces);
-        capturers = self.rooks() & rook_attacker_squares;
-        if capturers.at_least_one() {
-            return (Piece::Rook, capturers);
-        }
-
-        capturers = self.queens() & us & (bishop_attacker_squares | rook_attacker_squares);
-        if capturers.at_least_one() {
-            return (Piece::Queen, capturers);
-        }
-
-        capturers = self.kings() & us & KING_ATTACKS[sq];
-        (Piece::King, capturers)
+        self.white_to_move != white
     }
 
     fn is_attacked(&self, sq: Square) -> bool {
