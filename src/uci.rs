@@ -58,7 +58,6 @@ pub struct GoParams {
 
 impl UCI {
     pub fn new() -> UCI {
-        initialize_magics();
         let (main_tx, main_rx) = sync::mpsc::channel();
         let abort = sync::Arc::new(sync::atomic::AtomicBool::new(false));
         UCI {

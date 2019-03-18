@@ -40,9 +40,17 @@ mod tune;
 mod types;
 mod uci;
 
+use crate::bench::run_benchmark;
+use crate::movegen::initialize_magics;
 use crate::uci::*;
 
 fn main() {
+    initialize_magics();
+    if std::env::args().nth(1) == Some(String::from("bench")) {
+        run_benchmark(12, std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)));
+        return;
+    }
+
     let mut uci = UCI::new();
     uci.run();
 }
