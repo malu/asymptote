@@ -165,7 +165,7 @@ impl Search {
                 moves[1..].sort_by_key(|&(_, subtree_size)| -subtree_size);
             }
 
-            self.uci_info(depth, last_score);
+            self.uci_info(depth, last_score, EXACT_BOUND);
         }
 
         moves[0].0
@@ -192,8 +192,14 @@ impl Search {
             delta += delta / 2;
             if score >= beta {
                 beta = cmp::min(MATE_SCORE, score + delta);
+                if self.time_manager.elapsed_millis() > 5000 {
+                    self.uci_info(depth, score, LOWER_BOUND);
+                }
             } else if score <= alpha {
                 alpha = cmp::max(score - delta, -MATE_SCORE);
+                if self.time_manager.elapsed_millis() > 5000 {
+                    self.uci_info(depth, score, UPPER_BOUND);
+                }
             } else {
                 return Some(score);
             }
@@ -259,7 +265,7 @@ impl Search {
                             self.add_pv_move(mov, 0);
 
                             if self.time_manager.elapsed_millis() > 1000 {
-                                self.uci_info(depth, alpha);
+                                self.uci_info(depth, alpha, EXACT_BOUND);
                             }
                         }
                     }
@@ -877,7 +883,7 @@ impl Search {
         true
     }
 
-    fn uci_info(&self, d: Depth, alpha: Score) {
+    fn uci_info(&self, d: Depth, alpha: Score, bound: Bound) {
         let elapsed = self.time_manager.elapsed_millis();
         let score_str = if alpha.abs() >= MATE_SCORE - MAX_PLY {
             if alpha < 0 {
@@ -888,6 +894,15 @@ impl Search {
         } else {
             format!("cp {}", alpha)
         };
+
+        let score_str = if bound == LOWER_BOUND {
+            format!("{} lowerbound", score_str)
+        } else if bound == UPPER_BOUND {
+            format!("{} upperbound", score_str)
+        } else {
+            score_str
+        };
+
         let mut pos = self.position.clone();
         print!(
             "info depth {} seldepth {} nodes {} nps {} score {} time {} hashfull {} pv ",
