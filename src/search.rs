@@ -760,15 +760,18 @@ impl Search {
         let in_check = self.position.in_check();
         let mut alpha = alpha;
 
+        let mut eval = None;
         if !in_check {
-            let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
-            if eval >= beta {
-                return Some(eval);
+            let e = self.eval.score(&self.position, self.hasher.get_pawn_hash());
+            if e >= beta {
+                return Some(e);
             }
 
-            if alpha < eval {
-                alpha = eval;
+            if alpha < e {
+                alpha = e;
             }
+
+            eval = Some(e);
         }
 
         let (ttentry, _ttmove) = self.get_tt_entry();
@@ -812,6 +815,16 @@ impl Search {
         while let Some((_mtype, mov)) = moves.next(&self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
+            }
+
+            if let Some(eval) = eval {
+                let capture = mov.captured.map_or(0, Piece::value);
+                let promote = mov.promoted.map_or(0, |p| p.value() - Piece::Pawn.value());
+                let mscore = capture + promote;
+
+                if eval + mscore + 200 < alpha && !self.position.move_will_check(mov) {
+                    continue;
+                }
             }
 
             self.internal_make_move(mov, ply);
