@@ -168,14 +168,6 @@ impl Search {
             self.uci_info(depth, last_score);
         }
 
-        self.tt.insert(
-            self.hasher.get_hash(),
-            max_depth,
-            TTScore::from_score(last_score, 0),
-            moves[0].0,
-            EXACT_BOUND,
-        );
-
         moves[0].0
     }
 
