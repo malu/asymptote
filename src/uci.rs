@@ -15,7 +15,6 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use crate::bench::*;
-use crate::movegen::*;
 use crate::position::*;
 use crate::search::*;
 use crate::time::*;

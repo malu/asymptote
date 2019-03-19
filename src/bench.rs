@@ -94,5 +94,5 @@ pub fn run_benchmark(ply: Ply, abort: sync::Arc<sync::atomic::AtomicBool>) {
     let ms = 1000 * duration.as_secs() + u64::from(duration.subsec_millis());
     println!("Nodes: {}", nodes);
     println!("Time:  {} ms", ms);
-    println!("NPS:   {}", nodes as f32 / (ms as f32 / 1000.));
+    println!("NPS:   {}", 1000 * nodes / ms );
 }
