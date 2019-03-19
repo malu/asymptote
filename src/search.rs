@@ -532,17 +532,26 @@ impl Search {
             }
         }
 
+        // Do a quiescent search if we have no depth left.
         if depth < INC_PLY {
             self.visited_nodes -= 1;
             return self.qsearch(ply, alpha, beta, 0);
         }
 
         let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
+
+        // Static beta pruning
+        //
+        // Prune nodes at shallow depth if current evaluation is above beta by
+        // a large (depth-dependent) margin.
         if !in_check && depth < 5 * INC_PLY && eval - 128 * (depth / INC_PLY) > beta {
             return Some(beta);
         }
 
-        // Nullmove
+        // Nullmove pruning
+        //
+        // Prune nodes that are so good that we could pass without the opponent
+        // catching up.
         if !in_check && self.eval.phase() > 0 && eval >= beta {
             let r = 2;
             self.internal_make_nullmove(ply);
@@ -563,14 +572,10 @@ impl Search {
         let mut best_score = -Score::max_value();
         let mut best_move = None;
 
-        let mut pruned;
-
-        // If the futility limit is positive, a move has to gain material or else it gets pruned.
-        // Therefore we can skip all quiet moves since they don't change material.
-        let futility_skip_quiets =
-            !in_check && depth < 3 * INC_PLY && eval + FUTILITY_MARGIN * (depth / INC_PLY) < alpha;
-
         // Internal deepening
+        //
+        // If we do not have a previous best move for this node, try to find
+        // one first.
         if depth >= 6 * INC_PLY && ttmove.is_none() {
             self.search_zw(ply, beta, depth / 2);
             let (ttentry_, ttmove_) = self.get_tt_entry();
@@ -586,8 +591,19 @@ impl Search {
             self.stack[ply as usize].killers_moves,
             &mut mp_allocations,
         );
-        moves.skip_quiets(futility_skip_quiets);
-        pruned = futility_skip_quiets;
+
+        // We have to remember whether we pruned any moves to avoid returing
+        // invalid (stale)mate scores.
+        let mut pruned = false;
+
+        // Futility pruning
+        //
+        // If we are too far behind at shallow depth, then don't search moves
+        // which don't change material.
+        if !in_check && depth < 3 * INC_PLY && eval + FUTILITY_MARGIN * (depth / INC_PLY) < alpha {
+            moves.skip_quiets(true);
+            pruned = true;
+        }
 
         let mut num_moves = 0;
         let mut num_quiets = 0;
