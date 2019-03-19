@@ -35,6 +35,7 @@ pub const INC_PLY: Depth = 64;
 pub const MAX_PLY: Ply = 128;
 
 const FUTILITY_MARGIN: Score = 200;
+const SEE_PRUNING_MARGIN: Score = -50;
 
 const LMR_MAX_DEPTH: Depth = 9 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
@@ -626,6 +627,15 @@ impl Search {
                     pruned = true;
                     continue;
                 }
+            }
+
+            if depth < 2 * INC_PLY
+                && !check
+                && !in_check
+                && !self.position.see(mov, SEE_PRUNING_MARGIN)
+            {
+                pruned = true;
+                continue;
             }
 
             self.internal_make_move(mov, ply);
