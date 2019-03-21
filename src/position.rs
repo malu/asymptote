@@ -69,6 +69,9 @@ pub struct Position {
 /// be undone easily and therefore are kept in a stack of past values.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub struct IrreversibleDetails {
+    /// All pieces currently checking the king.
+    pub checkers: Bitboard,
+
     /// Number of moves of both players since the last capture or pawn moves. Used for checking for
     /// a draw by the 50 moves rule (draw if halfmove = 100 and side to move has at least one legal
     /// move).
@@ -291,7 +294,7 @@ impl Position {
 
     /// Checks whether the current side to move is in check.
     pub fn in_check(&self) -> bool {
-        self.is_attacked(self.king_sq(self.white_to_move))
+        self.details.checkers.at_least_one()
     }
 
     pub fn move_is_legal(&mut self, mov: Move) -> bool {
@@ -571,6 +574,8 @@ impl Position {
             | self.kings();
         self.pieces[1] = self.all_pieces & self.color;
         self.pieces[0] = self.all_pieces & !self.color;
+
+        self.update_checkers();
     }
 
     /// Undoes a previously made move (by `self.make_move(mov)`).
@@ -643,6 +648,7 @@ impl Position {
     /// consecutive moves.
     pub fn make_nullmove(&mut self) {
         self.white_to_move = !self.white_to_move;
+        self.details.checkers = Bitboard::from(0);
         self.details.en_passant = 255;
         self.details.halfmove += 1;
     }
@@ -777,6 +783,17 @@ impl Position {
         }
     }
 
+    fn update_checkers(&mut self) {
+        let them = self.them(self.white_to_move);
+        let king = self.king_sq(self.white_to_move);
+
+        self.details.checkers = Bitboard::from(0);
+        self.details.checkers |= (king.to_bb().left(1) | king.to_bb().right(1)).forward(self.white_to_move, 1) & them & self.pawns();
+        self.details.checkers |= KNIGHT_ATTACKS[king] & them & self.knights();
+        self.details.checkers |= get_bishop_attacks_from(king, self.all_pieces) & them & (self.bishops() | self.queens());
+        self.details.checkers |= get_rook_attacks_from(king, self.all_pieces) & them & (self.rooks() | self.queens());
+    }
+
     /// Prints the board state.
     pub fn print(&self, pre: &str) {
         println!("{}     a b c d e f g h", pre);
@@ -881,6 +898,7 @@ impl<'a> From<&'a str> for Position {
             bb: [Bitboard::from(0x0); 6],
             pieces: [Bitboard::from(0x0); 2],
             details: IrreversibleDetails {
+                checkers: Bitboard::from(0),
                 en_passant: 255,
                 castling: CASTLE_WHITE_KSIDE
                     | CASTLE_WHITE_QSIDE
@@ -1069,6 +1087,8 @@ impl<'a> From<&'a str> for Position {
         pos.king_sq[0] = (pos.kings() & pos.black_pieces()).squares().next().unwrap();
         pos.king_sq[1] = (pos.kings() & pos.white_pieces()).squares().next().unwrap();
 
+        pos.update_checkers();
+
         pos
     }
 }
@@ -1086,6 +1106,7 @@ pub const STARTING_POSITION: Position = Position {
     ],
     pieces: [STARTING_BLACK, STARTING_COLOR],
     details: IrreversibleDetails {
+        checkers: Bitboard(0),
         en_passant: 255,
         castling: CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE | CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE,
         halfmove: 0,
