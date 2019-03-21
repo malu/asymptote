@@ -164,6 +164,11 @@ impl Position {
                 | KING_ATTACKS[mov.to] & self.kings();
         attackers &= occupancy;
 
+        if next_victim == Piece::King {
+            // SEE test is successful if king cannot be recaptured since currently score >= 0 (see above)
+            return (self.us(white) & attackers).is_empty();
+        }
+
         loop {
             let us = self.us(white) & attackers;
             if !promotion && (attackers & us & self.pawns()).at_least_one() {
