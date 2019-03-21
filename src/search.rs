@@ -305,10 +305,11 @@ impl Search {
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
-        // Mate Distance Pruning
-        // If we found a shorter mating sequence, do not search this move further.
-        if MATE_SCORE - ply < alpha {
-            return Some(alpha);
+        // Mate distance pruning
+        let mdp_alpha = if alpha > -MATE_SCORE + ply { alpha } else { -MATE_SCORE + ply };
+        let mdp_beta = if beta < MATE_SCORE - ply - 1 { beta } else { MATE_SCORE - ply - 1 };
+        if mdp_alpha >= mdp_beta {
+            return Some(mdp_alpha);
         }
 
         let (mut ttentry, mut ttmove) = self.get_tt_entry();
@@ -490,6 +491,14 @@ impl Search {
             return None;
         }
 
+        let alpha = beta - 1;
+        // Mate distance pruning
+        let mdp_alpha = if alpha > -MATE_SCORE + ply { alpha } else { -MATE_SCORE + ply };
+        let mdp_beta = if beta < MATE_SCORE - ply - 1 { beta } else { MATE_SCORE - ply - 1 };
+        if mdp_alpha >= mdp_beta {
+            return Some(mdp_alpha);
+        }
+
         // Check if there is a draw by insufficient mating material or threefold repetition.
         if self.is_draw(ply) {
             return Some(0);
@@ -504,7 +513,6 @@ impl Search {
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
-        let alpha = beta - 1;
         self.visited_nodes += 1;
         self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
 
