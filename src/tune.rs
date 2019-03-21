@@ -1194,11 +1194,7 @@ fn qsearch(position: &mut Position, alpha: Score, beta: Score) -> (Score, Positi
 
     let mut mp_allocations = MovePickerAllocations::default();
 
-    let mut moves = if in_check {
-        MovePicker::qsearch_in_check(&mut mp_allocations)
-    } else {
-        MovePicker::qsearch(&mut mp_allocations)
-    };
+    let mut moves = MovePicker::qsearch(&position, &mut mp_allocations);
 
     let mut best_score = -MATE_SCORE;
     let mut best_pos = position.clone();

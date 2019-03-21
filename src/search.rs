@@ -877,12 +877,7 @@ impl<'a> Search<'a> {
         }
 
         let mut mp_allocations = self.mp_allocations.pop().unwrap();
-
-        let mut moves = if in_check {
-            MovePicker::qsearch_in_check(&mut mp_allocations)
-        } else {
-            MovePicker::qsearch(&mut mp_allocations)
-        };
+        let mut moves = MovePicker::qsearch(&self.position, &mut mp_allocations);
 
         let mut best_move = None;
         let mut best_score = -MATE_SCORE;

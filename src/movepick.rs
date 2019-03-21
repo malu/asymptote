@@ -125,40 +125,24 @@ impl<'a> MovePicker<'a> {
         }
     }
 
-    pub fn qsearch(allocations: &'a mut MovePickerAllocations) -> Self {
+    pub fn qsearch(position: &Position, allocations: &'a mut MovePickerAllocations) -> Self {
         allocations.excluded.clear();
         allocations.moves.clear();
         allocations.scores.clear();
         allocations.bad_moves.clear();
         allocations.bad_scores.clear();
 
-        MovePicker {
-            ttmove: None,
-            excluded: &mut allocations.excluded,
-            stage: 0,
-            stages: QUIESCENCE_STAGES,
-            moves: &mut allocations.moves,
-            scores: &mut allocations.scores,
-            bad_moves: &mut allocations.bad_moves,
-            bad_scores: &mut allocations.bad_scores,
-            index: 0,
-            killers: [None; 2],
-            skip_quiets: false,
-        }
-    }
-
-    pub fn qsearch_in_check(allocations: &'a mut MovePickerAllocations) -> Self {
-        allocations.excluded.clear();
-        allocations.moves.clear();
-        allocations.scores.clear();
-        allocations.bad_moves.clear();
-        allocations.bad_scores.clear();
+        let stages = if position.in_check() {
+            QUIESCENCE_CHECK_STAGES
+        } else {
+            QUIESCENCE_STAGES
+        };
 
         MovePicker {
             ttmove: None,
             excluded: &mut allocations.excluded,
             stage: 0,
-            stages: QUIESCENCE_CHECK_STAGES,
+            stages,
             moves: &mut allocations.moves,
             scores: &mut allocations.scores,
             bad_moves: &mut allocations.bad_moves,
