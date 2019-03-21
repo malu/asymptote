@@ -385,30 +385,58 @@ impl<'p> MoveGenerator<'p> {
         bad_scores: &mut Vec<i64>,
     ) {
         let all_pieces = self.position.all_pieces;
-        let ep = if self.position.details.en_passant != 255 {
-            if self.position.white_to_move {
-                Square::file_rank(self.position.details.en_passant, 5).to_bb()
-            } else {
-                Square::file_rank(self.position.details.en_passant, 2).to_bb()
-            }
-        } else {
-            Bitboard::from(0)
-        };
         let them = self.position.them(self.position.white_to_move);
-        let promotion_rank = if self.position.white_to_move {
-            RANK_8
-        } else {
-            RANK_1
-        };
-
         moves.clear();
         scores.clear();
-        self.pawn(them & all_pieces | promotion_rank | ep, moves);
-        self.knight(them & all_pieces, moves);
-        self.bishop(them & all_pieces, moves);
-        self.rook(them & all_pieces, moves);
-        self.queen(them & all_pieces, moves);
-        self.king(them & all_pieces, moves);
+
+        if self.position.details.checkers.more_than_one() {
+            self.king(them & all_pieces, moves);
+        } else if self.position.details.checkers.at_least_one() {
+            let checkers = self.position.details.checkers;
+            let ep = if self.position.details.en_passant != 255 {
+                if self.position.white_to_move {
+                    Square::file_rank(self.position.details.en_passant, 5).to_bb()
+                } else {
+                    Square::file_rank(self.position.details.en_passant, 2).to_bb()
+                }
+            } else {
+                Bitboard::from(0)
+            };
+            let promotion_rank = if self.position.white_to_move {
+                RANK_8
+            } else {
+                RANK_1
+            };
+
+            self.pawn(checkers | promotion_rank | ep, moves);
+            self.knight(checkers, moves);
+            self.bishop(checkers, moves);
+            self.rook(checkers, moves);
+            self.queen(checkers, moves);
+            self.king(them & all_pieces, moves);
+        } else {
+            let ep = if self.position.details.en_passant != 255 {
+                if self.position.white_to_move {
+                    Square::file_rank(self.position.details.en_passant, 5).to_bb()
+                } else {
+                    Square::file_rank(self.position.details.en_passant, 2).to_bb()
+                }
+            } else {
+                Bitboard::from(0)
+            };
+            let promotion_rank = if self.position.white_to_move {
+                RANK_8
+            } else {
+                RANK_1
+            };
+
+            self.pawn(them & all_pieces | promotion_rank | ep, moves);
+            self.knight(them & all_pieces, moves);
+            self.bishop(them & all_pieces, moves);
+            self.rook(them & all_pieces, moves);
+            self.queen(them & all_pieces, moves);
+            self.king(them & all_pieces, moves);
+        }
 
         let mut i = 0;
         while i < moves.len() {
@@ -425,6 +453,12 @@ impl<'p> MoveGenerator<'p> {
     }
 
     pub fn quiet_moves(&self, moves: &mut Vec<Move>) {
+        moves.clear();
+        if self.position.details.checkers.more_than_one() {
+            self.king(!self.position.all_pieces, moves);
+            return;
+        }
+
         let promotion_rank = if self.position.white_to_move {
             RANK_8
         } else {
@@ -441,7 +475,6 @@ impl<'p> MoveGenerator<'p> {
             Bitboard::from(0)
         };
 
-        moves.clear();
         self.pawn(!self.position.all_pieces & !promotion_rank & !ep, moves);
         self.knight(!self.position.all_pieces, moves);
         self.bishop(!self.position.all_pieces, moves);

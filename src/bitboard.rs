@@ -68,6 +68,10 @@ impl Bitboard {
         self.0 != 0
     }
 
+    pub fn more_than_one(self) -> bool {
+        self.0 & (self.0 - 1) != 0
+    }
+
     pub fn squares(self) -> SquareIterator {
         SquareIterator { bb: self }
     }
