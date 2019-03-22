@@ -258,12 +258,11 @@ impl Search {
                         if value > alpha {
                             alpha = value;
                             increased_alpha = true;
+                            self.add_pv_move(mov, 0);
 
                             if value >= beta {
                                 break;
                             }
-
-                            self.add_pv_move(mov, 0);
 
                             if self.time_manager.elapsed_millis() > 1000 {
                                 self.uci_info(depth, alpha, EXACT_BOUND);
