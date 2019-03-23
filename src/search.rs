@@ -35,7 +35,7 @@ pub const INC_PLY: Depth = 64;
 pub const MAX_PLY: Ply = 128;
 
 const FUTILITY_MARGIN: Score = 200;
-const SEE_PRUNING_MARGIN: Score = -50;
+const SEE_PRUNING_MARGIN: [Score; 3] = [0, -50, -200];
 
 const LMR_MAX_DEPTH: Depth = 9 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
@@ -640,11 +640,11 @@ impl Search {
             // Does not trigger for winning or equal tactical moves
             // (MoveType::GoodCapture) because those are assumed to have a
             // non-negative static exchange evaluation.
-            if depth < 2 * INC_PLY
+            if depth < 3 * INC_PLY
                 && !check
                 && !in_check
                 && mtype != MoveType::GoodCapture
-                && !self.position.see(mov, SEE_PRUNING_MARGIN)
+                && !self.position.see(mov, SEE_PRUNING_MARGIN[(depth / INC_PLY) as usize])
             {
                 pruned = true;
                 continue;
