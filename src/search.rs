@@ -636,9 +636,16 @@ impl Search {
                 }
             }
 
+            // Static exchange evaluation pruning
+            //
+            // Do not play very bad moves at shallow depths.
+            // Does not trigger for winning or equal tactical moves
+            // (MoveType::GoodCapture) because those are assumed to have a
+            // non-negative static exchange evaluation.
             if depth < 2 * INC_PLY
                 && !check
                 && !in_check
+                && mtype != MoveType::GoodCapture
                 && !self.position.see(mov, SEE_PRUNING_MARGIN)
             {
                 pruned = true;
