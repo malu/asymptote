@@ -1022,7 +1022,7 @@ impl Search {
             if last_move.captured.is_some() {
                 return self.eval.is_material_draw();
             } else if last_move.piece != Piece::Pawn {
-                return self.repetitions.has_repeated();
+                return self.repetitions.has_repeated(ply);
             }
         }
 

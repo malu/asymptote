@@ -15,6 +15,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use crate::hash::Hash;
+use crate::search::Ply;
 
 pub struct Repetitions {
     past_positions: Vec<Vec<Hash>>,
@@ -54,11 +55,30 @@ impl Repetitions {
         }
     }
 
-    pub fn has_repeated(&self) -> bool {
+    pub fn has_repeated(&self, ply: Ply) -> bool {
         let current = self.past_positions[self.index].last().unwrap();
-        self.past_positions[self.index]
+        let repeated_since_root = self.past_positions[self.index]
             .iter()
-            .take(self.past_positions[self.index].len() - 1)
-            .any(|h| h == current)
+            .rev()
+            .take(ply as usize + 1)
+            .step_by(2)
+            .skip(1)
+            .any(|h| h == current);
+
+        if repeated_since_root {
+            return true;
+        }
+
+        let repeated_twice_before_root = self.past_positions[self.index]
+            .iter()
+            .rev()
+            .skip(ply as usize)
+            .skip(ply as usize % 2) // skip once more if not root side-to-move
+            .step_by(2)
+            .filter(|&h| h == current)
+            .skip(1)
+            .next().is_some();
+
+        repeated_twice_before_root
     }
 }
