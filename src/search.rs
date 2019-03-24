@@ -232,7 +232,7 @@ impl Search {
                 value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
             } else {
                 let value_zw = self.search_zw(1, -alpha, new_depth).map(|v| -v);
-                if value_zw.is_some() && value_zw.unwrap() > alpha {
+                if Some(alpha) < value_zw {
                     value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
                 } else {
                     value = value_zw;
@@ -702,7 +702,7 @@ impl Search {
             let mut value = self
                 .search_zw(ply + 1, -alpha, new_depth - reduction)
                 .map(|v| -v);
-            if value.is_some() && value.unwrap() > alpha && reduction > 0 {
+            if Some(alpha) < value && reduction > 0 {
                 value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
             }
 
