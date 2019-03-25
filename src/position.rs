@@ -169,61 +169,61 @@ impl Position {
             return (self.us(white) & attackers).is_empty();
         }
 
-        loop {
+        while (attackers & self.us(white)).at_least_one() {
             let us = self.us(white) & attackers;
-            if !promotion && (attackers & us & self.pawns()).at_least_one() {
+            if !promotion && (us & self.pawns()).at_least_one() {
                 score = -score - 1 + next_victim.see_value();
                 next_victim = Piece::Pawn;
 
-                let lsb_bb = (attackers & us & self.pawns()).lsb_bb();
+                let lsb_bb = (us & self.pawns()).lsb_bb();
                 occupancy ^= lsb_bb;
                 attackers |=
                     get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
-            } else if (attackers & us & self.knights()).at_least_one() {
+            } else if (us & self.knights()).at_least_one() {
                 score = -score - 1 + next_victim.see_value();
                 next_victim = Piece::Knight;
 
-                let lsb_bb = (attackers & us & self.knights()).lsb_bb();
+                let lsb_bb = (us & self.knights()).lsb_bb();
                 occupancy ^= lsb_bb;
-            } else if (attackers & us & self.bishops()).at_least_one() {
+            } else if (us & self.bishops()).at_least_one() {
                 score = -score - 1 + next_victim.see_value();
                 next_victim = Piece::Bishop;
 
-                let lsb_bb = (attackers & us & self.bishops()).lsb_bb();
+                let lsb_bb = (us & self.bishops()).lsb_bb();
                 occupancy ^= lsb_bb;
                 attackers |=
                     get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
-            } else if (attackers & us & self.rooks()).at_least_one() {
+            } else if (us & self.rooks()).at_least_one() {
                 score = -score - 1 + next_victim.see_value();
                 next_victim = Piece::Rook;
 
-                let lsb_bb = (attackers & us & self.rooks()).lsb_bb();
+                let lsb_bb = (us & self.rooks()).lsb_bb();
                 occupancy ^= lsb_bb;
                 attackers |=
                     get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
-            } else if promotion && (attackers & us & self.pawns()).at_least_one() {
+            } else if promotion && (us & self.pawns()).at_least_one() {
                 score = -score - 1 + next_victim.see_value() + Piece::Queen.see_value()
                     - Piece::Pawn.see_value();
                 next_victim = Piece::Queen;
 
-                let lsb_bb = (attackers & us & self.pawns()).lsb_bb();
+                let lsb_bb = (us & self.pawns()).lsb_bb();
                 occupancy ^= lsb_bb;
                 attackers |=
                     get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
-            } else if (attackers & us & self.queens()).at_least_one() {
+            } else if (us & self.queens()).at_least_one() {
                 score = -score - 1 + next_victim.see_value();
                 next_victim = Piece::Queen;
 
-                let lsb_bb = (attackers & us & self.queens()).lsb_bb();
+                let lsb_bb = (us & self.queens()).lsb_bb();
                 occupancy ^= lsb_bb;
                 attackers |= get_bishop_attacks_from(mov.to, occupancy)
                     & (self.bishops() | self.queens())
                     | get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
-            } else if (attackers & us & self.kings()).at_least_one() {
+            } else if (us & self.kings()).at_least_one() {
                 score = -score - 1 + next_victim.see_value();
                 next_victim = Piece::King;
 
-                let lsb_bb = (attackers & us & self.kings()).lsb_bb();
+                let lsb_bb = (us & self.kings()).lsb_bb();
                 occupancy ^= lsb_bb;
 
                 // Do not need to update attackers because we will stop now, either because there are no more captures or the king would be recaptured.
@@ -232,7 +232,7 @@ impl Position {
                 }
             } else {
                 // no more captures
-                break;
+                unreachable!();
             }
 
             if score < 0 {
