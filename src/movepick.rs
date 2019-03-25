@@ -36,7 +36,6 @@ impl Default for MovePickerAllocations {
 
 pub struct MovePicker<'a> {
     ttmove: Option<Move>,
-    position: Position,
     excluded: &'a mut Vec<Move>,
     stage: usize,
     stages: &'a [Stage],
@@ -94,7 +93,6 @@ pub enum MoveType {
 
 impl<'a> MovePicker<'a> {
     pub fn new(
-        position: Position,
         ttmove: Option<Move>,
         killers: [Option<Move>; 2],
         allocations: &'a mut MovePickerAllocations,
@@ -105,7 +103,6 @@ impl<'a> MovePicker<'a> {
 
         MovePicker {
             ttmove,
-            position,
             excluded: &mut allocations.excluded,
             stage: 0,
             stages: ALPHA_BETA_STAGES,
@@ -117,14 +114,13 @@ impl<'a> MovePicker<'a> {
         }
     }
 
-    pub fn qsearch(position: Position, allocations: &'a mut MovePickerAllocations) -> Self {
+    pub fn qsearch(allocations: &'a mut MovePickerAllocations) -> Self {
         allocations.excluded.clear();
         allocations.moves.clear();
         allocations.scores.clear();
 
         MovePicker {
             ttmove: None,
-            position,
             excluded: &mut allocations.excluded,
             stage: 0,
             stages: QUIESCENCE_STAGES,
@@ -137,7 +133,6 @@ impl<'a> MovePicker<'a> {
     }
 
     pub fn qsearch_in_check(
-        position: Position,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
         allocations.excluded.clear();
@@ -146,7 +141,6 @@ impl<'a> MovePicker<'a> {
 
         MovePicker {
             ttmove: None,
-            position,
             excluded: &mut allocations.excluded,
             stage: 0,
             stages: QUIESCENCE_CHECK_STAGES,
@@ -179,7 +173,7 @@ impl<'a> MovePicker<'a> {
         mov
     }
 
-    pub fn next(&mut self, history: &History) -> Option<(MoveType, Move)> {
+    pub fn next(&mut self, position: &Position, history: &History) -> Option<(MoveType, Move)> {
         if self.stage >= self.stages.len() {
             return None;
         }
@@ -191,121 +185,120 @@ impl<'a> MovePicker<'a> {
                     self.excluded.push(mov);
                     return Some((MoveType::TTMove, mov));
                 }
-                self.next(history)
+                self.next(position, history)
             }
             Stage::GenerateGoodCaptures => {
-                MoveGenerator::from(&self.position)
+                MoveGenerator::from(position)
                     .good_captures(&mut self.moves, &mut self.scores);
                 self.index = 0;
                 self.stage += 1;
-                self.next(history)
+                self.next(position, history)
             }
             Stage::GoodCaptures => {
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {
-                        self.next(history)
+                        self.next(position, history)
                     } else {
                         Some((MoveType::GoodCapture, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next(history)
+                    self.next(position, history)
                 }
             }
             Stage::GenerateKillers => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next(history);
+                    return self.next(position, history);
                 }
 
                 self.moves.clear();
                 self.scores.clear();
                 {
-                    let pos = &self.position;
                     self.moves.extend(
                         self.killers
                             .iter()
                             .flatten()
-                            .filter(|&&m| pos.move_is_pseudo_legal(m)),
+                            .filter(|&&m| position.move_is_pseudo_legal(m)),
                     );
                     self.scores.extend(self.moves.iter().map(|_| 0));
                 }
                 self.index = 0;
                 self.stage += 1;
-                self.next(history)
+                self.next(position, history)
             }
             Stage::Killers => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next(history);
+                    return self.next(position, history);
                 }
 
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {
-                        self.next(history)
+                        self.next(position, history)
                     } else {
                         self.excluded.push(mov);
                         Some((MoveType::Killer, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next(history)
+                    self.next(position, history)
                 }
             }
             Stage::GenerateQuietMoves => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next(history);
+                    return self.next(position, history);
                 }
 
-                MoveGenerator::from(&self.position).quiet_moves(&mut self.moves);
+                MoveGenerator::from(position).quiet_moves(&mut self.moves);
                 {
-                    let wtm = self.position.white_to_move;
+                    let wtm = position.white_to_move;
                     self.scores.clear();
                     self.scores
                         .extend(self.moves.iter().map(|&mov| history.get_score(wtm, mov)));
                 }
                 self.index = 0;
                 self.stage += 1;
-                self.next(history)
+                self.next(position, history)
             }
             Stage::QuietMoves => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next(history);
+                    return self.next(position, history);
                 }
 
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {
-                        self.next(history)
+                        self.next(position, history)
                     } else {
                         Some((MoveType::Quiet, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next(history)
+                    self.next(position, history)
                 }
             }
             Stage::GenerateBadCaptures => {
-                MoveGenerator::from(&self.position).bad_captures(&mut self.moves, &mut self.scores);
+                MoveGenerator::from(position).bad_captures(&mut self.moves, &mut self.scores);
                 self.index = 0;
                 self.stage += 1;
-                self.next(history)
+                self.next(position, history)
             }
             Stage::BadCaptures => {
                 if self.index < self.moves.len() {
                     let mov = self.get_move();
                     if self.excluded.contains(&mov) {
-                        self.next(history)
+                        self.next(position, history)
                     } else {
                         Some((MoveType::BadCapture, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next(history)
+                    self.next(position, history)
                 }
             }
         }

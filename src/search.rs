@@ -351,7 +351,6 @@ impl Search {
         let mut mp_allocations = self.mp_allocations.pop().unwrap();
 
         let mut moves = MovePicker::new(
-            self.position.clone(),
             ttmove,
             self.stack[ply as usize].killers_moves,
             &mut mp_allocations,
@@ -366,7 +365,7 @@ impl Search {
 
         let mut num_moves = 0;
         let mut num_quiets = 0;
-        while let Some((_mtype, mov)) = moves.next(&self.history) {
+        while let Some((_mtype, mov)) = moves.next(&self.position, &self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
             }
@@ -594,7 +593,6 @@ impl Search {
         let mut mp_allocations = self.mp_allocations.pop().unwrap();
 
         let mut moves = MovePicker::new(
-            self.position.clone(),
             ttmove,
             self.stack[ply as usize].killers_moves,
             &mut mp_allocations,
@@ -615,7 +613,7 @@ impl Search {
 
         let mut num_moves = 0;
         let mut num_quiets = 0;
-        while let Some((mtype, mov)) = moves.next(&self.history) {
+        while let Some((mtype, mov)) = moves.next(&self.position, &self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
             }
@@ -810,16 +808,16 @@ impl Search {
         let mut mp_allocations = self.mp_allocations.pop().unwrap();
 
         let mut moves = if in_check {
-            MovePicker::qsearch_in_check(self.position.clone(), &mut mp_allocations)
+            MovePicker::qsearch_in_check(&mut mp_allocations)
         } else {
-            MovePicker::qsearch(self.position.clone(), &mut mp_allocations)
+            MovePicker::qsearch(&mut mp_allocations)
         };
 
         let mut best_move = None;
         let mut best_score = -MATE_SCORE;
 
         let mut num_moves = 0;
-        while let Some((_mtype, mov)) = moves.next(&self.history) {
+        while let Some((_mtype, mov)) = moves.next(&self.position, &self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
             }
@@ -925,9 +923,9 @@ impl Search {
 
         let mp_allocations = &mut self.mp_allocations[0];
 
-        let mut moves = MovePicker::new(self.position.clone(), None, [None; 2], mp_allocations);
+        let mut moves = MovePicker::new(None, [None; 2], mp_allocations);
 
-        while let Some((_, mov)) = moves.next(&self.history) {
+        while let Some((_, mov)) = moves.next(&self.position, &self.history) {
             if self.position.move_is_legal(mov) {
                 return false;
             }
