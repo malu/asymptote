@@ -156,21 +156,17 @@ impl<'a> MovePicker<'a> {
         self.skip_quiets = skip_quiets;
     }
 
-    fn get_move(&mut self) -> Move {
-        let mut best_score = self.scores[self.index];
-        let mut best_index = self.index;
-        for i in self.index + 1..self.moves.len() {
-            if self.scores[i] > best_score {
-                best_score = self.scores[i];
-                best_index = i;
-            }
-        }
+    fn get_move(&mut self) -> Option<Move> {
+        // Iterator::max_by_key chooses the last maximal element, but we want
+        // the first (for no particular reason other than that's what was done
+        // before). Hence we reverse the iterator first.
+        let (best_index, _) = self.scores.iter().enumerate().skip(self.index).rev().max_by_key(|(_, &score)| score)?;
 
         self.moves.swap(self.index, best_index);
         self.scores.swap(self.index, best_index);
         let mov = self.moves[self.index];
         self.index += 1;
-        mov
+        Some(mov)
     }
 
     pub fn next(&mut self, position: &Position, history: &History) -> Option<(MoveType, Move)> {
@@ -195,8 +191,7 @@ impl<'a> MovePicker<'a> {
                 self.next(position, history)
             }
             Stage::GoodCaptures => {
-                if self.index < self.moves.len() {
-                    let mov = self.get_move();
+                if let Some(mov) = self.get_move() {
                     if self.excluded.contains(&mov) {
                         self.next(position, history)
                     } else {
@@ -234,8 +229,7 @@ impl<'a> MovePicker<'a> {
                     return self.next(position, history);
                 }
 
-                if self.index < self.moves.len() {
-                    let mov = self.get_move();
+                if let Some(mov) = self.get_move() {
                     if self.excluded.contains(&mov) {
                         self.next(position, history)
                     } else {
@@ -270,8 +264,7 @@ impl<'a> MovePicker<'a> {
                     return self.next(position, history);
                 }
 
-                if self.index < self.moves.len() {
-                    let mov = self.get_move();
+                if let Some(mov) = self.get_move() {
                     if self.excluded.contains(&mov) {
                         self.next(position, history)
                     } else {
@@ -289,8 +282,7 @@ impl<'a> MovePicker<'a> {
                 self.next(position, history)
             }
             Stage::BadCaptures => {
-                if self.index < self.moves.len() {
-                    let mov = self.get_move();
+                if let Some(mov) = self.get_move() {
                     if self.excluded.contains(&mov) {
                         self.next(position, history)
                     } else {
