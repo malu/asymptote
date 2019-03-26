@@ -429,8 +429,18 @@ impl<'p> MoveGenerator<'p> {
             RANK_1
         };
 
+        let ep = if self.position.details.en_passant != 255 {
+            if self.position.white_to_move {
+                Square::file_rank(self.position.details.en_passant, 5).to_bb()
+            } else {
+                Square::file_rank(self.position.details.en_passant, 2).to_bb()
+            }
+        } else {
+            Bitboard::from(0)
+        };
+
         moves.clear();
-        self.pawn(!self.position.all_pieces & !promotion_rank, moves);
+        self.pawn(!self.position.all_pieces & !promotion_rank & !ep, moves);
         self.knight(!self.position.all_pieces, moves);
         self.bishop(!self.position.all_pieces, moves);
         self.rook(!self.position.all_pieces, moves);
