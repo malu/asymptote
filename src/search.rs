@@ -399,10 +399,10 @@ impl Search {
             let mut value = if num_moves > 1 {
                 self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v)
             } else {
-                Some(-Score::max_value())
+                Some(Score::max_value())
             };
 
-            if num_moves == 1 || value.map_or(false, |value| value > alpha) {
+            if Some(alpha) < value {
                 value = self
                     .search_pv(ply + 1, -beta, -alpha, new_depth)
                     .map(|v| -v);
