@@ -494,11 +494,7 @@ impl<'p> MoveGenerator<'p> {
     pub fn pawn(&self, targets: Bitboard, moves: &mut Vec<Move>) {
         let us = self.position.us(self.position.white_to_move);
         let them = self.position.them(self.position.white_to_move);
-        let promoting = if self.position.white_to_move {
-            RANK_8
-        } else {
-            RANK_1
-        };
+        let promoting = if self.position.white_to_move { 7 } else { 0 };
         let rank3 = if self.position.white_to_move {
             RANK_3
         } else {
@@ -515,7 +511,7 @@ impl<'p> MoveGenerator<'p> {
         let captures_right = pawns.forward(wtm, 1).right(1) & them & targets;
 
         for to in single_step_targets.squares() {
-            if promoting & to {
+            if to.rank() == promoting {
                 for promoted in &[Piece::Queen, Piece::Knight, Piece::Rook, Piece::Bishop] {
                     moves.push(Move {
                         from: to.backward(wtm, 1),
@@ -588,7 +584,7 @@ impl<'p> MoveGenerator<'p> {
         for to in captures_left.squares() {
             let captured = self.position.find_piece(to);
 
-            if promoting & to {
+            if to.rank() == promoting {
                 for promoted in &[Piece::Queen, Piece::Knight, Piece::Rook, Piece::Bishop] {
                     moves.push(Move {
                         from: to.backward(self.position.white_to_move, 1).right(1),
@@ -611,11 +607,11 @@ impl<'p> MoveGenerator<'p> {
             }
         }
 
-        // captures to the left (file b to file a, ...)
+        // captures to the right (file a to file b, ...)
         for to in captures_right.squares() {
             let captured = self.position.find_piece(to);
 
-            if promoting & to {
+            if to.rank() == promoting {
                 for promoted in &[Piece::Queen, Piece::Knight, Piece::Rook, Piece::Bishop] {
                     moves.push(Move {
                         from: to.backward(wtm, 1).left(1),
