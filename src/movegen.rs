@@ -29,7 +29,6 @@ static mut MAGIC_TABLE: [Bitboard; 156_800] = [Bitboard(0); 156_800];
 static mut BISHOP_ATTACKS: SquareMap<Magic> = SquareMap::from_array(
     [Magic {
         magic: 0,
-        shift: 0,
         mask: Bitboard(0),
         offset: 0,
     }; 64],
@@ -37,7 +36,6 @@ static mut BISHOP_ATTACKS: SquareMap<Magic> = SquareMap::from_array(
 static mut ROOK_ATTACKS: SquareMap<Magic> = SquareMap::from_array(
     [Magic {
         magic: 0,
-        shift: 0,
         mask: Bitboard(0),
         offset: 0,
     }; 64],
@@ -46,15 +44,17 @@ static mut ROOK_ATTACKS: SquareMap<Magic> = SquareMap::from_array(
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 struct Magic {
     magic: u64,
-    shift: u32,
     mask: Bitboard,
     offset: u32,
 }
 
+const SHIFT_MASK: u64 = 0xF8_00_00_00_00_00_00_00;
+
 impl Magic {
     fn index(&self, occupied: Bitboard) -> usize {
+        let shift = self.magic.wrapping_shr(56) as u32;
         self.offset as usize
-            + ((occupied & self.mask).0.wrapping_mul(self.magic)).wrapping_shr(self.shift) as usize
+            + ((occupied & self.mask).0.wrapping_mul(self.magic)).wrapping_shr(shift) as usize
     }
 }
 
@@ -73,7 +73,7 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
     for sq in 0..64 {
         let from = Square::from(sq);
         let mask = bishop_from(from, Bitboard::from(0)) & !border;
-        let bits = mask.popcount() as u32;
+        let bits = mask.popcount() as u64;
         let shift = 64 - bits;
 
         let mut occ = Bitboard::from(0);
@@ -94,9 +94,8 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
 
         // search for magics
         let mut magic = Magic {
-            magic: sparse_random(&mut rng),
+            magic: sparse_random(&mut rng) & !SHIFT_MASK | shift.wrapping_shl(56),
             mask,
-            shift,
             offset: offset as u32,
         };
 
@@ -113,7 +112,7 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
                 let magic_table_entry = unsafe { MAGIC_TABLE[index] };
                 if magic_table_entry != reference[i] && last_used[index - offset] == tries {
                     // retry
-                    magic.magic = sparse_random(&mut rng);
+                    magic.magic = sparse_random(&mut rng) & !SHIFT_MASK | shift.wrapping_shl(56);
                     tries += 1;
                     continue 'search_magic;
                 }
@@ -205,7 +204,7 @@ fn initialize_rook_attacks(offset: usize) -> usize {
         let from = Square::from(sq);
         let mask = (FILES[from.file() as usize] & !border_ranks)
             ^ (RANKS[from.rank() as usize] & !border_files);
-        let bits = mask.popcount() as u32;
+        let bits = mask.popcount() as u64;
         let shift = 64 - bits;
 
         let mut occ = Bitboard::from(0);
@@ -226,9 +225,8 @@ fn initialize_rook_attacks(offset: usize) -> usize {
 
         // search for magics
         let mut magic = Magic {
-            magic: sparse_random(&mut rng),
+            magic: sparse_random(&mut rng) & !SHIFT_MASK | shift.wrapping_shl(56),
             mask,
-            shift,
             offset: offset as u32,
         };
 
@@ -245,7 +243,7 @@ fn initialize_rook_attacks(offset: usize) -> usize {
                 let magic_table_entry = unsafe { MAGIC_TABLE[index] };
                 if magic_table_entry != reference[i] && last_used[index - offset] == tries {
                     // retry
-                    magic.magic = sparse_random(&mut rng);
+                    magic.magic = sparse_random(&mut rng) & !SHIFT_MASK | shift.wrapping_shl(56);
                     tries += 1;
                     continue 'search_magic;
                 }
