@@ -72,10 +72,10 @@ impl TT {
         bound: Bound,
     ) {
         let mut replace_age = None;
-        let mut age_depth = 255;
+        let mut age_depth = Depth::max_value();
         let mut replace_depth = None;
-        let mut lowest_depth = 255;
-        let mut replace = NUM_CLUSTERS - 1;
+        let mut lowest_depth = Depth::max_value();
+        let mut replace = 0;
 
         {
             let entries = unsafe { self.table.get_unchecked((hash & self.bitmask) as usize).0 };
