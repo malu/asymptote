@@ -779,9 +779,8 @@ impl Search {
             eval = Some(e);
         }
 
-        let (ttentry, _ttmove) = self.get_tt_entry();
-
         if depth == 0 {
+            let (ttentry, _ttmove) = self.get_tt_entry();
             if let Some(ttentry) = ttentry {
                 let score = ttentry.score.to_score(ply);
 
