@@ -18,7 +18,7 @@ use crate::movegen::*;
 use crate::search::*;
 use crate::types::SquareMap;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct History {
     piece_to: [[SquareMap<i64>; 6]; 2],
 }
