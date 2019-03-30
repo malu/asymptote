@@ -33,6 +33,7 @@ mod movepick;
 pub mod position;
 mod repetitions;
 mod search;
+mod search_controller;
 mod time;
 mod tt;
 #[cfg(feature = "tune")]

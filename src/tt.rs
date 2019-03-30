@@ -21,6 +21,7 @@ use crate::movegen::*;
 use crate::position::*;
 use crate::search::*;
 
+use std::cell;
 use std::cmp;
 
 pub struct TT {
@@ -143,6 +144,42 @@ impl TT {
         }
 
         None
+    }
+
+    pub fn share<'a>(&'a mut self) -> SharedTT<'a> {
+        SharedTT {
+            tt: cell::UnsafeCell::new(self),
+        }
+    }
+}
+
+pub struct SharedTT<'a> {
+    tt: cell::UnsafeCell<&'a mut TT>,
+}
+
+unsafe impl Sync for SharedTT<'_> {}
+
+impl<'a> SharedTT<'a> {
+    pub fn usage(&self) -> u64 {
+        let tt = unsafe { &mut *self.tt.get() };
+        tt.usage()
+    }
+
+    pub fn insert(
+        &self,
+        hash: Hash,
+        depth: Depth,
+        score: TTScore,
+        best_move: Move,
+        bound: Bound,
+    ) {
+        let tt = unsafe { &mut *self.tt.get() };
+        tt.insert(hash, depth, score, best_move, bound);
+    }
+
+    pub fn get(&self, hash: Hash) -> Option<TTEntry> {
+        let tt = unsafe { &mut *self.tt.get() };
+        tt.get(hash)
     }
 }
 

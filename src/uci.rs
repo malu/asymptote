@@ -16,7 +16,7 @@
 */
 use crate::bench::*;
 use crate::position::*;
-use crate::search::*;
+use crate::search_controller::SearchController;
 use crate::time::*;
 
 #[cfg(feature = "tune")]
@@ -62,7 +62,7 @@ impl UCI {
         UCI {
             abort: sync::Arc::clone(&abort),
             _main_thread: thread::spawn(move || {
-                Search::new(STARTING_POSITION, abort).looping(main_rx)
+                SearchController::new(STARTING_POSITION, abort).looping(main_rx)
             }),
             main_thread_tx: main_tx,
         }
