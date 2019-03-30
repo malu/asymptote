@@ -51,7 +51,7 @@ pub struct Search<'a> {
     pub time_control: TimeControl,
     pub time_manager: TimeManager,
     hasher: Hasher,
-    visited_nodes: sync::Arc<sync::atomic::AtomicU64>,
+    visited_nodes: sync::Arc<sync::atomic::AtomicUsize>,
     tt: &'a SharedTT<'a>,
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
@@ -70,7 +70,7 @@ pub struct PlyDetails {
 }
 
 impl<'a> Search<'a> {
-    pub fn new(id: usize, abort: sync::Arc<sync::atomic::AtomicBool>, visited_nodes: sync::Arc<sync::atomic::AtomicU64>, hasher: Hasher, history: History, options: PersistentOptions, position: Position, time_control: TimeControl, tt: &'a SharedTT<'a>, repetitions: Repetitions) -> Search {
+    pub fn new(id: usize, abort: sync::Arc<sync::atomic::AtomicBool>, visited_nodes: sync::Arc<sync::atomic::AtomicUsize>, hasher: Hasher, history: History, options: PersistentOptions, position: Position, time_control: TimeControl, tt: &'a SharedTT<'a>, repetitions: Repetitions) -> Search {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         let stack = [PlyDetails::default(); MAX_PLY as usize];
         let mut mp_allocations = Vec::with_capacity(MAX_PLY as usize);
@@ -276,7 +276,7 @@ impl<'a> Search<'a> {
         beta: Score,
         depth: Depth,
     ) -> Option<Score> {
-        if self.time_manager.should_stop(self.visited_nodes.load(Ordering::SeqCst)) {
+        if self.time_manager.should_stop(self.visited_nodes.load(Ordering::SeqCst) as u64) {
             return None;
         }
 
@@ -478,7 +478,7 @@ impl<'a> Search<'a> {
     }
 
     pub fn search_zw(&mut self, ply: Ply, beta: Score, depth: Depth) -> Option<Score> {
-        if self.time_manager.should_stop(self.visited_nodes.load(Ordering::SeqCst)) {
+        if self.time_manager.should_stop(self.visited_nodes.load(Ordering::SeqCst) as u64) {
             return None;
         }
 
@@ -749,7 +749,7 @@ impl<'a> Search<'a> {
     }
 
     pub fn qsearch(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
-        if self.time_manager.should_stop(self.visited_nodes.load(Ordering::SeqCst)) {
+        if self.time_manager.should_stop(self.visited_nodes.load(Ordering::SeqCst) as u64) {
             return None;
         }
 
@@ -955,8 +955,8 @@ impl<'a> Search<'a> {
             "info depth {} seldepth {} nodes {} nps {} score {} time {} hashfull {} pv ",
             d / INC_PLY,
             self.max_ply_searched,
-            self.visited_nodes.load(Ordering::SeqCst),
-            1000 * self.visited_nodes.load(Ordering::SeqCst) / cmp::max(1, elapsed),
+            self.visited_nodes.load(Ordering::SeqCst) as u64,
+            1000 * self.visited_nodes.load(Ordering::SeqCst) as u64 / cmp::max(1, elapsed),
             score_str,
             elapsed,
             self.tt.usage()

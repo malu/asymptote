@@ -15,7 +15,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use std::sync::{self, Arc};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use crossbeam::thread;
 
@@ -48,7 +48,7 @@ impl Default for PersistentOptions {
 
 pub struct SearchController {
     abort: Arc<AtomicBool>,
-    node_count: Arc<AtomicU64>,
+    node_count: Arc<AtomicUsize>,
     hasher: Hasher,
     history: History,
     options: PersistentOptions,
@@ -62,7 +62,7 @@ impl SearchController {
     pub fn new(position: Position, abort: Arc<AtomicBool>) -> SearchController {
         SearchController {
             abort,
-            node_count: Arc::new(AtomicU64::new(0)),
+            node_count: Arc::new(AtomicUsize::new(0)),
             hasher: Hasher::new(),
             history: History::default(),
             options: PersistentOptions::default(),
@@ -122,7 +122,7 @@ impl SearchController {
     }
 
     pub fn get_node_count(&self) -> u64 {
-        self.node_count.load(Ordering::SeqCst)
+        self.node_count.load(Ordering::SeqCst) as u64
     }
 
     pub fn make_move(&mut self, mov: Move) {
