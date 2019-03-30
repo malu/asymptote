@@ -114,6 +114,11 @@ impl Search {
     }
 
     pub fn root(&mut self) -> Move {
+        self.prepare_search();
+        self.iterative_deepening()
+    }
+
+    pub fn prepare_search(&mut self) {
         self.time_manager.update(&self.position, self.time_control);
         self.visited_nodes = 0;
         self.tt.next_generation();
@@ -122,7 +127,9 @@ impl Search {
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
 
         self.history.rescale();
+    }
 
+    pub fn iterative_deepening(&mut self) -> Move {
         let mut moves = MoveGenerator::from(&self.position)
             .all_moves()
             .into_iter()
