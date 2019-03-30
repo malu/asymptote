@@ -17,6 +17,8 @@
 use std::sync::{self, Arc};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
+use crossbeam::thread;
+
 use crate::hash::Hasher;
 use crate::history::History;
 use crate::movegen::{Move, MoveGenerator};
@@ -31,6 +33,7 @@ use crate::uci::{GoParams, UciCommand};
 pub struct PersistentOptions {
     hash_bits: u64,
     pub show_pv_board: bool,
+    threads: usize,
 }
 
 impl Default for PersistentOptions {
@@ -38,6 +41,7 @@ impl Default for PersistentOptions {
         PersistentOptions {
             hash_bits: 14,
             show_pv_board: false,
+            threads: 1
         }
     }
 }
@@ -72,18 +76,49 @@ impl SearchController {
     pub fn get_best_move(&mut self) -> Move {
         self.node_count.store(0, Ordering::SeqCst);
         self.tt.next_generation();
+
+        let abort = Arc::clone(&self.abort);
+        let node_count = Arc::clone(&self.node_count);
+        let hasher = self.hasher.clone();
+        let history = self.history.clone();
+        let options = self.options;
+        let position = self.position.clone();
+        let time_control = self.time_control;
         let tt = self.tt.share();
-        let mut main_thread = Search::new(
-            Arc::clone(&self.abort),
-            Arc::clone(&self.node_count),
-            self.hasher.clone(),
-            self.history.clone(),
-            self.options,
-            self.position.clone(),
-            self.time_control,
-            &tt,
-            self.repetitions.clone());
-        main_thread.root()
+        let repetitions = self.repetitions.clone();
+
+        thread::scope(|s| {
+            for id in 1..options.threads {
+                let mut thread = Search::new(
+                    id,
+                    Arc::clone(&abort),
+                    Arc::clone(&node_count),
+                    hasher.clone(),
+                    history.clone(),
+                    options.clone(),
+                    position.clone(),
+                    TimeControl::Infinite,
+                    &tt,
+                    repetitions.clone());
+                s.spawn(move |_| {
+                    thread.root()
+                });
+            }
+
+            let mut main_thread = Search::new(
+                0,
+                Arc::clone(&abort),
+                Arc::clone(&node_count),
+                hasher.clone(),
+                history.clone(),
+                options.clone(),
+                position.clone(),
+                time_control.clone(),
+                &tt,
+                repetitions.clone());
+
+            main_thread.root()
+        }).unwrap()
     }
 
     pub fn get_node_count(&self) -> u64 {
@@ -141,6 +176,7 @@ impl SearchController {
         println!("id name Asymptote v0.4.2");
         println!("id author Maximilian Lupke");
         println!("option name Hash type spin default 1 min 0 max 2048");
+        println!("option name Threads type spin default 1 min 1 max 64");
         println!("option name ShowPVBoard type check default false");
         self.handle_ucinewgame();
         println!("uciok");
@@ -176,6 +212,13 @@ impl SearchController {
                     let bits = power_of_two.trailing_zeros();
                     self.tt = TT::new(u64::from(bits));
                     self.options.hash_bits = u64::from(bits);
+                } else {
+                    eprintln!("Unable to parse value '{}' as integer", value);
+                }
+            }
+            "threads" => {
+                if let Ok(threads) = value.parse::<usize>() {
+                    self.options.threads = threads;
                 } else {
                     eprintln!("Unable to parse value '{}' as integer", value);
                 }
@@ -262,6 +305,7 @@ impl SearchController {
     fn handle_perft(&mut self, depth: usize) {
         let tt = self.tt.share();
         let mut thread = Search::new(
+            0,
             Arc::clone(&self.abort),
             Arc::clone(&self.node_count),
             self.hasher.clone(),

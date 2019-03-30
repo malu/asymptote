@@ -42,6 +42,8 @@ const LMR_MAX_DEPTH: Depth = 9 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
 
 pub struct Search<'a> {
+    id: usize,
+
     stack: [PlyDetails; MAX_PLY as usize],
     history: History,
     position: Position,
@@ -68,7 +70,7 @@ pub struct PlyDetails {
 }
 
 impl<'a> Search<'a> {
-    pub fn new(abort: sync::Arc<sync::atomic::AtomicBool>, visited_nodes: sync::Arc<sync::atomic::AtomicU64>, hasher: Hasher, history: History, options: PersistentOptions, position: Position, time_control: TimeControl, tt: &'a SharedTT<'a>, repetitions: Repetitions) -> Search {
+    pub fn new(id: usize, abort: sync::Arc<sync::atomic::AtomicBool>, visited_nodes: sync::Arc<sync::atomic::AtomicU64>, hasher: Hasher, history: History, options: PersistentOptions, position: Position, time_control: TimeControl, tt: &'a SharedTT<'a>, repetitions: Repetitions) -> Search {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         let stack = [PlyDetails::default(); MAX_PLY as usize];
         let mut mp_allocations = Vec::with_capacity(MAX_PLY as usize);
@@ -78,6 +80,8 @@ impl<'a> Search<'a> {
         }
 
         Search {
+            id,
+
             history,
             stack,
             eval: Eval::from(&position),
@@ -923,6 +927,10 @@ impl<'a> Search<'a> {
     }
 
     fn uci_info(&self, d: Depth, alpha: Score, bound: Bound) {
+        if self.id > 0 {
+            return;
+        }
+
         let elapsed = self.time_manager.elapsed_millis();
         let score_str = if alpha.abs() >= MATE_SCORE - MAX_PLY {
             if alpha < 0 {
