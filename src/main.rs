@@ -48,7 +48,10 @@ use crate::uci::*;
 fn main() {
     initialize_magics();
     if std::env::args().nth(1) == Some(String::from("bench")) {
-        run_benchmark(12, std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)));
+        run_benchmark(
+            12,
+            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
         return;
     }
 

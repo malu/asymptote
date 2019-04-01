@@ -132,9 +132,7 @@ impl<'a> MovePicker<'a> {
         }
     }
 
-    pub fn qsearch_in_check(
-        allocations: &'a mut MovePickerAllocations,
-    ) -> Self {
+    pub fn qsearch_in_check(allocations: &'a mut MovePickerAllocations) -> Self {
         allocations.excluded.clear();
         allocations.moves.clear();
         allocations.scores.clear();
@@ -160,7 +158,13 @@ impl<'a> MovePicker<'a> {
         // Iterator::max_by_key chooses the last maximal element, but we want
         // the first (for no particular reason other than that's what was done
         // before). Hence we reverse the iterator first.
-        let (best_index, _) = self.scores.iter().enumerate().skip(self.index).rev().max_by_key(|(_, &score)| score)?;
+        let (best_index, _) = self
+            .scores
+            .iter()
+            .enumerate()
+            .skip(self.index)
+            .rev()
+            .max_by_key(|(_, &score)| score)?;
 
         self.moves.swap(self.index, best_index);
         self.scores.swap(self.index, best_index);
@@ -184,8 +188,7 @@ impl<'a> MovePicker<'a> {
                 self.next(position, history)
             }
             Stage::GenerateGoodCaptures => {
-                MoveGenerator::from(position)
-                    .good_captures(&mut self.moves, &mut self.scores);
+                MoveGenerator::from(position).good_captures(&mut self.moves, &mut self.scores);
                 self.index = 0;
                 self.stage += 1;
                 self.next(position, history)

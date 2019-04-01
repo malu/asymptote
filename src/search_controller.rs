@@ -14,17 +14,17 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use std::sync::{self, Arc};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{self, Arc};
 
 use crossbeam::thread;
 
 use crate::hash::Hasher;
 use crate::history::History;
 use crate::movegen::{Move, MoveGenerator};
-use crate::position::{STARTING_POSITION, Position};
+use crate::position::{Position, STARTING_POSITION};
 use crate::repetitions::Repetitions;
-use crate::search::{INC_PLY, Search};
+use crate::search::{Search, INC_PLY};
 use crate::time::TimeControl;
 use crate::tt::{self, TT};
 use crate::uci::{GoParams, UciCommand};
@@ -41,7 +41,7 @@ impl Default for PersistentOptions {
         PersistentOptions {
             hash_bits: 14,
             show_pv_board: false,
-            threads: 1
+            threads: 1,
         }
     }
 }
@@ -99,10 +99,9 @@ impl SearchController {
                     position.clone(),
                     TimeControl::Infinite,
                     &tt,
-                    repetitions.clone());
-                s.spawn(move |_| {
-                    thread.root()
-                });
+                    repetitions.clone(),
+                );
+                s.spawn(move |_| thread.root());
             }
 
             let mut main_thread = Search::new(
@@ -115,10 +114,12 @@ impl SearchController {
                 position.clone(),
                 time_control.clone(),
                 &tt,
-                repetitions.clone());
+                repetitions.clone(),
+            );
 
             main_thread.root()
-        }).unwrap()
+        })
+        .unwrap()
     }
 
     pub fn get_node_count(&self) -> u64 {
@@ -313,7 +314,8 @@ impl SearchController {
             self.position.clone(),
             self.time_control,
             &tt,
-            self.repetitions.clone());
+            self.repetitions.clone(),
+        );
         thread.perft(depth);
     }
 }

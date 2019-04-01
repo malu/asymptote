@@ -165,14 +165,7 @@ impl<'a> SharedTT<'a> {
         tt.usage()
     }
 
-    pub fn insert(
-        &self,
-        hash: Hash,
-        depth: Depth,
-        score: TTScore,
-        best_move: Move,
-        bound: Bound,
-    ) {
+    pub fn insert(&self, hash: Hash, depth: Depth, score: TTScore, best_move: Move, bound: Bound) {
         let tt = unsafe { &mut *self.tt.get() };
         tt.insert(hash, depth, score, best_move, bound);
     }
@@ -322,4 +315,3 @@ pub type Bound = u8;
 pub const LOWER_BOUND: Bound = 1;
 pub const UPPER_BOUND: Bound = 2;
 pub const EXACT_BOUND: Bound = LOWER_BOUND | UPPER_BOUND;
-

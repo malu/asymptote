@@ -84,7 +84,8 @@ impl Repetitions {
             .step_by(2)
             .filter(|&h| h == current)
             .skip(1)
-            .next().is_some();
+            .next()
+            .is_some();
 
         repeated_twice_before_root
     }
