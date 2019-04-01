@@ -73,7 +73,8 @@ use std::sync;
 use std::time;
 
 use crate::position::Position;
-use crate::search::{Ply, Search};
+use crate::search::Ply;
+use crate::search_controller::SearchController;
 use crate::time::TimeControl;
 
 pub fn run_benchmark(ply: Ply, abort: sync::Arc<sync::atomic::AtomicBool>) {
@@ -84,11 +85,11 @@ pub fn run_benchmark(ply: Ply, abort: sync::Arc<sync::atomic::AtomicBool>) {
     for (i, &fen) in BENCH_POSITIONS.iter().enumerate() {
         println!("Position {:>2}: {}", i + 1, fen);
         let pos = Position::from(fen);
-        let mut search = Search::new(pos, sync::Arc::clone(&abort));
+        let mut search = SearchController::new(pos, sync::Arc::clone(&abort));
         search.resize_tt(17); // 8 MB hash table
-        search.time_control = tc;
-        search.root();
-        nodes += search.visited_nodes;
+        search.set_time_control(tc);
+        search.get_best_move();
+        nodes += search.get_node_count();
     }
     let duration = time::Instant::now() - start;
     let ms = 1000 * duration.as_secs() + u64::from(duration.subsec_millis());

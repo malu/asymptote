@@ -23,6 +23,7 @@ use crate::types::SquareMap;
 
 pub type Hash = u64;
 
+#[derive(Clone)]
 pub struct Hasher {
     color: SquareMap<Hash>,
     hashes: [SquareMap<Hash>; 6],

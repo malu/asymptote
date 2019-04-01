@@ -16,6 +16,7 @@
 */
 use std::cmp;
 use std::sync;
+use std::sync::atomic::Ordering;
 
 use crate::eval::*;
 use crate::hash::*;
@@ -24,9 +25,9 @@ use crate::movegen::*;
 use crate::movepick::*;
 use crate::position::*;
 use crate::repetitions::Repetitions;
+use crate::search_controller::PersistentOptions;
 use crate::time::*;
 use crate::tt::*;
-use crate::uci::*;
 
 pub type Ply = i16;
 pub type Depth = i16;
@@ -40,22 +41,9 @@ const SEE_PRUNING_MARGIN: [Score; 3] = [0, -50, -200];
 const LMR_MAX_DEPTH: Depth = 9 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
 
-#[derive(Copy, Clone, Debug)]
-struct PersistentOptions {
-    hash_bits: u64,
-    show_pv_board: bool,
-}
+pub struct Search<'a> {
+    id: usize,
 
-impl Default for PersistentOptions {
-    fn default() -> Self {
-        PersistentOptions {
-            hash_bits: 14,
-            show_pv_board: false,
-        }
-    }
-}
-
-pub struct Search {
     stack: [PlyDetails; MAX_PLY as usize],
     history: History,
     position: Position,
@@ -63,12 +51,11 @@ pub struct Search {
     pub time_control: TimeControl,
     pub time_manager: TimeManager,
     hasher: Hasher,
-    pub visited_nodes: u64,
-    tt: TT,
+    visited_nodes: sync::Arc<sync::atomic::AtomicUsize>,
+    tt: &'a SharedTT<'a>,
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
     repetitions: Repetitions,
-    made_moves: Vec<Move>,
     options: PersistentOptions,
 
     mp_allocations: Vec<MovePickerAllocations>,
@@ -82,8 +69,8 @@ pub struct PlyDetails {
     pub killers_moves: [Option<Move>; 2],
 }
 
-impl Search {
-    pub fn new(position: Position, abort: sync::Arc<sync::atomic::AtomicBool>) -> Self {
+impl<'a> Search<'a> {
+    pub fn new(id: usize, abort: sync::Arc<sync::atomic::AtomicBool>, visited_nodes: sync::Arc<sync::atomic::AtomicUsize>, hasher: Hasher, history: History, options: PersistentOptions, position: Position, time_control: TimeControl, tt: &'a SharedTT<'a>, repetitions: Repetitions) -> Search {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         let stack = [PlyDetails::default(); MAX_PLY as usize];
         let mut mp_allocations = Vec::with_capacity(MAX_PLY as usize);
@@ -93,20 +80,21 @@ impl Search {
         }
 
         Search {
-            history: History::default(),
+            id,
+
+            history,
             stack,
             eval: Eval::from(&position),
-            time_control: TimeControl::Infinite,
-            time_manager: TimeManager::new(&position, TimeControl::Infinite, abort),
+            time_control,
+            time_manager: TimeManager::new(&position, time_control, abort),
             position,
-            hasher: Hasher::new(),
-            tt: TT::new(14),
-            visited_nodes: 0,
+            hasher,
+            tt,
+            visited_nodes,
             pv,
             max_ply_searched: 0,
-            repetitions: Repetitions::new(100),
-            made_moves: Vec::new(),
-            options: PersistentOptions::default(),
+            repetitions,
+            options,
 
             mp_allocations,
             quiets: [[None; 256]; MAX_PLY as usize],
@@ -114,15 +102,20 @@ impl Search {
     }
 
     pub fn root(&mut self) -> Move {
+        self.prepare_search();
+        self.iterative_deepening()
+    }
+
+    pub fn prepare_search(&mut self) {
         self.time_manager.update(&self.position, self.time_control);
-        self.visited_nodes = 0;
-        self.tt.next_generation();
         self.pv
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
 
         self.history.rescale();
+    }
 
+    pub fn iterative_deepening(&mut self) -> Move {
         let mut moves = MoveGenerator::from(&self.position)
             .all_moves()
             .into_iter()
@@ -226,7 +219,7 @@ impl Search {
                 new_depth += INC_PLY;
             }
 
-            let num_nodes_before = self.visited_nodes;
+            let num_nodes_before = self.visited_nodes.load(Ordering::SeqCst);
             let value;
             if i == 0 {
                 value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
@@ -239,7 +232,7 @@ impl Search {
                 }
             }
 
-            *subtree_size = ((self.visited_nodes - num_nodes_before) / 2) as i64;
+            *subtree_size = ((self.visited_nodes.load(Ordering::SeqCst) - num_nodes_before) / 2) as i64;
 
             self.internal_unmake_move(mov, 0);
 
@@ -283,11 +276,11 @@ impl Search {
         beta: Score,
         depth: Depth,
     ) -> Option<Score> {
-        if self.time_manager.should_stop(self.visited_nodes) {
+        if self.time_manager.should_stop(self.visited_nodes.load(Ordering::SeqCst) as u64) {
             return None;
         }
 
-        self.visited_nodes += 1;
+        self.visited_nodes.fetch_add(1, Ordering::SeqCst);
         self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
 
         // Check if there is a draw by insufficient mating material or threefold repetition.
@@ -334,7 +327,7 @@ impl Search {
         }
 
         if depth < INC_PLY {
-            self.visited_nodes -= 1;
+            self.visited_nodes.fetch_sub(1, Ordering::SeqCst);
             return self.qsearch(ply, alpha, beta, 0);
         }
 
@@ -485,7 +478,7 @@ impl Search {
     }
 
     pub fn search_zw(&mut self, ply: Ply, beta: Score, depth: Depth) -> Option<Score> {
-        if self.time_manager.should_stop(self.visited_nodes) {
+        if self.time_manager.should_stop(self.visited_nodes.load(Ordering::SeqCst) as u64) {
             return None;
         }
 
@@ -511,7 +504,7 @@ impl Search {
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
-        self.visited_nodes += 1;
+        self.visited_nodes.fetch_add(1, Ordering::SeqCst);
         self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
 
         let previous_move = self.stack[ply as usize - 1].current_move;
@@ -541,7 +534,7 @@ impl Search {
 
         // Do a quiescent search if we have no depth left.
         if depth < INC_PLY {
-            self.visited_nodes -= 1;
+            self.visited_nodes.fetch_sub(1, Ordering::SeqCst);
             return self.qsearch(ply, alpha, beta, 0);
         }
 
@@ -756,11 +749,11 @@ impl Search {
     }
 
     pub fn qsearch(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
-        if self.time_manager.should_stop(self.visited_nodes) {
+        if self.time_manager.should_stop(self.visited_nodes.load(Ordering::SeqCst) as u64) {
             return None;
         }
 
-        self.visited_nodes += 1;
+        self.visited_nodes.fetch_add(1, Ordering::SeqCst);
 
         let in_check = self.position.in_check();
         let mut alpha = alpha;
@@ -934,6 +927,10 @@ impl Search {
     }
 
     fn uci_info(&self, d: Depth, alpha: Score, bound: Bound) {
+        if self.id > 0 {
+            return;
+        }
+
         let elapsed = self.time_manager.elapsed_millis();
         let score_str = if alpha.abs() >= MATE_SCORE - MAX_PLY {
             if alpha < 0 {
@@ -958,8 +955,8 @@ impl Search {
             "info depth {} seldepth {} nodes {} nps {} score {} time {} hashfull {} pv ",
             d / INC_PLY,
             self.max_ply_searched,
-            self.visited_nodes,
-            1000 * self.visited_nodes / cmp::max(1, elapsed),
+            self.visited_nodes.load(Ordering::SeqCst) as u64,
+            1000 * self.visited_nodes.load(Ordering::SeqCst) as u64 / cmp::max(1, elapsed),
             score_str,
             elapsed,
             self.tt.usage()
@@ -1076,11 +1073,6 @@ impl Search {
         num_moves
     }
 
-    pub fn make_move(&mut self, mov: Move) {
-        self.internal_make_move(mov, 0);
-        self.made_moves.push(mov);
-    }
-
     pub fn internal_make_move(&mut self, mov: Move, ply: Ply) {
         let current_ply = &mut self.stack[ply as usize];
         current_ply.irreversible_details = self.position.details;
@@ -1112,188 +1104,11 @@ impl Search {
         self.position.unmake_nullmove(irreversible);
     }
 
-    pub fn redo_eval(&mut self) {
-        self.eval = Eval::from(&self.position);
-    }
-
-    /*
-    pub fn unmake_move(&mut self) {
-        let mov = self.made_moves.pop().unwrap();
-        self.internal_unmake_move(mov);
-    }
-    */
-
     pub fn internal_unmake_move(&mut self, mov: Move, ply: Ply) {
         let irreversible = self.stack[ply as usize].irreversible_details;
         self.hasher.unmake_move(&self.position, mov, irreversible);
         self.repetitions.pop_position();
         self.eval.unmake_move(mov, &self.position);
         self.position.unmake_move(mov, irreversible);
-    }
-
-    pub fn resize_tt(&mut self, bits: u64) {
-        self.tt = TT::new(bits);
-    }
-
-    pub fn looping(&mut self, main_rx: sync::mpsc::Receiver<UciCommand>) {
-        for cmd in main_rx {
-            match cmd {
-                UciCommand::Unknown(cmd) => eprintln!("Unknown command: {}", cmd),
-                UciCommand::UciNewGame => self.handle_ucinewgame(),
-                UciCommand::Uci => self.handle_uci(),
-                UciCommand::IsReady => self.handle_isready(),
-                UciCommand::SetOption(name, value) => self.handle_setoption(name, value),
-                UciCommand::Position(pos, moves) => self.handle_position(pos, moves),
-                UciCommand::Go(params) => self.handle_go(params),
-                UciCommand::ShowMoves => self.handle_showmoves(),
-                UciCommand::Debug => self.handle_d(),
-                UciCommand::TT => self.handle_tt(),
-                UciCommand::History(mov) => self.handle_history(mov),
-                UciCommand::Perft(depth) => self.handle_perft(depth),
-                _ => eprintln!("Unexpected uci command"),
-            }
-        }
-    }
-
-    fn handle_ucinewgame(&mut self) {
-        let options = self.options;
-        *self = Search::new(
-            STARTING_POSITION,
-            sync::Arc::clone(&self.time_manager.abort),
-        );
-        self.options = options;
-        self.resize_tt(self.options.hash_bits);
-    }
-
-    fn handle_uci(&mut self) {
-        let options = self.options;
-        *self = Search::new(
-            STARTING_POSITION,
-            sync::Arc::clone(&self.time_manager.abort),
-        );
-        self.options = options;
-        println!("id name Asymptote v0.4.2");
-        println!("id author Maximilian Lupke");
-        println!("option name Hash type spin default 1 min 0 max 2048");
-        println!("option name ShowPVBoard type check default false");
-        println!("uciok");
-    }
-
-    fn handle_isready(&self) {
-        println!("readyok");
-    }
-
-    fn handle_go(&mut self, params: GoParams) {
-        self.time_control = params.time_control;
-        let mov = self.root();
-        println!("bestmove {}", mov.to_algebraic());
-    }
-
-    fn handle_position(&mut self, pos: Position, moves: Vec<String>) {
-        pos.print("");
-        println!("{:?}", moves);
-        self.position = pos;
-        self.redo_eval();
-
-        for ref mov in &moves {
-            let mov = Move::from_algebraic(&self.position, &mov);
-            self.make_move(mov);
-        }
-    }
-
-    fn handle_setoption(&mut self, name: String, value: String) {
-        match name.as_ref() {
-            "hash" => {
-                if let Ok(mb) = value.parse::<usize>() {
-                    let hash_buckets = 1024 * 1024 * mb / 64; // 64 bytes per hash bucket
-                    let power_of_two = (hash_buckets + 1).next_power_of_two() / 2;
-                    let bits = power_of_two.trailing_zeros();
-                    self.resize_tt(u64::from(bits));
-                    self.options.hash_bits = u64::from(bits);
-                } else {
-                    eprintln!("Unable to parse value '{}' as integer", value);
-                }
-            }
-            "showpvboard" => {
-                self.options.show_pv_board = value.eq_ignore_ascii_case("true");
-            }
-            _ => {
-                eprintln!("Unrecognized option {}", name);
-            }
-        }
-    }
-
-    fn handle_showmoves(&mut self) {
-        println!("Pseudo-legal moves");
-        for mov in MoveGenerator::from(&self.position).all_moves() {
-            print!("{} ", mov.to_algebraic());
-        }
-        println!("\n");
-
-        println!("Legal moves");
-        for mov in MoveGenerator::from(&self.position).all_moves() {
-            if self.position.move_is_legal(mov) {
-                print!("{} ", mov.to_algebraic());
-            }
-        }
-        println!();
-    }
-
-    fn handle_d(&self) {
-        self.position.print("");
-    }
-
-    fn handle_tt(&mut self) {
-        println!("Current hash: 0x{:0>64x}", self.hasher.get_hash());
-        let tt = self.tt.get(self.hasher.get_hash());
-        if let Some(tt) = tt {
-            if let Some(best_move) = tt.best_move.expand(&self.position) {
-                println!("Best move: {}", best_move.to_algebraic());
-                print!("Score:     ");
-                if tt.bound == EXACT_BOUND {
-                    println!("= {:?}", tt.score);
-                } else if tt.bound & LOWER_BOUND > 0 {
-                    println!("> {:?}", tt.score);
-                } else {
-                    println!("< {:?}", tt.score);
-                }
-                println!("Depth:     {} ({} plies)", tt.depth, tt.depth / INC_PLY);
-            } else {
-                println!("No TT entry.");
-            }
-        } else {
-            println!("No TT entry.");
-        }
-    }
-
-    fn handle_history(&self, mov: Option<String>) {
-        match mov.map(|m| Move::from_algebraic(&self.position, &m)) {
-            Some(mov) => {
-                let score = self.history.get_score(self.position.white_to_move, mov);
-                println!("History score: {}", score);
-            }
-            None => {
-                let mg = MoveGenerator::from(&self.position);
-                let mut moves = Vec::new();
-                mg.quiet_moves(&mut moves);
-                let mut moves = moves
-                    .into_iter()
-                    .map(|mov| {
-                        (
-                            mov,
-                            self.history.get_score(self.position.white_to_move, mov),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                moves.sort_by_key(|(_, hist)| -hist);
-                for (mov, hist) in moves {
-                    println!("{} {:>8}", mov.to_algebraic(), hist);
-                }
-            }
-        }
-    }
-
-    fn handle_perft(&mut self, depth: usize) {
-        self.perft(depth);
     }
 }

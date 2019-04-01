@@ -17,6 +17,7 @@
 use crate::hash::Hash;
 use crate::search::Ply;
 
+#[derive(Clone)]
 pub struct Repetitions {
     past_positions: Vec<Vec<Hash>>,
     index: usize,
