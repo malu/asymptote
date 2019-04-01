@@ -88,6 +88,21 @@ impl SearchController {
         let repetitions = self.repetitions.clone();
 
         thread::scope(|s| {
+            let mut main_thread = Search::new(
+                0,
+                Arc::clone(&abort),
+                Arc::clone(&node_count),
+                hasher.clone(),
+                history.clone(),
+                options.clone(),
+                position.clone(),
+                time_control.clone(),
+                &tt,
+                repetitions.clone(),
+            );
+
+            main_thread.prepare_search();
+
             for id in 1..options.threads {
                 let mut thread = Search::new(
                     id,
@@ -104,20 +119,7 @@ impl SearchController {
                 s.spawn(move |_| thread.root());
             }
 
-            let mut main_thread = Search::new(
-                0,
-                Arc::clone(&abort),
-                Arc::clone(&node_count),
-                hasher.clone(),
-                history.clone(),
-                options.clone(),
-                position.clone(),
-                time_control.clone(),
-                &tt,
-                repetitions.clone(),
-            );
-
-            main_thread.root()
+            main_thread.iterative_deepening()
         })
         .unwrap()
     }
