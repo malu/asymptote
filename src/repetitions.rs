@@ -38,6 +38,12 @@ impl Repetitions {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.past_positions.iter_mut().for_each(|vec| vec.clear());
+        self.past_positions[0].push(0);
+        self.index = 0;
+    }
+
     pub fn irreversible_move(&mut self) {
         self.index += 1;
         if self.index >= self.past_positions.len() {

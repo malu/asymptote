@@ -193,9 +193,8 @@ impl SearchController {
     }
 
     fn handle_position(&mut self, pos: Position, moves: Vec<String>) {
-        pos.print("");
-        println!("{:?}", moves);
         self.position = pos;
+        self.repetitions.clear();
 
         for ref mov in &moves {
             let mov = Move::from_algebraic(&self.position, &mov);
