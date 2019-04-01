@@ -14,12 +14,6 @@ environment:
   # don't need
   matrix:
     # MinGW
-    - TARGET: i686-pc-windows-gnu
-      FEATURES: -popcnt
-      NAME: windows-gnu-32bit
-    - TARGET: i686-pc-windows-gnu
-      FEATURES: +popcnt
-      NAME: windows-gnu-32bit-popcount
     - TARGET: x86_64-pc-windows-gnu
       FEATURES: -popcnt
       NAME: windows-gnu-64bit
@@ -28,12 +22,6 @@ environment:
       NAME: windows-gnu-64bit-popcount
 
     # MSVC
-    - TARGET: i686-pc-windows-msvc
-      FEATURES: -popcnt
-      NAME: windows-msvc-32bit
-    - TARGET: i686-pc-windows-msvc
-      FEATURES: +popcnt
-      NAME: windows-msvc-32bit-popcount
     - TARGET: x86_64-pc-windows-msvc
       FEATURES: -popcnt
       NAME: windows-msvc-64bit
@@ -57,8 +45,6 @@ install:
   - ps: >-
       If ($Env:TARGET -eq 'x86_64-pc-windows-gnu') {
         $Env:PATH += ';C:\msys64\mingw64\bin'
-      } ElseIf ($Env:TARGET -eq 'i686-pc-windows-gnu') {
-        $Env:PATH += ';C:\msys64\mingw32\bin'
       }
   - curl -sSf -o rustup-init.exe https://win.rustup.rs/
   - rustup-init.exe -y --default-host %TARGET% --default-toolchain %RUST_VERSION%
