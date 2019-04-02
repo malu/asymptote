@@ -359,12 +359,18 @@ impl Eval {
         score += self.pawns(pos, pawn_hash);
 
         let phase = self.phase();
-        let score = interpolate(score, phase);
+        let mut score = interpolate(score, phase);
 
         #[cfg(feature = "tune")]
         {
             self.trace_pst(pos, true);
             self.trace_pst(pos, false);
+        }
+
+        if score > 0 && self.material[1][Piece::Pawn.index()] == 0 {
+            score /= 2;
+        } else if score < 0 && self.material[0][Piece::Pawn.index()] == 0 {
+            score /= 2;
         }
 
         if pos.white_to_move {
