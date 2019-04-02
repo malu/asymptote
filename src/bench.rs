@@ -1,5 +1,5 @@
 /* Asymptote, a UCI chess engine
-   Copyright (C) 2018  Maximilian Lupke
+   Copyright (C) 2018-2019  Maximilian Lupke
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-// Taken from Ethereal ()
+// Taken from Ethereal
 const BENCH_POSITIONS: [&str; 50] = [
     "r3k2r/2pb1ppp/2pp1q2/p7/1nP1B3/1P2P3/P2N1PPP/R2QK2R w KQkq a6 0 14",
     "4rrk1/2p1b1p1/p1p3q1/4p3/2P2n1p/1P1NR2P/PB3PP1/3R1QK1 b - - 2 24",
