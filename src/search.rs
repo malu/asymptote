@@ -661,6 +661,23 @@ impl<'a> Search<'a> {
                 }
             }
 
+            // History leaf pruning
+            //
+            // Do not play moves with negative history score if at very low
+            // depth.
+            if depth < 2 * INC_PLY
+                && mtype == MoveType::Quiet
+                && num_moves > 1
+                && self.history.get_score(self.position.white_to_move, mov) < 0
+            {
+                pruned = true;
+
+                // We can skip the remaining quiet moves because quiet moves
+                // are ordered by history score.
+                moves.skip_quiets(true);
+                continue;
+            }
+
             // Static exchange evaluation pruning
             //
             // Do not play very bad moves at shallow depths.
