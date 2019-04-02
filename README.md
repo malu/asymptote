@@ -27,7 +27,7 @@ Several versions of Asymptote have been tested by computer chess engine testers.
 
 | Version | CCRL 40/4 | CCRL 40/40 |
 | :------ | --------: | ---------: |
-| v0.4.2  |      2500 |       2570 |
+| v0.4.2  |      2599 |       2570 |
 | v0.3    |      2488 |       2502 |
 | v0.2.0  |      2315 |       2313 |
 | v0.1.8  |      2174 |       2178 |
