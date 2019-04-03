@@ -377,12 +377,29 @@ impl<'a> Search<'a> {
 
         let mut num_moves = 0;
         let mut num_quiets = 0;
-        while let Some((_mtype, mov)) = moves.next(&self.position, &self.history) {
+        while let Some((mtype, mov)) = moves.next(&self.position, &self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
             }
 
             let check = self.position.move_will_check(mov);
+
+            let mut extension = 0;
+
+            if check {
+                // We only extend checks which satify at least one of the
+                // following conditions:
+                // * node is near horizon
+                // * move is the hash move from a previous search
+                // * move does not lose material
+                if depth < 3 * INC_PLY || mtype == MoveType::GoodCapture || mtype == MoveType::TTMove {
+                    extension += INC_PLY;
+                } else if mtype != MoveType::BadCapture && self.position.see(mov, 0) {
+                    // Filter tactically bad moves. They wouldn't pass the SEE
+                    // test anyway.
+                    extension += INC_PLY;
+                }
+            }
 
             self.internal_make_move(mov, ply);
 
@@ -390,12 +407,6 @@ impl<'a> Search<'a> {
             if mov.is_quiet() {
                 self.quiets[ply as usize][num_quiets] = Some(mov);
                 num_quiets += 1;
-            }
-
-            let mut extension = 0;
-            // Check extension
-            if check {
-                extension += INC_PLY;
             }
 
             // Recapture extension
@@ -692,6 +703,23 @@ impl<'a> Search<'a> {
                 continue;
             }
 
+            let mut extension = 0;
+
+            if check {
+                // We only extend checks which satify at least one of the
+                // following conditions:
+                // * node is near horizon
+                // * move is the hash move from a previous search
+                // * move does not lose material
+                if depth < 3 * INC_PLY || mtype == MoveType::GoodCapture || mtype == MoveType::TTMove {
+                    extension += INC_PLY;
+                } else if mtype != MoveType::BadCapture && self.position.see(mov, 0) {
+                    // Filter tactically bad moves. They wouldn't pass the SEE
+                    // test anyway.
+                    extension += INC_PLY;
+                }
+            }
+
             self.internal_make_move(mov, ply);
 
             num_moves += 1;
@@ -700,20 +728,13 @@ impl<'a> Search<'a> {
                 self.quiets[ply as usize][num_quiets] = Some(mov);
                 num_quiets += 1;
             }
-
-            let mut extension = 0;
-            let mut reduction = 0;
-
-            if check {
-                extension += INC_PLY;
-            }
-
             if let Some(previous_move) = previous_move {
                 if previous_move.to == mov.to {
                     extension += INC_PLY / 2;
                 }
             }
 
+            let mut reduction = 0;
             // Reduce quiet responses to a null move one ply. They are unlikely to produce a
             // cutoff.
             if nullmove_reply && mtype == MoveType::Quiet {
