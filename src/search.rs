@@ -805,6 +805,10 @@ impl<'a> Search<'a> {
             return None;
         }
 
+        if ply == MAX_PLY {
+            return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
+        }
+
         self.visited_nodes.fetch_add(1, Ordering::SeqCst);
 
         let in_check = self.position.in_check();
