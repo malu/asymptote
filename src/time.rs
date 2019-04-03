@@ -37,6 +37,7 @@ pub enum TimeControl {
     },
 }
 
+#[derive(Clone)]
 pub struct TimeManager {
     started_at: time::Instant,
     control: TimeControl,

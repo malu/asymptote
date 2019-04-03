@@ -25,6 +25,7 @@ use crate::types::SquareMap;
 #[cfg(feature = "tune")]
 use crate::tune::*;
 
+#[derive(Clone)]
 pub struct Eval {
     material: [[usize; 5]; 2],
     pst: [EScore; 2],
@@ -39,7 +40,7 @@ pub struct Eval {
 
 const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct PawnHashEntry {
     hash: Hash,
     score: EScore,

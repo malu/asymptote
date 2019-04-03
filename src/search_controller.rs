@@ -77,46 +77,30 @@ impl SearchController {
         self.node_count.store(0, Ordering::SeqCst);
         self.tt.next_generation();
 
-        let abort = Arc::clone(&self.abort);
-        let node_count = Arc::clone(&self.node_count);
-        let hasher = self.hasher.clone();
-        let history = self.history.clone();
-        let options = self.options;
-        let position = self.position.clone();
-        let time_control = self.time_control;
+        let threads = self.options.threads;
         let tt = self.tt.share();
-        let repetitions = self.repetitions.clone();
+
+        let mut main_thread = Search::new(
+            0,
+            Arc::clone(&self.abort),
+            Arc::clone(&self.node_count),
+            self.hasher.clone(),
+            self.history.clone(),
+            self.options.clone(),
+            self.position.clone(),
+            self.time_control.clone(),
+            &tt,
+            self.repetitions.clone(),
+        );
 
         thread::scope(|s| {
-            let mut main_thread = Search::new(
-                0,
-                Arc::clone(&abort),
-                Arc::clone(&node_count),
-                hasher.clone(),
-                history.clone(),
-                options.clone(),
-                position.clone(),
-                time_control.clone(),
-                &tt,
-                repetitions.clone(),
-            );
-
             main_thread.prepare_search();
 
-            for id in 1..options.threads {
-                let mut thread = Search::new(
-                    id,
-                    Arc::clone(&abort),
-                    Arc::clone(&node_count),
-                    hasher.clone(),
-                    history.clone(),
-                    options.clone(),
-                    position.clone(),
-                    TimeControl::Infinite,
-                    &tt,
-                    repetitions.clone(),
-                );
-                s.spawn(move |_| thread.root());
+            for id in 1..threads {
+                let mut thread = main_thread.clone();
+                thread.id = id;
+                thread.set_time_control(TimeControl::Infinite);
+                s.spawn(move |_| thread.iterative_deepening());
             }
 
             main_thread.iterative_deepening()

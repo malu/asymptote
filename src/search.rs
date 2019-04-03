@@ -41,8 +41,9 @@ const SEE_PRUNING_MARGIN: [Score; 3] = [0, -50, -200];
 const LMR_MAX_DEPTH: Depth = 9 * INC_PLY;
 const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
 
+#[derive(Clone)]
 pub struct Search<'a> {
-    id: usize,
+    pub id: usize,
 
     stack: [PlyDetails; MAX_PLY as usize],
     history: History,
@@ -112,13 +113,8 @@ impl<'a> Search<'a> {
         }
     }
 
-    pub fn root(&mut self) -> Move {
-        self.prepare_search();
-        self.iterative_deepening()
-    }
-
     pub fn prepare_search(&mut self) {
-        self.time_manager.update(&self.position, self.time_control);
+        self.set_time_control(self.time_control);
         self.pv
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
@@ -1166,5 +1162,10 @@ impl<'a> Search<'a> {
         self.repetitions.pop_position();
         self.eval.unmake_move(mov, &self.position);
         self.position.unmake_move(mov, irreversible);
+    }
+
+    pub fn set_time_control(&mut self, tc: TimeControl) {
+        self.time_control = tc;
+        self.time_manager.update(&self.position, self.time_control);
     }
 }

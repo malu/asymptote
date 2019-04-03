@@ -18,6 +18,7 @@ use crate::history::*;
 use crate::movegen::*;
 use crate::position::*;
 
+#[derive(Clone)]
 pub struct MovePickerAllocations {
     excluded: Vec<Move>,
     moves: Vec<Move>,
