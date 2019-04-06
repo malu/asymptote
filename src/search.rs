@@ -72,7 +72,6 @@ pub struct PlyDetails {
 
 impl<'a> Search<'a> {
     pub fn new(
-        id: usize,
         abort: sync::Arc<sync::atomic::AtomicBool>,
         visited_nodes: sync::Arc<sync::atomic::AtomicUsize>,
         hasher: Hasher,
@@ -92,7 +91,7 @@ impl<'a> Search<'a> {
         }
 
         Search {
-            id,
+            id: 0,
 
             history,
             stack,
@@ -392,11 +391,13 @@ impl<'a> Search<'a> {
                 // * node is near horizon
                 // * move is the hash move from a previous search
                 // * move does not lose material
-                if depth < 3 * INC_PLY || mtype == MoveType::GoodCapture || mtype == MoveType::TTMove {
-                    extension += INC_PLY;
-                } else if mtype != MoveType::BadCapture && self.position.see(mov, 0) {
+                if depth < 3 * INC_PLY
+                    || mtype == MoveType::GoodCapture
+                    || mtype == MoveType::TTMove
                     // Filter tactically bad moves. They wouldn't pass the SEE
                     // test anyway.
+                    || mtype != MoveType::BadCapture && self.position.see(mov, 0)
+                {
                     extension += INC_PLY;
                 }
             }
@@ -711,11 +712,13 @@ impl<'a> Search<'a> {
                 // * node is near horizon
                 // * move is the hash move from a previous search
                 // * move does not lose material
-                if depth < 3 * INC_PLY || mtype == MoveType::GoodCapture || mtype == MoveType::TTMove {
-                    extension += INC_PLY;
-                } else if mtype != MoveType::BadCapture && self.position.see(mov, 0) {
+                if depth < 3 * INC_PLY
+                    || mtype == MoveType::GoodCapture
+                    || mtype == MoveType::TTMove
                     // Filter tactically bad moves. They wouldn't pass the SEE
                     // test anyway.
+                    || mtype != MoveType::BadCapture && self.position.see(mov, 0)
+                {
                     extension += INC_PLY;
                 }
             }

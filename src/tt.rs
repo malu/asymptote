@@ -146,7 +146,7 @@ impl TT {
         None
     }
 
-    pub fn share<'a>(&'a mut self) -> SharedTT<'a> {
+    pub fn share(&mut self) -> SharedTT {
         SharedTT {
             tt: cell::UnsafeCell::new(self),
         }

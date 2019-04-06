@@ -81,14 +81,13 @@ impl SearchController {
         let tt = self.tt.share();
 
         let mut main_thread = Search::new(
-            0,
             Arc::clone(&self.abort),
             Arc::clone(&self.node_count),
             self.hasher.clone(),
             self.history.clone(),
-            self.options.clone(),
+            self.options,
             self.position.clone(),
-            self.time_control.clone(),
+            self.time_control,
             &tt,
             self.repetitions.clone(),
         );
@@ -262,28 +261,25 @@ impl SearchController {
     }
 
     fn handle_history(&self, mov: Option<String>) {
-        match mov.map(|m| Move::from_algebraic(&self.position, &m)) {
-            Some(mov) => {
-                let score = self.history.get_score(self.position.white_to_move, mov);
-                println!("History score: {}", score);
-            }
-            None => {
-                let mg = MoveGenerator::from(&self.position);
-                let mut moves = Vec::new();
-                mg.quiet_moves(&mut moves);
-                let mut moves = moves
-                    .into_iter()
-                    .map(|mov| {
-                        (
-                            mov,
-                            self.history.get_score(self.position.white_to_move, mov),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                moves.sort_by_key(|(_, hist)| -hist);
-                for (mov, hist) in moves {
-                    println!("{} {:>8}", mov.to_algebraic(), hist);
-                }
+        if let Some(mov) = mov.map(|m| Move::from_algebraic(&self.position, &m)) {
+            let score = self.history.get_score(self.position.white_to_move, mov);
+            println!("History score: {}", score);
+        } else {
+            let mg = MoveGenerator::from(&self.position);
+            let mut moves = Vec::new();
+            mg.quiet_moves(&mut moves);
+            let mut moves = moves
+                .into_iter()
+                .map(|mov| {
+                    (
+                        mov,
+                        self.history.get_score(self.position.white_to_move, mov),
+                    )
+                })
+                .collect::<Vec<_>>();
+            moves.sort_by_key(|(_, hist)| -hist);
+            for (mov, hist) in moves {
+                println!("{} {:>8}", mov.to_algebraic(), hist);
             }
         }
     }
@@ -291,7 +287,6 @@ impl SearchController {
     fn handle_perft(&mut self, depth: usize) {
         let tt = self.tt.share();
         let mut thread = Search::new(
-            0,
             Arc::clone(&self.abort),
             Arc::clone(&self.node_count),
             self.hasher.clone(),

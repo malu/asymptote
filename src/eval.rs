@@ -368,9 +368,9 @@ impl Eval {
             self.trace_pst(pos, false);
         }
 
-        if score > 0 && self.material[1][Piece::Pawn.index()] == 0 {
-            score /= 2;
-        } else if score < 0 && self.material[0][Piece::Pawn.index()] == 0 {
+        if (score > 0 && self.material[1][Piece::Pawn.index()] == 0)
+            || (score < 0 && self.material[0][Piece::Pawn.index()] == 0)
+        {
             score /= 2;
         }
 

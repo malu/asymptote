@@ -83,8 +83,7 @@ impl Repetitions {
             .skip(ply as usize % 2) // skip once more if not root side-to-move
             .step_by(2)
             .filter(|&h| h == current)
-            .skip(1)
-            .next()
+            .nth(1)
             .is_some();
 
         repeated_twice_before_root
