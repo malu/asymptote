@@ -278,6 +278,7 @@ impl ExactSizeIterator for SquareIterator {
 // =========================================================
 // Constants
 // =========================================================
+pub const ALL_SQUARES: Bitboard = Bitboard(0xFF_FF_FF_FF_FF_FF_FF_FF);
 pub const FILE_A: Bitboard = Bitboard(0x01_01_01_01_01_01_01_01);
 pub const FILE_B: Bitboard = Bitboard(0x02_02_02_02_02_02_02_02);
 pub const FILE_C: Bitboard = Bitboard(0x04_04_04_04_04_04_04_04);

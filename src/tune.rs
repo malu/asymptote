@@ -15,19 +15,19 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::cell::RefCell;
 use std::cmp;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
-use std::rc::Rc;
 
+use crate::bitboard::{Square, ALL_SQUARES};
 use crate::eval::*;
 use crate::history::History;
 use crate::movegen::Piece;
 use crate::movepick::{MovePicker, MovePickerAllocations};
 use crate::position::Position;
+use crate::types::SquareMap;
 
 // # Texel Tuning
 //
@@ -109,14 +109,15 @@ pub struct Trace {
     pub king_check_rook: [i8; 2],
     pub king_check_queen: [i8; 2],
 
-    pub pst_pawn: [[i8; 2]; 64],
-    pub pst_knight: [[i8; 2]; 64],
-    pub pst_bishop: [[i8; 2]; 64],
-    pub pst_rook: [[i8; 2]; 64],
-    pub pst_queen: [[i8; 2]; 64],
-    pub pst_king: [[i8; 2]; 64],
+    pub pst_pawn: SquareMap<[i8; 2]>,
+    pub pst_knight: SquareMap<[i8; 2]>,
+    pub pst_bishop: SquareMap<[i8; 2]>,
+    pub pst_rook: SquareMap<[i8; 2]>,
+    pub pst_queen: SquareMap<[i8; 2]>,
+    pub pst_king: SquareMap<[i8; 2]>,
 
     pub phase: i8,
+    pub sf: i8,
 }
 
 #[derive(Clone)]
@@ -146,14 +147,15 @@ pub struct CompactTrace {
     king_check_rook: i8,
     king_check_queen: i8,
 
-    pst_pawn: [i8; 64],
-    pst_knight: [i8; 64],
-    pst_bishop: [i8; 64],
-    pst_rook: [i8; 64],
-    pst_queen: [i8; 64],
-    pst_king: [i8; 64],
+    pst_pawn: SquareMap<i8>,
+    pst_knight: SquareMap<i8>,
+    pst_bishop: SquareMap<i8>,
+    pst_rook: SquareMap<i8>,
+    pst_queen: SquareMap<i8>,
+    pst_king: SquareMap<i8>,
 
     phase: i8,
+    sf: i8,
 }
 
 impl From<Trace> for CompactTrace {
@@ -193,13 +195,13 @@ impl From<Trace> for CompactTrace {
             king_safety[i] = t.king_safety[i][1] - t.king_safety[i][0];
         }
 
-        let mut pst_pawn = [0; 64];
-        let mut pst_knight = [0; 64];
-        let mut pst_bishop = [0; 64];
-        let mut pst_rook = [0; 64];
-        let mut pst_queen = [0; 64];
-        let mut pst_king = [0; 64];
-        for i in 0..64 {
+        let mut pst_pawn = SquareMap::default();
+        let mut pst_knight = SquareMap::default();
+        let mut pst_bishop = SquareMap::default();
+        let mut pst_rook = SquareMap::default();
+        let mut pst_queen = SquareMap::default();
+        let mut pst_king = SquareMap::default();
+        for i in ALL_SQUARES.squares() {
             pst_pawn[i] = t.pst_pawn[i][1] - t.pst_pawn[i][0];
             pst_knight[i] = t.pst_knight[i][1] - t.pst_knight[i][0];
             pst_bishop[i] = t.pst_bishop[i][1] - t.pst_bishop[i][0];
@@ -242,6 +244,7 @@ impl From<Trace> for CompactTrace {
             pst_king,
 
             phase: t.phase,
+            sf: t.sf,
         }
     }
 }
@@ -273,12 +276,12 @@ pub struct Parameters {
     king_check_rook: f32,
     king_check_queen: f32,
 
-    pst_pawn: [(f32, f32); 64],
-    pst_knight: [(f32, f32); 64],
-    pst_bishop: [(f32, f32); 64],
-    pst_rook: [(f32, f32); 64],
-    pst_queen: [(f32, f32); 64],
-    pst_king: [(f32, f32); 64],
+    pst_pawn: SquareMap<(f32, f32)>,
+    pst_knight: SquareMap<(f32, f32)>,
+    pst_bishop: SquareMap<(f32, f32)>,
+    pst_rook: SquareMap<(f32, f32)>,
+    pst_queen: SquareMap<(f32, f32)>,
+    pst_king: SquareMap<(f32, f32)>,
 }
 
 pub fn epd_to_positions<P: AsRef<Path>>(path: P) -> impl Iterator<Item = (f32, Position)> {
@@ -372,6 +375,7 @@ impl Default for Trace {
         Trace {
             result: -1.,
             phase: 0,
+            sf: SF_NORMAL as i8,
             material: [[0; 2]; 6],
 
             mobility_pawn: [0; 2],
@@ -396,12 +400,12 @@ impl Default for Trace {
             king_check_rook: [0; 2],
             king_check_queen: [0; 2],
 
-            pst_pawn: [[0; 2]; 64],
-            pst_knight: [[0; 2]; 64],
-            pst_bishop: [[0; 2]; 64],
-            pst_rook: [[0; 2]; 64],
-            pst_queen: [[0; 2]; 64],
-            pst_king: [[0; 2]; 64],
+            pst_pawn: SquareMap::default(),
+            pst_knight: SquareMap::default(),
+            pst_bishop: SquareMap::default(),
+            pst_rook: SquareMap::default(),
+            pst_queen: SquareMap::default(),
+            pst_king: SquareMap::default(),
         }
     }
 }
@@ -421,6 +425,7 @@ impl Trace {
 impl CompactTrace {
     fn evaluate(&self, params: &Parameters) -> f32 {
         let phase = self.phase as f32;
+        let sf = self.sf as f32 / SF_NORMAL as f32;
 
         let mut score = (0., 0.);
         for i in 0..6 {
@@ -486,7 +491,7 @@ impl CompactTrace {
 
         score.0 += params.king_check_queen * self.king_check_queen as f32;
 
-        for i in 0..64 {
+        for i in ALL_SQUARES.squares() {
             score.0 += params.pst_pawn[i].0 * self.pst_pawn[i] as f32;
             score.1 += params.pst_pawn[i].1 * self.pst_pawn[i] as f32;
 
@@ -506,7 +511,7 @@ impl CompactTrace {
             score.1 += params.pst_king[i].1 * self.pst_king[i] as f32;
         }
 
-        (score.0 as f32 * phase + score.1 as f32 * (62. - phase)) / 62.
+        sf * (score.0 as f32 * phase + score.1 as f32 * (62. - phase)) / 62.
     }
 }
 
@@ -703,12 +708,12 @@ impl Parameters {
         let mut g_king_check_rook = 0.;
         let mut g_king_check_queen = 0.;
 
-        let mut g_pst_pawn = [(0., 0.); 64];
-        let mut g_pst_knight = [(0., 0.); 64];
-        let mut g_pst_bishop = [(0., 0.); 64];
-        let mut g_pst_rook = [(0., 0.); 64];
-        let mut g_pst_queen = [(0., 0.); 64];
-        let mut g_pst_king = [(0., 0.); 64];
+        let mut g_pst_pawn = SquareMap::<(f32, f32)>::default();
+        let mut g_pst_knight = SquareMap::<(f32, f32)>::default();
+        let mut g_pst_bishop = SquareMap::<(f32, f32)>::default();
+        let mut g_pst_rook = SquareMap::<(f32, f32)>::default();
+        let mut g_pst_queen = SquareMap::<(f32, f32)>::default();
+        let mut g_pst_king = SquareMap::<(f32, f32)>::default();
 
         let n = traces.len() as f32;
         let _g = self.k * 10_f32.ln() / 400.;
@@ -718,7 +723,8 @@ impl Parameters {
 
             let r = trace.result;
             let s = sigmoid(self.k, trace.evaluate(&self));
-            let grad = -(r - s) * s * (1. - s);
+            let sf = trace.sf as f32 / SF_NORMAL as f32;
+            let grad = -(r - s) * s * (1. - s) * sf;
 
             if TUNE_MATERIAL_PAWN {
                 // For pawns we only tune endgame scores and leave the midgame scores fixed at 100.
@@ -864,7 +870,7 @@ impl Parameters {
             }
 
             if TUNE_PST_PAWN {
-                for i in 0..64 {
+                for i in ALL_SQUARES.squares() {
                     let x = trace.pst_pawn[i] as f32;
                     g_pst_pawn[i].0 += x * grad * phase / 62.;
                     g_pst_pawn[i].1 += x * grad * (62. - phase) / 62.;
@@ -872,7 +878,7 @@ impl Parameters {
             }
 
             if TUNE_PST_KNIGHT {
-                for i in 0..64 {
+                for i in ALL_SQUARES.squares() {
                     let x = trace.pst_knight[i] as f32;
                     g_pst_knight[i].0 += x * grad * phase / 62.;
                     g_pst_knight[i].1 += x * grad * (62. - phase) / 62.;
@@ -880,7 +886,7 @@ impl Parameters {
             }
 
             if TUNE_PST_BISHOP {
-                for i in 0..64 {
+                for i in ALL_SQUARES.squares() {
                     let x = trace.pst_bishop[i] as f32;
                     g_pst_bishop[i].0 += x * grad * phase / 62.;
                     g_pst_bishop[i].1 += x * grad * (62. - phase) / 62.;
@@ -888,7 +894,7 @@ impl Parameters {
             }
 
             if TUNE_PST_ROOK {
-                for i in 0..64 {
+                for i in ALL_SQUARES.squares() {
                     let x = trace.pst_rook[i] as f32;
                     g_pst_rook[i].0 += x * grad * phase / 62.;
                     g_pst_rook[i].1 += x * grad * (62. - phase) / 62.;
@@ -896,7 +902,7 @@ impl Parameters {
             }
 
             if TUNE_PST_QUEEN {
-                for i in 0..64 {
+                for i in ALL_SQUARES.squares() {
                     let x = trace.pst_queen[i] as f32;
                     g_pst_queen[i].0 += x * grad * phase / 62.;
                     g_pst_queen[i].1 += x * grad * (62. - phase) / 62.;
@@ -904,7 +910,7 @@ impl Parameters {
             }
 
             if TUNE_PST_KING {
-                for i in 0..64 {
+                for i in ALL_SQUARES.squares() {
                     let x = trace.pst_king[i] as f32;
                     g_pst_king[i].0 += x * grad * phase / 62.;
                     g_pst_king[i].1 += x * grad * (62. - phase) / 62.;
@@ -974,7 +980,7 @@ impl Parameters {
         norm += g_king_check_rook.powf(2.);
         norm += g_king_check_queen.powf(2.);
 
-        for i in 0..64 {
+        for i in ALL_SQUARES.squares() {
             norm += g_pst_pawn[i].0.powf(2.);
             norm += g_pst_pawn[i].1.powf(2.);
             norm += g_pst_knight[i].0.powf(2.);
@@ -1056,7 +1062,7 @@ impl Parameters {
 
         self.king_check_queen -= 2. / n * f * g_king_check_queen;
 
-        for i in 0..64 {
+        for i in ALL_SQUARES.squares() {
             self.pst_pawn[i].0 -= 2. / n * f * g_pst_pawn[i].0;
             self.pst_pawn[i].1 -= 2. / n * f * g_pst_pawn[i].1;
 
@@ -1112,14 +1118,14 @@ impl Default for Parameters {
             king_safety[i] = KING_SAFETY[i] as f32;
         }
 
-        let mut pst_pawn = [(0., 0.); 64];
-        let mut pst_knight = [(0., 0.); 64];
-        let mut pst_bishop = [(0., 0.); 64];
-        let mut pst_rook = [(0., 0.); 64];
-        let mut pst_queen = [(0., 0.); 64];
-        let mut pst_king = [(0., 0.); 64];
+        let mut pst_pawn = SquareMap::default();
+        let mut pst_knight = SquareMap::default();
+        let mut pst_bishop = SquareMap::default();
+        let mut pst_rook = SquareMap::default();
+        let mut pst_queen = SquareMap::default();
+        let mut pst_king = SquareMap::default();
 
-        for i in 0..64 {
+        for i in ALL_SQUARES.squares() {
             pst_pawn[i] = (mg(PAWN_PST[i]) as f32, eg(PAWN_PST[i]) as f32);
             pst_knight[i] = (mg(KNIGHT_PST[i]) as f32, eg(KNIGHT_PST[i]) as f32);
             pst_bishop[i] = (mg(BISHOP_PST[i]) as f32, eg(BISHOP_PST[i]) as f32);
@@ -1188,25 +1194,18 @@ fn qsearch(position: &mut Position, alpha: Score, beta: Score) -> (Score, Positi
 
     let mut mp_allocations = MovePickerAllocations::default();
 
-    let moves = if in_check {
-        MovePicker::qsearch_in_check(
-            position.clone(),
-            Rc::new(RefCell::new(History::default())),
-            &mut mp_allocations,
-        )
+    let mut moves = if in_check {
+        MovePicker::qsearch_in_check(&mut mp_allocations)
     } else {
-        MovePicker::qsearch(
-            position.clone(),
-            Rc::new(RefCell::new(History::default())),
-            &mut mp_allocations,
-        )
+        MovePicker::qsearch(&mut mp_allocations)
     };
 
     let mut best_score = -MATE_SCORE;
     let mut best_pos = position.clone();
 
     let mut num_moves = 0;
-    for (_mtype, mov) in moves {
+    let history = History::default();
+    while let Some((_mtype, mov)) = moves.next(&position, &history) {
         if !position.move_is_legal(mov) {
             continue;
         }
@@ -1246,7 +1245,9 @@ fn qsearch(position: &mut Position, alpha: Score, beta: Score) -> (Score, Positi
 fn print_single((x, y): (f32, f32), name: &str) {
     println!(
         "pub const {}: EScore = S({}, {});",
-        name, x as isize, y as isize
+        name,
+        x.round() as isize,
+        y.round() as isize
     );
 }
 
@@ -1258,7 +1259,11 @@ fn print_array(array: &[(f32, f32)], name: &str) {
             println!();
             print!("    ");
         }
-        print!("S({:>4}, {:>4}), ", x.0 as isize, x.1 as isize);
+        print!(
+            "S({:>4}, {:>4}), ",
+            x.0.round() as isize,
+            x.1.round() as isize
+        );
     }
     println!();
     println!("];");
@@ -1272,27 +1277,31 @@ fn print_array_mg(array: &[f32], name: &str) {
             println!();
             print!("    ");
         }
-        print!("{:>4}, ", x as isize);
+        print!("{:>4}, ", x.round() as isize);
     }
     println!();
     println!("];");
 }
 
-fn print_pst(pst: &[(f32, f32)], name: &str) {
+fn print_pst(pst: &SquareMap<(f32, f32)>, name: &str) {
     println!("#[rustfmt::skip]");
-    println!("pub const {}: [EScore; 64] = [", name);
+    println!(
+        "pub static {}: SquareMap<EScore> = SquareMap::from_array([",
+        name
+    );
     for rank in 0..8 {
         print!("    ");
 
         for file in 0..8 {
+            let sq = Square::file_rank(file, rank);
             print!(
                 "S({:>4}, {:>4}), ",
-                pst[rank * 8 + file].0 as isize,
-                pst[rank * 8 + file].1 as isize
+                pst[sq].0.round() as isize,
+                pst[sq].1.round() as isize
             );
         }
 
         println!();
     }
-    println!("];");
+    println!("]);");
 }

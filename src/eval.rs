@@ -70,6 +70,8 @@ fn interpolate(score: EScore, phase: i16) -> Score {
 }
 
 pub const MATE_SCORE: Score = 20000;
+pub const SF_NORMAL: i32 = 64;
+const SF_PAWNLESS: i32 = 32;
 
 pub const PAWN_SCORE: EScore = S(100, 121);
 pub const KNIGHT_SCORE: EScore = S(330, 290);
@@ -360,7 +362,7 @@ impl Eval {
         score += self.pawns(pos, pawn_hash);
 
         let phase = self.phase();
-        let mut score = interpolate(score, phase);
+        let mut score = interpolate(score, phase) as i32;
 
         #[cfg(feature = "tune")]
         {
@@ -368,11 +370,23 @@ impl Eval {
             self.trace_pst(pos, false);
         }
 
+        let mut sf = SF_NORMAL;
+
         if (score > 0 && self.material[1][Piece::Pawn.index()] == 0)
             || (score < 0 && self.material[0][Piece::Pawn.index()] == 0)
         {
-            score /= 2;
+            sf = SF_PAWNLESS;
         }
+
+        #[cfg(feature = "tune")]
+        {
+            self.trace.sf = sf as i8;
+        }
+
+        score *= sf;
+        score /= SF_NORMAL;
+
+        let score = score as Score;
 
         if pos.white_to_move {
             score
@@ -752,57 +766,33 @@ impl Eval {
         let us = pos.us(white);
         let side = white as usize;
         for pawn in (pos.pawns() & us).squares() {
-            let relative = if white {
-                Square(pawn.0 ^ 0b11_1000)
-            } else {
-                pawn
-            };
-            self.trace.pst_pawn[relative.0 as usize][side] += 1;
+            let relative = if white { pawn.flip_rank() } else { pawn };
+            self.trace.pst_pawn[relative][side] += 1;
         }
 
         for knight in (pos.knights() & us).squares() {
-            let relative = if white {
-                Square(knight.0 ^ 0b11_1000)
-            } else {
-                knight
-            };
-            self.trace.pst_knight[relative.0 as usize][side] += 1;
+            let relative = if white { knight.flip_rank() } else { knight };
+            self.trace.pst_knight[relative][side] += 1;
         }
 
         for bishop in (pos.bishops() & us).squares() {
-            let relative = if white {
-                Square(bishop.0 ^ 0b11_1000)
-            } else {
-                bishop
-            };
-            self.trace.pst_bishop[relative.0 as usize][side] += 1;
+            let relative = if white { bishop.flip_rank() } else { bishop };
+            self.trace.pst_bishop[relative][side] += 1;
         }
 
         for rook in (pos.rooks() & us).squares() {
-            let relative = if white {
-                Square(rook.0 ^ 0b11_1000)
-            } else {
-                rook
-            };
-            self.trace.pst_rook[relative.0 as usize][side] += 1;
+            let relative = if white { rook.flip_rank() } else { rook };
+            self.trace.pst_rook[relative][side] += 1;
         }
 
         for queen in (pos.queens() & us).squares() {
-            let relative = if white {
-                Square(queen.0 ^ 0b11_1000)
-            } else {
-                queen
-            };
-            self.trace.pst_queen[relative.0 as usize][side] += 1;
+            let relative = if white { queen.flip_rank() } else { queen };
+            self.trace.pst_queen[relative][side] += 1;
         }
 
         for king in (pos.kings() & us).squares() {
-            let relative = if white {
-                Square(king.0 ^ 0b11_1000)
-            } else {
-                king
-            };
-            self.trace.pst_king[relative.0 as usize][side] += 1;
+            let relative = if white { king.flip_rank() } else { king };
+            self.trace.pst_king[relative][side] += 1;
         }
     }
 }
