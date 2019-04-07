@@ -182,8 +182,8 @@ impl SearchController {
         self.position = pos;
         self.repetitions.clear();
 
-        for ref mov in &moves {
-            let mov = Move::from_algebraic(&self.position, &mov);
+        for mov in &moves {
+            let mov = Move::from_algebraic(&self.position, mov);
             self.make_move(mov);
         }
     }

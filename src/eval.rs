@@ -245,41 +245,41 @@ impl Eval {
         for knight in (pos.knights() & us).squares() {
             let b = KNIGHT_ATTACKS[knight];
             let mobility = b & !their_pawn_attacks;
-            score += KNIGHT_MOBILITY[mobility.popcount() as usize];
+            score += KNIGHT_MOBILITY[mobility.popcount()];
             self.attacked_by[s][Piece::Knight.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
             #[cfg(feature = "tune")]
             {
-                self.trace.mobility_knight[mobility.popcount() as usize][white as usize] += 1;
+                self.trace.mobility_knight[mobility.popcount()][s] += 1;
             }
         }
 
         for bishop in (pos.bishops() & us).squares() {
             let b = get_bishop_attacks_from(bishop, pos.all_pieces);
             let x = get_bishop_attacks_from(bishop, pos.all_pieces ^ (pos.queens() & us));
-            score += BISHOP_MOBILITY[b.popcount() as usize];
+            score += BISHOP_MOBILITY[b.popcount()];
             self.attacked_by[s][Piece::Bishop.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
             self.attacked_by_1[s] |= b;
 
             #[cfg(feature = "tune")]
             {
-                self.trace.mobility_bishop[b.popcount() as usize][white as usize] += 1;
+                self.trace.mobility_bishop[b.popcount()][s] += 1;
             }
         }
 
         for rook in (pos.rooks() & us).squares() {
             let b = get_rook_attacks_from(rook, pos.all_pieces);
             let x = get_rook_attacks_from(rook, pos.all_pieces ^ (pos.queens() & us));
-            score += ROOK_MOBILITY[b.popcount() as usize];
+            score += ROOK_MOBILITY[b.popcount()];
             self.attacked_by[s][Piece::Rook.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
             self.attacked_by_1[s] |= b;
 
             #[cfg(feature = "tune")]
             {
-                self.trace.mobility_rook[b.popcount() as usize][white as usize] += 1;
+                self.trace.mobility_rook[b.popcount()][s] += 1;
             }
         }
 
@@ -295,7 +295,7 @@ impl Eval {
 
             #[cfg(feature = "tune")]
             {
-                self.trace.mobility_queen[b.popcount() as usize][white as usize] += 1;
+                self.trace.mobility_queen[b.popcount()][s] += 1;
             }
         }
 
@@ -307,7 +307,7 @@ impl Eval {
         let pawn_mobility = pawn_mobility.popcount() as i32;
         #[cfg(feature = "tune")]
         {
-            self.trace.mobility_pawn[white as usize] = pawn_mobility as i8;
+            self.trace.mobility_pawn[s] = pawn_mobility as i8;
         }
         score += PAWN_MOBILITY * pawn_mobility;
         score
@@ -343,7 +343,7 @@ impl Eval {
             self.trace.material[king][side] = 1;
 
             if self.material[side][bishop] > 1 {
-                self.trace.bishops_pair[white as usize] = 1;
+                self.trace.bishops_pair[side] = 1;
             }
         }
 
@@ -566,14 +566,14 @@ impl Eval {
         let mut score = S(KING_SAFETY[index], 0);
         #[cfg(feature = "tune")]
         {
-            self.trace.king_safety[index][white as usize] += 1;
+            self.trace.king_safety[index][side] += 1;
         }
 
         if (safe_knight_checks & self.attacked_by[1 - side][Piece::Knight.index()]).at_least_one() {
             score += KING_CHECK_KNIGHT;
             #[cfg(feature = "tune")]
             {
-                self.trace.king_check_knight[white as usize] += 1;
+                self.trace.king_check_knight[side] += 1;
             }
         }
 
@@ -581,7 +581,7 @@ impl Eval {
             score += KING_CHECK_BISHOP;
             #[cfg(feature = "tune")]
             {
-                self.trace.king_check_bishop[white as usize] += 1;
+                self.trace.king_check_bishop[side] += 1;
             }
         }
 
@@ -589,7 +589,7 @@ impl Eval {
             score += KING_CHECK_ROOK;
             #[cfg(feature = "tune")]
             {
-                self.trace.king_check_rook[white as usize] += 1;
+                self.trace.king_check_rook[side] += 1;
             }
         }
 
@@ -600,7 +600,7 @@ impl Eval {
             score += KING_CHECK_QUEEN;
             #[cfg(feature = "tune")]
             {
-                self.trace.king_check_queen[white as usize] += 1;
+                self.trace.king_check_queen[side] += 1;
             }
         }
 
