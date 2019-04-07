@@ -106,16 +106,18 @@ impl Hasher {
     }
 
     pub fn make_move(&mut self, pos: &Position, mov: Move) {
-        let rank2 = if pos.white_to_move { RANK_2 } else { RANK_7 };
-        let rank4 = if pos.white_to_move { RANK_4 } else { RANK_5 };
         let them = pos.them(pos.white_to_move);
+        let rank2 = if pos.white_to_move { 1 } else { 6 };
+        let rank4 = if pos.white_to_move { 3 } else { 4 };
 
         if pos.details.en_passant != 255 {
             self.hash ^= self.en_passant[pos.details.en_passant as usize];
         }
-        if pos.pawns() & rank2 & mov.from
-            && rank4 & mov.to
-            && ((pos.pawns() & them).right(1) & mov.to || (pos.pawns() & them).left(1) & mov.to)
+
+        if mov.piece == Piece::Pawn
+            && mov.from.rank() == rank2
+            && mov.to.rank() == rank4
+            && ((them & pos.pawns()).left(1) | (them & pos.pawns()).right(1)) & mov.to
         {
             self.hash ^= self.en_passant[mov.from.file() as usize];
         }

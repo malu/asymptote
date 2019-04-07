@@ -468,12 +468,13 @@ impl Position {
     /// Applies `mov` to the current board position.
     pub fn make_move(&mut self, mov: Move) {
         let them = self.them(self.white_to_move);
-        let rank2 = if self.white_to_move { RANK_2 } else { RANK_7 };
-        let rank4 = if self.white_to_move { RANK_4 } else { RANK_5 };
+        let rank2 = if self.white_to_move { 1 } else { 6 };
+        let rank4 = if self.white_to_move { 3 } else { 4 };
 
         self.details.en_passant = 255;
-        if self.pawns() & rank2 & mov.from
-            && rank4 & mov.to
+        if mov.piece == Piece::Pawn
+            && mov.from.rank() == rank2
+            && mov.to.rank() == rank4
             && ((them & self.pawns()).left(1) | (them & self.pawns()).right(1)) & mov.to
         {
             self.details.en_passant = mov.from.file();
