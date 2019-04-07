@@ -150,13 +150,11 @@ impl<'a> Search<'a> {
             moves.swap(0, swap_with);
         }
 
-        let mut max_depth = 0;
         for d in 1_i16.. {
             if !self.time_manager.start_another_iteration(d) {
                 break;
             }
             let depth = d * INC_PLY;
-            max_depth = cmp::max(max_depth, depth);
 
             self.max_ply_searched = 0;
 
