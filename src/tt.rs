@@ -88,6 +88,10 @@ impl TT {
                 }
 
                 if entry.key == hash {
+                    if bound != EXACT_BOUND && depth < entry.depth - 3 * INC_PLY {
+                        return;
+                    }
+
                     replace = i;
                     replace_age = None;
                     replace_depth = None;
