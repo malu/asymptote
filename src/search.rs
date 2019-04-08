@@ -631,18 +631,17 @@ impl<'a> Search<'a> {
             &mut mp_allocations,
         );
 
-        // We have to remember whether we pruned any moves to avoid returing
-        // invalid (stale)mate scores.
-        let mut pruned = false;
-
         // Futility pruning
         //
         // If we are too far behind at shallow depth, then don't search moves
         // which don't change material.
-        if !in_check && depth < 3 * INC_PLY && eval + FUTILITY_MARGIN * (depth / INC_PLY) < alpha {
-            moves.skip_quiets(true);
-            pruned = true;
-        }
+        let skip_quiets =
+            !in_check && depth < 3 * INC_PLY && eval + FUTILITY_MARGIN * (depth / INC_PLY) < alpha;
+        moves.skip_quiets(skip_quiets);
+
+        // We have to remember whether we pruned any moves to avoid returing
+        // invalid (stale)mate scores.
+        let mut pruned = skip_quiets;
 
         let mut num_moves = 0;
         let mut num_quiets = 0;
@@ -836,8 +835,10 @@ impl<'a> Search<'a> {
         let in_check = self.position.in_check();
         let mut alpha = alpha;
 
-        let mut eval = None;
-        if !in_check {
+        let eval = if in_check {
+            // Don't do any cutoffs or prunings when in check.
+            None
+        } else {
             let e = self.eval.score(&self.position, self.hasher.get_pawn_hash());
             if e >= beta {
                 return Some(e);
@@ -847,8 +848,8 @@ impl<'a> Search<'a> {
                 alpha = e;
             }
 
-            eval = Some(e);
-        }
+            Some(e)
+        };
 
         if depth == 0 {
             let (ttentry, _ttmove) = self.get_tt_entry();

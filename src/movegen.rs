@@ -408,13 +408,7 @@ impl<'p> MoveGenerator<'p> {
         while i < moves.len() {
             let mov = moves[i];
             if self.position.see(mov, 0) {
-                let mut score = 0;
-                score += mov.captured.map_or(0, Piece::value) as i64 * 128;
-                if mov.promoted == Some(Piece::Queen) {
-                    score += Piece::Queen.value() as i64;
-                }
-                score -= mov.piece.value() as i64;
-                scores.push(score);
+                scores.push(mov.mvv_lva_score());
                 i += 1;
             } else {
                 moves.swap_remove(i);
@@ -472,13 +466,7 @@ impl<'p> MoveGenerator<'p> {
         while i < moves.len() {
             let mov = moves[i];
             if !self.position.see(mov, 0) {
-                let mut score = 0;
-                score += mov.captured.map_or(0, Piece::value) as i64 * 128;
-                if mov.promoted == Some(Piece::Queen) {
-                    score += Piece::Queen.value() as i64;
-                }
-                score -= mov.piece.value() as i64;
-                scores.push(score);
+                scores.push(mov.mvv_lva_score());
                 i += 1;
             } else {
                 moves.swap_remove(i);
@@ -790,6 +778,15 @@ impl<'p> From<&'p Position> for MoveGenerator<'p> {
 impl Move {
     pub fn is_quiet(self) -> bool {
         self.captured.is_none() && self.promoted.is_none()
+    }
+
+    pub fn mvv_lva_score(self) -> i64 {
+        let mut score = i64::from(self.captured.map_or(0, Piece::value)) * 128;
+        if self.promoted == Some(Piece::Queen) {
+            score += i64::from(Piece::Queen.value());
+        }
+        score -= i64::from(self.piece.value());
+        score
     }
 
     pub fn from_algebraic(pos: &Position, alg: &str) -> Move {

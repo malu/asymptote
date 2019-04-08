@@ -61,12 +61,12 @@ pub fn eg(s: EScore) -> i16 {
     ((s + 0x8000) as u32 >> 16) as i16
 }
 
-fn interpolate(score: EScore, phase: i16) -> Score {
-    let mg = mg(score) as i32;
-    let eg = eg(score) as i32;
-    let phase = phase as i32;
+fn interpolate(score: EScore, phase: i16) -> i32 {
+    let mg = i32::from(mg(score));
+    let eg = i32::from(eg(score));
+    let phase = i32::from(phase);
 
-    ((mg * phase + eg * (62 - phase)) / 62) as Score
+    (mg * phase + eg * (62 - phase)) / 62
 }
 
 pub const MATE_SCORE: Score = 20000;
@@ -362,7 +362,7 @@ impl Eval {
         score += self.pawns(pos, pawn_hash);
 
         let phase = self.phase();
-        let mut score = interpolate(score, phase) as i32;
+        let mut score = interpolate(score, phase);
 
         #[cfg(feature = "tune")]
         {
@@ -370,13 +370,13 @@ impl Eval {
             self.trace_pst(pos, false);
         }
 
-        let mut sf = SF_NORMAL;
-
-        if (score > 0 && self.material[1][Piece::Pawn.index()] == 0)
+        let sf = if (score > 0 && self.material[1][Piece::Pawn.index()] == 0)
             || (score < 0 && self.material[0][Piece::Pawn.index()] == 0)
         {
-            sf = SF_PAWNLESS;
-        }
+            SF_PAWNLESS
+        } else {
+            SF_NORMAL
+        };
 
         #[cfg(feature = "tune")]
         {
