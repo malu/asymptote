@@ -186,6 +186,8 @@ impl SearchController {
             let mov = Move::from_algebraic(&self.position, mov);
             self.make_move(mov);
         }
+
+        self.hasher.from_position(&self.position);
     }
 
     fn handle_setoption(&mut self, name: String, value: String) {
