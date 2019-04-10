@@ -23,6 +23,8 @@ pub struct MovePickerAllocations {
     excluded: Vec<Move>,
     moves: Vec<Move>,
     scores: Vec<i64>,
+    bad_moves: Vec<Move>,
+    bad_scores: Vec<i64>,
 }
 
 impl Default for MovePickerAllocations {
@@ -31,6 +33,8 @@ impl Default for MovePickerAllocations {
             excluded: Vec::with_capacity(8),
             moves: Vec::with_capacity(128),
             scores: Vec::with_capacity(128),
+            bad_moves: Vec::with_capacity(128),
+            bad_scores: Vec::with_capacity(128),
         }
     }
 }
@@ -42,6 +46,8 @@ pub struct MovePicker<'a> {
     stages: &'a [Stage],
     moves: &'a mut Vec<Move>,
     scores: &'a mut Vec<i64>,
+    bad_moves: &'a mut Vec<Move>,
+    bad_scores: &'a mut Vec<i64>,
     index: usize,
     killers: [Option<Move>; 2],
     skip_quiets: bool,
@@ -101,6 +107,8 @@ impl<'a> MovePicker<'a> {
         allocations.excluded.clear();
         allocations.moves.clear();
         allocations.scores.clear();
+        allocations.bad_moves.clear();
+        allocations.bad_scores.clear();
 
         MovePicker {
             ttmove,
@@ -109,6 +117,8 @@ impl<'a> MovePicker<'a> {
             stages: ALPHA_BETA_STAGES,
             moves: &mut allocations.moves,
             scores: &mut allocations.scores,
+            bad_moves: &mut allocations.bad_moves,
+            bad_scores: &mut allocations.bad_scores,
             index: 0,
             killers,
             skip_quiets: false,
@@ -119,6 +129,8 @@ impl<'a> MovePicker<'a> {
         allocations.excluded.clear();
         allocations.moves.clear();
         allocations.scores.clear();
+        allocations.bad_moves.clear();
+        allocations.bad_scores.clear();
 
         MovePicker {
             ttmove: None,
@@ -127,6 +139,8 @@ impl<'a> MovePicker<'a> {
             stages: QUIESCENCE_STAGES,
             moves: &mut allocations.moves,
             scores: &mut allocations.scores,
+            bad_moves: &mut allocations.bad_moves,
+            bad_scores: &mut allocations.bad_scores,
             index: 0,
             killers: [None; 2],
             skip_quiets: false,
@@ -137,6 +151,8 @@ impl<'a> MovePicker<'a> {
         allocations.excluded.clear();
         allocations.moves.clear();
         allocations.scores.clear();
+        allocations.bad_moves.clear();
+        allocations.bad_scores.clear();
 
         MovePicker {
             ttmove: None,
@@ -145,6 +161,8 @@ impl<'a> MovePicker<'a> {
             stages: QUIESCENCE_CHECK_STAGES,
             moves: &mut allocations.moves,
             scores: &mut allocations.scores,
+            bad_moves: &mut allocations.bad_moves,
+            bad_scores: &mut allocations.bad_scores,
             index: 0,
             killers: [None; 2],
             skip_quiets: false,
@@ -189,7 +207,12 @@ impl<'a> MovePicker<'a> {
                 self.next(position, history)
             }
             Stage::GenerateGoodCaptures => {
-                MoveGenerator::from(position).good_captures(&mut self.moves, &mut self.scores);
+                MoveGenerator::from(position).good_captures(
+                    &mut self.moves,
+                    &mut self.scores,
+                    &mut self.bad_moves,
+                    &mut self.bad_scores,
+                );
                 self.index = 0;
                 self.stage += 1;
                 self.next(position, history)
@@ -280,7 +303,8 @@ impl<'a> MovePicker<'a> {
                 }
             }
             Stage::GenerateBadCaptures => {
-                MoveGenerator::from(position).bad_captures(&mut self.moves, &mut self.scores);
+                std::mem::swap(&mut self.moves, &mut self.bad_moves);
+                std::mem::swap(&mut self.scores, &mut self.bad_scores);
                 self.index = 0;
                 self.stage += 1;
                 self.next(position, history)

@@ -377,7 +377,13 @@ pub struct MoveGenerator<'p> {
 }
 
 impl<'p> MoveGenerator<'p> {
-    pub fn good_captures(&mut self, moves: &mut Vec<Move>, scores: &mut Vec<i64>) {
+    pub fn good_captures(
+        &mut self,
+        moves: &mut Vec<Move>,
+        scores: &mut Vec<i64>,
+        bad_moves: &mut Vec<Move>,
+        bad_scores: &mut Vec<i64>,
+    ) {
         let all_pieces = self.position.all_pieces;
         let ep = if self.position.details.en_passant != 255 {
             if self.position.white_to_move {
@@ -411,6 +417,8 @@ impl<'p> MoveGenerator<'p> {
                 scores.push(mov.mvv_lva_score());
                 i += 1;
             } else {
+                bad_scores.push(mov.mvv_lva_score());
+                bad_moves.push(mov);
                 moves.swap_remove(i);
             }
         }
@@ -440,38 +448,6 @@ impl<'p> MoveGenerator<'p> {
         self.rook(!self.position.all_pieces, moves);
         self.queen(!self.position.all_pieces, moves);
         self.king(!self.position.all_pieces, moves);
-    }
-
-    pub fn bad_captures(&mut self, moves: &mut Vec<Move>, scores: &mut Vec<i64>) {
-        let all_pieces = self.position.all_pieces;
-        let them = self.position.them(self.position.white_to_move);
-
-        moves.clear();
-        scores.clear();
-
-        let promotion_rank = if self.position.white_to_move {
-            RANK_8
-        } else {
-            RANK_1
-        };
-
-        self.pawn(promotion_rank, moves);
-        self.knight(them & all_pieces, moves);
-        self.bishop(them & all_pieces, moves);
-        self.rook(them & all_pieces, moves);
-        self.queen(them & all_pieces, moves);
-        self.king(them & all_pieces, moves);
-
-        let mut i = 0;
-        while i < moves.len() {
-            let mov = moves[i];
-            if !self.position.see(mov, 0) {
-                scores.push(mov.mvv_lva_score());
-                i += 1;
-            } else {
-                moves.swap_remove(i);
-            }
-        }
     }
 
     pub fn all_moves(&self) -> Vec<Move> {
