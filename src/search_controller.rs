@@ -151,11 +151,12 @@ impl SearchController {
     }
 
     fn handle_ucinewgame(&mut self) {
-        self.hasher = Hasher::new();
         self.history = History::default();
         self.position = STARTING_POSITION;
+        self.hasher.from_position(&self.position);
         self.tt = TT::new(self.options.hash_bits);
         self.repetitions = Repetitions::new(100);
+        self.repetitions.push_position(self.hasher.get_hash());
     }
 
     fn handle_uci(&mut self) {
@@ -180,14 +181,15 @@ impl SearchController {
 
     fn handle_position(&mut self, pos: Position, moves: Vec<String>) {
         self.position = pos;
+        self.hasher.from_position(&self.position);
+
         self.repetitions.clear();
+        self.repetitions.push_position(self.hasher.get_hash());
 
         for mov in &moves {
             let mov = Move::from_algebraic(&self.position, mov);
             self.make_move(mov);
         }
-
-        self.hasher.from_position(&self.position);
     }
 
     fn handle_setoption(&mut self, name: String, value: String) {
