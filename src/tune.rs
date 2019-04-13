@@ -74,6 +74,7 @@ const TUNE_KING_CHECK_KNIGHT: bool = false;
 const TUNE_KING_CHECK_BISHOP: bool = false;
 const TUNE_KING_CHECK_ROOK: bool = false;
 const TUNE_KING_CHECK_QUEEN: bool = false;
+const TUNE_KING_DANGER: bool = false;
 
 const TUNE_PST_PAWN: bool = false;
 const TUNE_PST_KNIGHT: bool = false;
@@ -108,6 +109,8 @@ pub struct Trace {
     pub king_check_bishop: [i8; 2],
     pub king_check_rook: [i8; 2],
     pub king_check_queen: [i8; 2],
+    pub king_danger: [[i8; 2]; 6],
+    pub king_danger_attacks: [i8; 2],
 
     pub pst_pawn: SquareMap<[i8; 2]>,
     pub pst_knight: SquareMap<[i8; 2]>,
@@ -146,6 +149,9 @@ pub struct CompactTrace {
     king_check_bishop: i8,
     king_check_rook: i8,
     king_check_queen: i8,
+    // Since the king danger computation is non linear, we have to keep the individual counts
+    king_danger: [[i8; 2]; 6],
+    king_danger_attacks: [i8; 2],
 
     pst_pawn: SquareMap<i8>,
     pst_knight: SquareMap<i8>,
@@ -235,6 +241,8 @@ impl From<Trace> for CompactTrace {
             king_check_bishop: t.king_check_bishop[1] - t.king_check_bishop[0],
             king_check_rook: t.king_check_rook[1] - t.king_check_rook[0],
             king_check_queen: t.king_check_queen[1] - t.king_check_queen[0],
+            king_danger: t.king_danger,
+            king_danger_attacks: t.king_danger_attacks,
 
             pst_pawn,
             pst_knight,
@@ -275,6 +283,8 @@ pub struct Parameters {
     king_check_bishop: f32,
     king_check_rook: f32,
     king_check_queen: f32,
+    king_danger: [f32; 6],
+    king_danger_attacks: [f32; 7],
 
     pst_pawn: SquareMap<(f32, f32)>,
     pst_knight: SquareMap<(f32, f32)>,
@@ -399,6 +409,8 @@ impl Default for Trace {
             king_check_bishop: [0; 2],
             king_check_rook: [0; 2],
             king_check_queen: [0; 2],
+            king_danger: [[0; 2]; 6],
+            king_danger_attacks: [0; 2],
 
             pst_pawn: SquareMap::default(),
             pst_knight: SquareMap::default(),
@@ -490,6 +502,18 @@ impl CompactTrace {
         score.0 += params.king_check_rook * self.king_check_rook as f32;
 
         score.0 += params.king_check_queen * self.king_check_queen as f32;
+
+        let mut danger_white = 0.;
+        let mut danger_black = 0.;
+        for i in 0..6 {
+            danger_white += params.king_danger[i] * self.king_danger[i][1] as f32;
+            danger_black += params.king_danger[i] * self.king_danger[i][0] as f32;
+        }
+
+        score.0 +=
+            danger_white * params.king_danger_attacks[self.king_danger_attacks[1] as usize] / 128.;
+        score.0 -=
+            danger_black * params.king_danger_attacks[self.king_danger_attacks[0] as usize] / 128.;
 
         for i in ALL_SQUARES.squares() {
             score.0 += params.pst_pawn[i].0 * self.pst_pawn[i] as f32;
@@ -609,6 +633,11 @@ impl Parameters {
             print_single((self.king_check_queen, 0.), "KING_CHECK_QUEEN");
         }
 
+        if TUNE_KING_DANGER {
+            print_array_mg(&self.king_danger, "KING_DANGER");
+            print_array_mg(&self.king_danger_attacks, "KING_DANGER_WEIGHT");
+        }
+
         if TUNE_PST_PAWN {
             print_pst(&self.pst_pawn, "PAWN_PST");
         }
@@ -707,6 +736,8 @@ impl Parameters {
         let mut g_king_check_bishop = 0.;
         let mut g_king_check_rook = 0.;
         let mut g_king_check_queen = 0.;
+        let mut g_king_danger = [0.; 6];
+        let mut g_king_danger_attacks = [0.; 7];
 
         let mut g_pst_pawn = SquareMap::<(f32, f32)>::default();
         let mut g_pst_knight = SquareMap::<(f32, f32)>::default();
@@ -869,6 +900,31 @@ impl Parameters {
                 g_king_check_queen += x * grad * phase / 62.;
             }
 
+            if TUNE_KING_DANGER {
+                let mut danger_white = 0.;
+                let mut danger_black = 0.;
+
+                for i in 0..6 {
+                    danger_white += self.king_danger[i] * trace.king_danger[i][1] as f32;
+                    danger_black += self.king_danger[i] * trace.king_danger[i][0] as f32;
+
+                    let x = (trace.king_danger[i][1] as f32
+                        * self.king_danger_attacks[trace.king_danger_attacks[1] as usize]
+                        - trace.king_danger[i][0] as f32
+                            * self.king_danger_attacks[trace.king_danger_attacks[0] as usize])
+                        / 128.;
+                    g_king_danger[i] += x * grad * phase / 62.;
+                }
+
+                let x = danger_white / 128.;
+                g_king_danger_attacks[trace.king_danger_attacks[1] as usize] +=
+                    x * grad * phase / 62.;
+
+                let x = -danger_black / 128.;
+                g_king_danger_attacks[trace.king_danger_attacks[0] as usize] +=
+                    x * grad * phase / 62.;
+            }
+
             if TUNE_PST_PAWN {
                 for i in ALL_SQUARES.squares() {
                     let x = trace.pst_pawn[i] as f32;
@@ -980,6 +1036,14 @@ impl Parameters {
         norm += g_king_check_rook.powf(2.);
         norm += g_king_check_queen.powf(2.);
 
+        for i in 0..6 {
+            norm += g_king_danger[i].powf(2.);
+        }
+
+        for i in 0..7 {
+            norm += g_king_danger_attacks[i].powf(2.);
+        }
+
         for i in ALL_SQUARES.squares() {
             norm += g_pst_pawn[i].0.powf(2.);
             norm += g_pst_pawn[i].1.powf(2.);
@@ -995,8 +1059,11 @@ impl Parameters {
             norm += g_pst_king[i].1.powf(2.);
         }
 
+        if norm == 0.0 {
+            return;
+        }
+
         norm = norm.sqrt();
-        //norm = 1.;
         let f = f / norm;
 
         for i in 0..6 {
@@ -1062,6 +1129,14 @@ impl Parameters {
 
         self.king_check_queen -= 2. / n * f * g_king_check_queen;
 
+        for i in 0..6 {
+            self.king_danger[i] -= 2. / n * f * g_king_danger[i];
+        }
+
+        for i in 0..7 {
+            self.king_danger_attacks[i] -= 2. / n * f * g_king_danger_attacks[i];
+        }
+
         for i in ALL_SQUARES.squares() {
             self.pst_pawn[i].0 -= 2. / n * f * g_pst_pawn[i].0;
             self.pst_pawn[i].1 -= 2. / n * f * g_pst_pawn[i].1;
@@ -1118,6 +1193,15 @@ impl Default for Parameters {
             king_safety[i] = KING_SAFETY[i] as f32;
         }
 
+        let mut king_danger = [0.; 6];
+        for i in 0..6 {
+            king_danger[i] = KING_DANGER[i] as f32;
+        }
+        let mut king_danger_attacks = [0.; 7];
+        for i in 0..7 {
+            king_danger_attacks[i] = KING_DANGER_WEIGHT[i] as f32;
+        }
+
         let mut pst_pawn = SquareMap::default();
         let mut pst_knight = SquareMap::default();
         let mut pst_bishop = SquareMap::default();
@@ -1165,6 +1249,8 @@ impl Default for Parameters {
             king_check_bishop: mg(KING_CHECK_BISHOP) as f32,
             king_check_rook: mg(KING_CHECK_ROOK) as f32,
             king_check_queen: mg(KING_CHECK_QUEEN) as f32,
+            king_danger,
+            king_danger_attacks,
 
             pst_pawn,
             pst_knight,

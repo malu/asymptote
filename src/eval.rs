@@ -144,6 +144,11 @@ pub const KING_CHECK_BISHOP: EScore = S(-18, 0);
 pub const KING_CHECK_ROOK: EScore = S(-33, 0);
 pub const KING_CHECK_QUEEN: EScore = S(-44, 0);
 
+pub const KING_DANGER: [Score; 6] = [
+	-10, -20, -20, -30, -50, 0
+];
+pub static KING_DANGER_WEIGHT: [i32; 7] = [0, 0, 64, 96, 112, 120, 124];
+
 #[rustfmt::skip]
 pub const PAWN_PST: SquareMap<EScore> = SquareMap::from_array([
     S(  24,   24), S(  28,   28), S(  35,   35), S(  50,   50), S(  50,   50), S(  35,   35), S(  28,   28), S(  24,   24),
@@ -564,6 +569,33 @@ impl Eval {
         }
 
         let mut score = S(KING_SAFETY[index], 0);
+
+        let mut attack_value = 0;
+        let mut attack_count = 0;
+        let king_area = KING_ATTACKS[king_sq];
+
+        for piece in &[
+            Piece::Pawn,
+            Piece::Knight,
+            Piece::Bishop,
+            Piece::Rook,
+            Piece::Queen,
+            Piece::King,
+        ] {
+            if (king_area & self.attacked_by[1 - side][piece.index()]).at_least_one() {
+                attack_value += S(KING_DANGER[piece.index()], 0);
+                attack_count += 1;
+
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.king_danger[piece.index()][side] += 1;
+                    self.trace.king_danger_attacks[side] += 1;
+                }
+            }
+        }
+
+        score += attack_value * KING_DANGER_WEIGHT[attack_count] / 128;
+
         #[cfg(feature = "tune")]
         {
             self.trace.king_safety[index][side] += 1;
