@@ -719,11 +719,12 @@ impl Position {
                     possible_targets |= possible_targets.left(1);
                     possible_targets |= possible_targets.right(1);
                     possible_targets ^= mov.from.forward(self.white_to_move, 1);
+                } else {
+                    let skip_rank = if self.white_to_move { RANK_3 } else { RANK_6 };
+                    possible_targets |= (possible_targets & skip_rank & !self.all_pieces).forward(self.white_to_move, 1);
+                    possible_targets &= !self.all_pieces;
                 }
 
-                let start_rank = if self.white_to_move { RANK_2 } else { RANK_7 };
-
-                possible_targets |= (possible_targets & start_rank).forward(self.white_to_move, 1);
                 if !(possible_targets & mov.to) {
                     return false;
                 }

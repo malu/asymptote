@@ -60,10 +60,12 @@ pub struct SearchController {
 
 impl SearchController {
     pub fn new(position: Position, abort: Arc<AtomicBool>) -> SearchController {
+        let mut hasher = Hasher::new();
+        hasher.from_position(&position);
         SearchController {
             abort,
             node_count: Arc::new(AtomicUsize::new(0)),
-            hasher: Hasher::new(),
+            hasher,
             history: History::default(),
             options: PersistentOptions::default(),
             position,
