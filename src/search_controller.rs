@@ -242,7 +242,7 @@ impl SearchController {
     }
 
     fn handle_tt(&mut self) {
-        println!("Current hash: 0x{:0>64x}", self.hasher.get_hash());
+        println!("Current hash: 0x{:0>8x}", self.hasher.get_hash());
         let tt = self.tt.get(self.hasher.get_hash());
         if let Some(tt) = tt {
             if let Some(best_move) = tt.best_move.expand(&self.position) {
