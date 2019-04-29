@@ -50,7 +50,7 @@ pub struct Position {
 
     /// Number of the current full move. The first moves of white and black belong to the first
     /// full move. Not strictly necessary for correct play.
-    pub fullmove: usize,
+    pub fullmove: u16,
 
     /// The irreversible details of thsi position.
     pub details: IrreversibleDetails,
@@ -1079,7 +1079,7 @@ impl<'a> From<&'a str> for Position {
         }
 
         let halfmove: u8 = split.next().and_then(|n| n.parse().ok()).unwrap_or(0);
-        let fullmove: usize = split.next().and_then(|n| n.parse().ok()).unwrap_or(1);
+        let fullmove: u16 = split.next().and_then(|n| n.parse().ok()).unwrap_or(1);
 
         pos.details.halfmove = halfmove;
         pos.fullmove = fullmove;

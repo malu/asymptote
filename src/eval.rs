@@ -27,7 +27,7 @@ use crate::tune::*;
 
 #[derive(Clone)]
 pub struct Eval {
-    material: [[usize; 5]; 2],
+    material: [[u8; 5]; 2],
     pst: [EScore; 2],
     pawn_table: Vec<PawnHashEntry>,
     attacked_by: [[Bitboard; 6]; 2],
@@ -807,18 +807,18 @@ impl<'p> From<&'p Position> for Eval {
         Eval {
             material: [
                 [
-                    (pos.black_pieces() & pos.pawns()).popcount() as usize,
-                    (pos.black_pieces() & pos.knights()).popcount() as usize,
-                    (pos.black_pieces() & pos.bishops()).popcount() as usize,
-                    (pos.black_pieces() & pos.rooks()).popcount() as usize,
-                    (pos.black_pieces() & pos.queens()).popcount() as usize,
+                    (pos.black_pieces() & pos.pawns()).popcount() as u8,
+                    (pos.black_pieces() & pos.knights()).popcount() as u8,
+                    (pos.black_pieces() & pos.bishops()).popcount() as u8,
+                    (pos.black_pieces() & pos.rooks()).popcount() as u8,
+                    (pos.black_pieces() & pos.queens()).popcount() as u8,
                 ],
                 [
-                    (pos.white_pieces() & pos.pawns()).popcount() as usize,
-                    (pos.white_pieces() & pos.knights()).popcount() as usize,
-                    (pos.white_pieces() & pos.bishops()).popcount() as usize,
-                    (pos.white_pieces() & pos.rooks()).popcount() as usize,
-                    (pos.white_pieces() & pos.queens()).popcount() as usize,
+                    (pos.white_pieces() & pos.pawns()).popcount() as u8,
+                    (pos.white_pieces() & pos.knights()).popcount() as u8,
+                    (pos.white_pieces() & pos.bishops()).popcount() as u8,
+                    (pos.white_pieces() & pos.rooks()).popcount() as u8,
+                    (pos.white_pieces() & pos.queens()).popcount() as u8,
                 ],
             ],
             pst: init_pst_score(pos),
