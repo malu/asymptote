@@ -593,10 +593,10 @@ impl<'a> Search<'a> {
         // Prune nodes that are so good that we could pass without the opponent
         // catching up.
         if !in_check && self.eval.phase() > 0 && eval >= beta {
-            let r = 2;
+            let r = INC_PLY + depth / 4;
             self.internal_make_nullmove(ply);
             let score = self
-                .search_zw(ply + 1, -alpha, depth - INC_PLY - r * INC_PLY)
+                .search_zw(ply + 1, -alpha, depth - INC_PLY - r)
                 .map(|v| -v);
             self.internal_unmake_nullmove(ply);
             match score {
