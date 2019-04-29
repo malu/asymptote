@@ -49,7 +49,10 @@ fn main() {
     initialize_magics();
     if std::env::args().nth(1) == Some(String::from("bench")) {
         run_benchmark(
-            12,
+            std::env::args()
+                .nth(2)
+                .and_then(|depth| depth.parse::<i16>().ok())
+                .unwrap_or(12),
             std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         );
         return;
