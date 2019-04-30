@@ -51,6 +51,7 @@ pub struct MovePicker<'a> {
     index: usize,
     killers: [Option<Move>; 2],
     skip_quiets: bool,
+    previous_move: Option<Move>,
 }
 
 #[derive(Clone)]
@@ -102,6 +103,7 @@ impl<'a> MovePicker<'a> {
     pub fn new(
         ttmove: Option<Move>,
         killers: [Option<Move>; 2],
+        previous_move: Option<Move>,
         allocations: &'a mut MovePickerAllocations,
     ) -> Self {
         allocations.excluded.clear();
@@ -122,6 +124,7 @@ impl<'a> MovePicker<'a> {
             index: 0,
             killers,
             skip_quiets: false,
+            previous_move,
         }
     }
 
@@ -150,6 +153,7 @@ impl<'a> MovePicker<'a> {
             index: 0,
             killers: [None; 2],
             skip_quiets: false,
+            previous_move: None,
         }
     }
 
@@ -228,6 +232,16 @@ impl<'a> MovePicker<'a> {
                             .flatten()
                             .filter(|&&m| position.move_is_pseudo_legal(m)),
                     );
+                    if let Some(prev_move) = self.previous_move {
+                        if prev_move.is_quiet() {
+                            self.moves.extend(
+                                history.last_best_reply[position.white_to_move as usize]
+                                    [prev_move.piece.index()][prev_move.to]
+                                    .iter()
+                                    .filter(|&&m| position.move_is_pseudo_legal(m)),
+                            );
+                        }
+                    }
                     self.scores.extend(self.moves.iter().map(|_| 0));
                 }
                 self.index = 0;

@@ -359,9 +359,11 @@ impl<'a> Search<'a> {
 
         let mut mp_allocations = self.mp_allocations.pop().unwrap();
 
+        let previous_move = self.stack[ply as usize - 1].current_move;
         let mut moves = MovePicker::new(
             ttmove,
             self.stack[ply as usize].killers_moves,
+            previous_move,
             &mut mp_allocations,
         );
 
@@ -628,6 +630,7 @@ impl<'a> Search<'a> {
         let mut moves = MovePicker::new(
             ttmove,
             self.stack[ply as usize].killers_moves,
+            previous_move,
             &mut mp_allocations,
         );
 
@@ -989,7 +992,7 @@ impl<'a> Search<'a> {
 
         let mp_allocations = &mut self.mp_allocations[0];
 
-        let mut moves = MovePicker::new(None, [None; 2], mp_allocations);
+        let mut moves = MovePicker::new(None, [None; 2], None, mp_allocations);
 
         while let Some((_, mov)) = moves.next(&self.position, &self.history) {
             if self.position.move_is_legal(mov) {
@@ -1061,6 +1064,16 @@ impl<'a> Search<'a> {
             &self.quiets[ply as usize][0..num_failed_quiets],
             depth,
         );
+
+        if let Some(previous_move) = self.stack[ply as usize - 1].current_move {
+            if previous_move.is_quiet() {
+                self.history.last_best_reply[self.position.white_to_move as usize]
+                    [previous_move.piece.index()][previous_move.to] = Some(mov);
+            } else {
+                self.history.last_best_reply[self.position.white_to_move as usize]
+                    [previous_move.piece.index()][previous_move.to] = None;
+            }
+        }
 
         let killers = &mut self.stack[ply as usize].killers_moves;
 

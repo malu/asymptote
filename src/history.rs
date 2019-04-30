@@ -21,6 +21,7 @@ use crate::types::SquareMap;
 #[derive(Clone, Default)]
 pub struct History {
     piece_to: [[SquareMap<i64>; 6]; 2],
+    pub last_best_reply: [[SquareMap<Option<Move>>; 6]; 2],
 }
 
 impl History {
