@@ -510,8 +510,10 @@ impl<'p> MoveGenerator<'p> {
 
         let pawns = self.position.pawns() & us;
         let single_step_targets = pawns.forward(wtm, 1) & !self.position.all_pieces & targets;
-        let double_step_targets =
-            (pawns.forward(wtm, 1) & !self.position.all_pieces & rank3).forward(wtm, 1) & !self.position.all_pieces & targets;
+        let double_step_targets = (pawns.forward(wtm, 1) & !self.position.all_pieces & rank3)
+            .forward(wtm, 1)
+            & !self.position.all_pieces
+            & targets;
         let captures_left = pawns.forward(wtm, 1).left(1) & them & targets;
         let captures_right = pawns.forward(wtm, 1).right(1) & them & targets;
 

@@ -727,7 +727,8 @@ impl Position {
                     possible_targets ^= mov.from.forward(self.white_to_move, 1);
                 } else {
                     let skip_rank = if self.white_to_move { RANK_3 } else { RANK_6 };
-                    possible_targets |= (possible_targets & skip_rank & !self.all_pieces).forward(self.white_to_move, 1);
+                    possible_targets |= (possible_targets & skip_rank & !self.all_pieces)
+                        .forward(self.white_to_move, 1);
                     possible_targets &= !self.all_pieces;
                 }
 
@@ -788,10 +789,16 @@ impl Position {
         let king = self.king_sq(self.white_to_move);
 
         self.details.checkers = Bitboard::from(0);
-        self.details.checkers |= (king.to_bb().left(1) | king.to_bb().right(1)).forward(self.white_to_move, 1) & them & self.pawns();
+        self.details.checkers |= (king.to_bb().left(1) | king.to_bb().right(1))
+            .forward(self.white_to_move, 1)
+            & them
+            & self.pawns();
         self.details.checkers |= KNIGHT_ATTACKS[king] & them & self.knights();
-        self.details.checkers |= get_bishop_attacks_from(king, self.all_pieces) & them & (self.bishops() | self.queens());
-        self.details.checkers |= get_rook_attacks_from(king, self.all_pieces) & them & (self.rooks() | self.queens());
+        self.details.checkers |= get_bishop_attacks_from(king, self.all_pieces)
+            & them
+            & (self.bishops() | self.queens());
+        self.details.checkers |=
+            get_rook_attacks_from(king, self.all_pieces) & them & (self.rooks() | self.queens());
     }
 
     /// Prints the board state.
