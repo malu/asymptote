@@ -130,24 +130,32 @@ pub const ROOK_HALFOPEN_FILE: EScore = S(10, 18);
 
 #[rustfmt::skip]
 pub const KING_SAFETY: [Score; 30] = [
-    0,      -1,   -3,   -9,
-    -14,   -29,  -38,  -49,
-    -57,   -73,  -94, -118,
-    -144, -170, -196, -226,
-    -255, -289, -323, -361,
+       0,   -1,   -3,  -15,
+     -23,  -31,  -38,  -49,
+     -55,  -63,  -80, -105,
+    -134, -174, -200, -233,
+    -258, -291, -327, -361,
     -400, -441, -484, -529,
     -576, -625, -676, -729,
     -784, -841,
 ];
-pub const KING_CHECK_KNIGHT: EScore = S(-58, 0);
-pub const KING_CHECK_BISHOP: EScore = S(-18, 0);
-pub const KING_CHECK_ROOK: EScore = S(-33, 0);
-pub const KING_CHECK_QUEEN: EScore = S(-44, 0);
 
+pub const KING_CHECK_KNIGHT: EScore = S(-85, 0);
+pub const KING_CHECK_BISHOP: EScore = S(-15, 0);
+pub const KING_CHECK_ROOK: EScore = S(-52, 0);
+pub const KING_CHECK_QUEEN: EScore = S(-49, 0);
+
+#[rustfmt::skip]
 pub const KING_DANGER: [Score; 6] = [
-	-10, -20, -20, -30, -50, 0
+      -1,  -28,  -13,  -32,
+     -65,    1,
 ];
-pub static KING_DANGER_WEIGHT: [i32; 7] = [0, 0, 64, 96, 112, 120, 124];
+
+#[rustfmt::skip]
+pub const KING_DANGER_WEIGHT: [i32; 7] = [
+       0,    5,   58,  106,
+     113,  121,  124,
+];
 
 #[rustfmt::skip]
 pub const PAWN_PST: SquareMap<EScore> = SquareMap::from_array([
