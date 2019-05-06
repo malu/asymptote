@@ -383,9 +383,7 @@ impl Eval {
             self.trace_pst(pos, false);
         }
 
-        let sf = if (score > 0 && self.material[1][Piece::Pawn.index()] == 0)
-            || (score < 0 && self.material[0][Piece::Pawn.index()] == 0)
-        {
+        let sf = if self.material[(score > 0) as usize][Piece::Pawn.index()] == 0 {
             SF_PAWNLESS
         } else {
             SF_NORMAL
