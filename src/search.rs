@@ -38,9 +38,6 @@ pub const MAX_PLY: Ply = 128;
 const FUTILITY_MARGIN: Score = 200;
 const SEE_PRUNING_MARGIN: [Score; 3] = [0, -50, -200];
 
-const LMR_MAX_DEPTH: Depth = 9 * INC_PLY;
-const LMR_MOVES: [usize; (LMR_MAX_DEPTH / INC_PLY) as usize] = [255, 255, 3, 5, 5, 7, 7, 9, 9];
-
 #[derive(Clone)]
 pub struct Search<'a> {
     pub id: usize,
@@ -347,6 +344,8 @@ impl<'a> Search<'a> {
             return self.qsearch(ply, alpha, beta, 0);
         }
 
+        let in_check = self.position.in_check();
+
         // Internal iterative deepening
         // If we don't get a previous best move from the TT, do a reduced-depth search first to get one.
         if depth >= 4 * INC_PLY && ttmove.is_none() {
@@ -417,14 +416,31 @@ impl<'a> Search<'a> {
                 }
             }
 
+            let mut reduction = 0;
+            if extension <= 0
+                && depth >= 3 * INC_PLY
+                && mtype == MoveType::Quiet
+                && !check
+                && !in_check
+            {
+                let r = (depth / INC_PLY + num_moves) / 8 - 1;
+                reduction += r * INC_PLY;
+            };
+
             extension = cmp::min(extension, INC_PLY);
             let new_depth = depth - INC_PLY + extension;
 
+            reduction = cmp::max(0, cmp::min(reduction, new_depth - INC_PLY));
+
             let mut value = if num_moves > 1 {
-                self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v)
+                self.search_zw(ply + 1, -alpha, new_depth - reduction).map(|v| -v)
             } else {
                 Some(Score::max_value())
             };
+
+            if reduction > 0 && Some(alpha) < value {
+                value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
+            }
 
             if Some(alpha) < value {
                 value = self
@@ -745,23 +761,19 @@ impl<'a> Search<'a> {
             }
 
             if extension <= 0
-                && depth < LMR_MAX_DEPTH
-                && num_moves > LMR_MOVES[(depth / INC_PLY) as usize]
-                && mtype != MoveType::GoodCapture
-                && mtype != MoveType::Killer
+                && depth >= 3 * INC_PLY
+                && mtype == MoveType::Quiet
                 && !check
                 && !in_check
             {
-                reduction += INC_PLY;
-            }
+                let r = (depth / INC_PLY + num_moves) / 8;
+                reduction += r * INC_PLY;
+            };
 
             extension = cmp::min(extension, INC_PLY);
             let new_depth = depth - INC_PLY + extension;
 
-            // If we drop into qsearch anyway, don't reduce.
-            if new_depth < INC_PLY {
-                reduction = 0;
-            }
+            reduction = cmp::max(0, cmp::min(reduction, new_depth - INC_PLY));
 
             let mut value = self
                 .search_zw(ply + 1, -alpha, new_depth - reduction)
