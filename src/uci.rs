@@ -47,7 +47,6 @@ pub enum UciCommand {
     ShowMoves,
     Debug,
     TT,
-    History(Option<String>),
     Perft(usize),
 }
 
@@ -172,9 +171,6 @@ impl<'a> From<&'a str> for UciCommand {
             UciCommand::Debug
         } else if line == "tt" {
             UciCommand::TT
-        } else if line.starts_with("history") {
-            let mov = line.split_whitespace().nth(1).map(String::from);
-            UciCommand::History(mov)
         } else if line.starts_with("perft") {
             let depth = line
                 .split_whitespace()

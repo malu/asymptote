@@ -72,7 +72,6 @@ impl<'a> Search<'a> {
         abort: sync::Arc<sync::atomic::AtomicBool>,
         visited_nodes: sync::Arc<sync::atomic::AtomicUsize>,
         hasher: Hasher,
-        history: History,
         options: PersistentOptions,
         position: Position,
         time_control: TimeControl,
@@ -90,7 +89,7 @@ impl<'a> Search<'a> {
         Search {
             id: 0,
 
-            history,
+            history: History::default(),
             stack,
             eval: Eval::from(&position),
             time_control,

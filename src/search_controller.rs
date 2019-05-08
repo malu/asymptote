@@ -20,7 +20,6 @@ use std::sync::{self, Arc};
 use crossbeam::thread;
 
 use crate::hash::Hasher;
-use crate::history::History;
 use crate::movegen::{Move, MoveGenerator};
 use crate::position::{Position, STARTING_POSITION};
 use crate::repetitions::Repetitions;
@@ -50,7 +49,6 @@ pub struct SearchController {
     abort: Arc<AtomicBool>,
     node_count: Arc<AtomicUsize>,
     hasher: Hasher,
-    history: History,
     options: PersistentOptions,
     position: Position,
     time_control: TimeControl,
@@ -66,7 +64,6 @@ impl SearchController {
             abort,
             node_count: Arc::new(AtomicUsize::new(0)),
             hasher,
-            history: History::default(),
             options: PersistentOptions::default(),
             position,
             time_control: TimeControl::Infinite,
@@ -86,7 +83,6 @@ impl SearchController {
             Arc::clone(&self.abort),
             Arc::clone(&self.node_count),
             self.hasher.clone(),
-            self.history.clone(),
             self.options,
             self.position.clone(),
             self.time_control,
@@ -145,7 +141,6 @@ impl SearchController {
                 UciCommand::ShowMoves => self.handle_showmoves(),
                 UciCommand::Debug => self.handle_d(),
                 UciCommand::TT => self.handle_tt(),
-                UciCommand::History(mov) => self.handle_history(mov),
                 UciCommand::Perft(depth) => self.handle_perft(depth),
                 _ => eprintln!("Unexpected uci command"),
             }
@@ -153,7 +148,6 @@ impl SearchController {
     }
 
     fn handle_ucinewgame(&mut self) {
-        self.history = History::default();
         self.position = STARTING_POSITION;
         self.hasher.from_position(&self.position);
         self.tt = TT::new(self.options.hash_bits);
@@ -266,37 +260,12 @@ impl SearchController {
         }
     }
 
-    fn handle_history(&self, mov: Option<String>) {
-        if let Some(mov) = mov.map(|m| Move::from_algebraic(&self.position, &m)) {
-            let score = self.history.get_score(self.position.white_to_move, mov);
-            println!("History score: {}", score);
-        } else {
-            let mg = MoveGenerator::from(&self.position);
-            let mut moves = Vec::new();
-            mg.quiet_moves(&mut moves);
-            let mut moves = moves
-                .into_iter()
-                .map(|mov| {
-                    (
-                        mov,
-                        self.history.get_score(self.position.white_to_move, mov),
-                    )
-                })
-                .collect::<Vec<_>>();
-            moves.sort_by_key(|(_, hist)| -hist);
-            for (mov, hist) in moves {
-                println!("{} {:>8}", mov.to_algebraic(), hist);
-            }
-        }
-    }
-
     fn handle_perft(&mut self, depth: usize) {
         let tt = self.tt.share();
         let mut thread = Search::new(
             Arc::clone(&self.abort),
             Arc::clone(&self.node_count),
             self.hasher.clone(),
-            self.history.clone(),
             self.options,
             self.position.clone(),
             self.time_control,
