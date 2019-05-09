@@ -270,10 +270,9 @@ impl Eval {
 
         for bishop in (pos.bishops() & us).squares() {
             let b = get_bishop_attacks_from(bishop, pos.all_pieces);
-            let x = get_bishop_attacks_from(bishop, pos.all_pieces ^ (pos.queens() & us));
             score += BISHOP_MOBILITY[b.popcount()];
             self.attacked_by[s][Piece::Bishop.index()] |= b;
-            self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
+            self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
 
             #[cfg(feature = "tune")]
@@ -284,10 +283,9 @@ impl Eval {
 
         for rook in (pos.rooks() & us).squares() {
             let b = get_rook_attacks_from(rook, pos.all_pieces);
-            let x = get_rook_attacks_from(rook, pos.all_pieces ^ (pos.queens() & us));
             score += ROOK_MOBILITY[b.popcount()];
             self.attacked_by[s][Piece::Rook.index()] |= b;
-            self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
+            self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
 
             #[cfg(feature = "tune")]
@@ -299,11 +297,9 @@ impl Eval {
         for queen in (pos.queens() & us).squares() {
             let b = get_bishop_attacks_from(queen, pos.all_pieces)
                 | get_rook_attacks_from(queen, pos.all_pieces);
-            let x = get_bishop_attacks_from(queen, pos.all_pieces ^ (pos.queens() & us))
-                | get_rook_attacks_from(queen, pos.all_pieces ^ (pos.queens() & us));
             score += QUEEN_MOBILITY[b.popcount()];
             self.attacked_by[s][Piece::Queen.index()] |= b;
-            self.attacked_by_2[s] |= self.attacked_by_1[s] & x;
+            self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
 
             #[cfg(feature = "tune")]
