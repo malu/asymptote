@@ -23,10 +23,6 @@ pub struct SquareMap<T> {
 }
 
 impl<T> SquareMap<T> {
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<T> {
-        self.data.iter_mut()
-    }
-
     pub const fn from_array(data: [T; 64]) -> SquareMap<T> {
         SquareMap { data }
     }

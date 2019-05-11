@@ -43,14 +43,4 @@ impl History {
             self.piece_to[white as usize][mov.piece.index()][mov.to] -= d * d;
         }
     }
-
-    pub fn rescale(&mut self) {
-        for stm in 0..2 {
-            for piece in 0..6 {
-                for hist in self.piece_to[stm][piece].iter_mut() {
-                    *hist /= 256;
-                }
-            }
-        }
-    }
 }

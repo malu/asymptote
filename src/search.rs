@@ -113,8 +113,6 @@ impl<'a> Search<'a> {
         self.pv
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
-
-        self.history.rescale();
     }
 
     pub fn iterative_deepening(&mut self) -> Move {
