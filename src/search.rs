@@ -326,18 +326,8 @@ impl<'a> Search<'a> {
 
             // In PV nodes we only cutoff on TT hits if we would drop into quiescence search otherwise.
             // Otherwise we would get shorter principal variations as output.
-            if depth < INC_PLY {
-                if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
-                    return Some(score);
-                }
-
-                if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
-                    return Some(score);
-                }
-
-                if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
-                    return Some(score);
-                }
+            if depth < INC_PLY && ttentry.bound & EXACT_BOUND == EXACT_BOUND {
+                return Some(score);
             }
         }
 
