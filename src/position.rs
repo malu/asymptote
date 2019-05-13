@@ -740,7 +740,7 @@ impl Position {
                     return mov.promoted.is_some();
                 }
 
-                return true;
+                true
             }
             Piece::Knight => KNIGHT_ATTACKS[mov.from] & mov.to,
             Piece::Bishop => get_bishop_attacks_from(mov.from, self.all_pieces) & mov.to,

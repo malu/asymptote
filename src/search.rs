@@ -46,8 +46,8 @@ pub struct Search<'a> {
     history: History,
     position: Position,
     eval: Eval,
-    pub time_control: TimeControl,
-    pub time_manager: TimeManager,
+    time_control: TimeControl,
+    time_manager: TimeManager,
     hasher: Hasher,
     visited_nodes: sync::Arc<sync::atomic::AtomicUsize>,
     tt: &'a SharedTT<'a>,
@@ -79,18 +79,15 @@ impl<'a> Search<'a> {
         repetitions: Repetitions,
     ) -> Search {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
-        let stack = [PlyDetails::default(); MAX_PLY as usize];
-        let mut mp_allocations = Vec::with_capacity(MAX_PLY as usize);
         for i in 0..MAX_PLY as usize {
             pv.push(vec![None; MAX_PLY as usize - i + 1]);
-            mp_allocations.push(MovePickerAllocations::default());
         }
 
         Search {
             id: 0,
 
             history: History::default(),
-            stack,
+            stack: [PlyDetails::default(); MAX_PLY as usize],
             eval: Eval::from(&position),
             time_control,
             time_manager: TimeManager::new(&position, time_control, abort),
@@ -103,7 +100,7 @@ impl<'a> Search<'a> {
             repetitions,
             options,
 
-            mp_allocations,
+            mp_allocations: vec![MovePickerAllocations::default(); MAX_PLY as usize],
             quiets: [[None; 256]; MAX_PLY as usize],
         }
     }
@@ -430,7 +427,8 @@ impl<'a> Search<'a> {
             reduction = cmp::max(0, cmp::min(reduction, new_depth - INC_PLY));
 
             let mut value = if num_moves > 1 {
-                self.search_zw(ply + 1, -alpha, new_depth - reduction).map(|v| -v)
+                self.search_zw(ply + 1, -alpha, new_depth - reduction)
+                    .map(|v| -v)
             } else {
                 Some(Score::max_value())
             };

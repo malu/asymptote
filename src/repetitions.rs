@@ -39,7 +39,7 @@ impl Repetitions {
     }
 
     pub fn clear(&mut self) {
-        self.past_positions.iter_mut().for_each(|vec| vec.clear());
+        self.past_positions.iter_mut().for_each(Vec::clear);
         self.past_positions[0].push(0);
         self.index = 0;
     }
