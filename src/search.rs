@@ -35,8 +35,16 @@ pub type Depth = i16;
 pub const INC_PLY: Depth = 64;
 pub const MAX_PLY: Ply = 128;
 
+const CHECK_EXTENSION_DEPTH: Depth = 3 * INC_PLY;
 const FUTILITY_MARGIN: Score = 200;
+const HISTORY_PRUNING_DEPTH: Depth = 2 * INC_PLY;
+const HISTORY_PRUNING_THRESHOLD: i64 = 0;
+const LMR_DEPTH: Depth = 3 * INC_PLY;
+const SEE_PRUNING_DEPTH: Depth = 3 * INC_PLY;
 const SEE_PRUNING_MARGIN: [Score; 3] = [0, -50, -200];
+const STATIC_BETA_DEPTH: Depth = 5 * INC_PLY;
+const STATIC_BETA_MARGIN: Score = 128;
+const QS_FUTILITY_MARGIN: Score = 200;
 
 #[derive(Clone)]
 pub struct Search<'a> {
@@ -597,7 +605,10 @@ impl<'a> Search<'a> {
         //
         // Prune nodes at shallow depth if current evaluation is above beta by
         // a large (depth-dependent) margin.
-        if !in_check && depth < 5 * INC_PLY && eval - 128 * (depth / INC_PLY) > beta {
+        if !in_check
+            && depth < STATIC_BETA_DEPTH
+            && eval - STATIC_BETA_MARGIN * (depth / INC_PLY) > beta
+        {
             return Some(beta);
         }
 
@@ -684,10 +695,11 @@ impl<'a> Search<'a> {
             //
             // Do not play moves with negative history score if at very low
             // depth.
-            if depth < 2 * INC_PLY
+            if depth < HISTORY_PRUNING_DEPTH
                 && mtype == MoveType::Quiet
                 && num_moves > 1
-                && self.history.get_score(self.position.white_to_move, mov) < 0
+                && self.history.get_score(self.position.white_to_move, mov)
+                    < HISTORY_PRUNING_THRESHOLD
             {
                 pruned = true;
 
@@ -703,7 +715,7 @@ impl<'a> Search<'a> {
             // Does not trigger for winning or equal tactical moves
             // (MoveType::GoodCapture) because those are assumed to have a
             // non-negative static exchange evaluation.
-            if depth < 3 * INC_PLY
+            if depth < SEE_PRUNING_DEPTH
                 && !check
                 && !in_check
                 && mtype != MoveType::GoodCapture
@@ -723,7 +735,7 @@ impl<'a> Search<'a> {
                 // * node is near horizon
                 // * move is the hash move from a previous search
                 // * move does not lose material
-                if depth < 3 * INC_PLY
+                if depth < CHECK_EXTENSION_DEPTH
                     || mtype == MoveType::GoodCapture
                     || mtype == MoveType::TTMove
                     // Filter tactically bad moves. They wouldn't pass the SEE
@@ -756,7 +768,7 @@ impl<'a> Search<'a> {
             }
 
             if extension <= 0
-                && depth >= 3 * INC_PLY
+                && depth >= LMR_DEPTH
                 && mtype == MoveType::Quiet
                 && !check
                 && !in_check
@@ -903,7 +915,8 @@ impl<'a> Search<'a> {
                 let promote = mov.promoted.map_or(0, |p| p.value() - Piece::Pawn.value());
                 let mscore = capture + promote;
 
-                if eval + mscore + 200 < alpha && !self.position.move_will_check(mov) {
+                if eval + mscore + QS_FUTILITY_MARGIN < alpha && !self.position.move_will_check(mov)
+                {
                     continue;
                 }
             }
