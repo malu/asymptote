@@ -425,8 +425,7 @@ impl<'a> Search<'a> {
                 && !check
                 && !in_check
             {
-                let r = (depth / INC_PLY + num_moves) / 8 - 1;
-                reduction += r * INC_PLY;
+                reduction += lmr_reduction(depth, num_moves, true);
             };
 
             extension = cmp::min(extension, INC_PLY);
@@ -773,8 +772,7 @@ impl<'a> Search<'a> {
                 && !check
                 && !in_check
             {
-                let r = (depth / INC_PLY + num_moves) / 8;
-                reduction += r * INC_PLY;
+                reduction += lmr_reduction(depth, num_moves, false);
             };
 
             extension = cmp::min(extension, INC_PLY);
@@ -1223,4 +1221,9 @@ impl<'a> Search<'a> {
         self.time_control = tc;
         self.time_manager.update(&self.position, self.time_control);
     }
+}
+
+fn lmr_reduction(depth: Depth, move_count: i16, pv: bool) -> Depth {
+    let r = (depth / INC_PLY + move_count) / 8 - pv as i16;
+    r * INC_PLY
 }
