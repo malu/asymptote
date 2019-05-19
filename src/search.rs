@@ -40,8 +40,9 @@ const FUTILITY_MARGIN: Score = 200;
 const HISTORY_PRUNING_DEPTH: Depth = 2 * INC_PLY;
 const HISTORY_PRUNING_THRESHOLD: i64 = 0;
 const LMR_DEPTH: Depth = 3 * INC_PLY;
-const SEE_PRUNING_DEPTH: Depth = 3 * INC_PLY;
-const SEE_PRUNING_MARGIN: [Score; 3] = [0, -50, -200];
+const SEE_PRUNING_DEPTH: Depth = 5 * INC_PLY;
+const SEE_PRUNING_MARGIN_CAPTURE: Score = -25;
+const SEE_PRUNING_MARGIN_QUIET: Score = -100;
 const STATIC_BETA_DEPTH: Depth = 5 * INC_PLY;
 const STATIC_BETA_MARGIN: Score = 128;
 const QS_FUTILITY_MARGIN: Score = 200;
@@ -704,16 +705,23 @@ impl<'a> Search<'a> {
             // Does not trigger for winning or equal tactical moves
             // (MoveType::GoodCapture) because those are assumed to have a
             // non-negative static exchange evaluation.
-            if depth < SEE_PRUNING_DEPTH
-                && !check
-                && !in_check
-                && mtype != MoveType::GoodCapture
-                && !self
-                    .position
-                    .see(mov, SEE_PRUNING_MARGIN[(depth / INC_PLY) as usize])
-            {
-                pruned = true;
-                continue;
+            if depth < SEE_PRUNING_DEPTH && !check && !in_check {
+                if mtype == MoveType::BadCapture
+                    && !self.position.see(
+                        mov,
+                        SEE_PRUNING_MARGIN_CAPTURE * (depth / INC_PLY) * (depth / INC_PLY),
+                    )
+                {
+                    pruned = true;
+                    continue;
+                } else if mtype == MoveType::Quiet
+                    && !self
+                        .position
+                        .see(mov, SEE_PRUNING_MARGIN_QUIET * (depth / INC_PLY))
+                {
+                    pruned = true;
+                    continue;
+                }
             }
 
             let mut extension = 0;
