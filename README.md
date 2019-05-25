@@ -6,12 +6,12 @@ Asymptote does not include a graphical user interface. You need a UCI-compliant 
 The UCI options currently supported (as reported by the `uci` command) are:
 ```
 > uci
-> id name Asymptote 0.5
-> id author Maximilian Lupke
-> option name Hash type spin default 1 min 0 max 2048
-> option name Threads type spin default 1 min 1 max 64
-> option name ShowPVBoard type check default false
-> uciok
+< id name Asymptote 0.5
+< id author Maximilian Lupke
+< option name Hash type spin default 1 min 0 max 2048
+< option name Threads type spin default 1 min 1 max 64
+< option name ShowPVBoard type check default false
+< uciok
 ```
 
 Options in general are case-insensitive.
@@ -27,12 +27,13 @@ Several versions of Asymptote have been tested by computer chess engine testers.
 
 | Version | CCRL 40/4 | CCRL 40/40 |
 | :------ | --------: | ---------: |
-| v0.4.2  |      2599 |       2570 |
+| v0.5    |      2652 |       2653 |
+| v0.4.2  |      2598 |       2582 |
 | v0.3    |      2488 |       2502 |
-| v0.2.0  |      2315 |       2313 |
-| v0.1.8  |      2174 |       2178 |
+| v0.2.0  |      2314 |       2314 |
+| v0.1.8  |      2176 |       2179 |
 
-(last updated April 2, 2019)
+(last updated May 25, 2019)
 
 Always up-to-date information can be found at the respective websites:
 * [CCRL 40/4](http://ccrl.chessdom.com/ccrl/404/)
