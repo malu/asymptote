@@ -415,6 +415,7 @@ impl<'a> Search<'a> {
                 && mtype == MoveType::Quiet
                 && !check
                 && !in_check
+                && best_score > -MATE_SCORE + MAX_PLY
             {
                 reduction += lmr_reduction(depth, num_moves, true);
             };
@@ -666,61 +667,62 @@ impl<'a> Search<'a> {
             }
 
             let check = self.position.move_will_check(mov);
-            // Futility pruning
-            if !check {
-                let capture_value = mov.captured.map_or(0, Piece::value);
-                let promotion_value = mov
-                    .promoted
-                    .map_or(0, |piece| piece.value() - Piece::Pawn.value());
+            if best_score > -MATE_SCORE + MAX_PLY {
+                // Futility pruning
+                if !check {
+                    let capture_value = mov.captured.map_or(0, Piece::value);
+                    let promotion_value = mov
+                        .promoted
+                        .map_or(0, |piece| piece.value() - Piece::Pawn.value());
 
-                if eval + 200 * ((depth / INC_PLY + 1) / 2) + capture_value + promotion_value
-                    < alpha
+                    if eval + 200 * ((depth / INC_PLY + 1) / 2) + capture_value + promotion_value
+                        < alpha
+                    {
+                        pruned = true;
+                        continue;
+                    }
+                }
+
+                // History leaf pruning
+                //
+                // Do not play moves with negative history score if at very low
+                // depth.
+                if depth < HISTORY_PRUNING_DEPTH
+                    && mtype == MoveType::Quiet
+                    && self.history.get_score(self.position.white_to_move, mov)
+                        < HISTORY_PRUNING_THRESHOLD
                 {
                     pruned = true;
+
+                    // We can skip the remaining quiet moves because quiet moves
+                    // are ordered by history score.
+                    moves.skip_quiets(true);
                     continue;
                 }
-            }
 
-            // History leaf pruning
-            //
-            // Do not play moves with negative history score if at very low
-            // depth.
-            if depth < HISTORY_PRUNING_DEPTH
-                && mtype == MoveType::Quiet
-                && num_moves > 1
-                && self.history.get_score(self.position.white_to_move, mov)
-                    < HISTORY_PRUNING_THRESHOLD
-            {
-                pruned = true;
-
-                // We can skip the remaining quiet moves because quiet moves
-                // are ordered by history score.
-                moves.skip_quiets(true);
-                continue;
-            }
-
-            // Static exchange evaluation pruning
-            //
-            // Do not play very bad moves at shallow depths.
-            // Does not trigger for winning or equal tactical moves
-            // (MoveType::GoodCapture) because those are assumed to have a
-            // non-negative static exchange evaluation.
-            if depth < SEE_PRUNING_DEPTH && !check && !in_check {
-                if mtype == MoveType::BadCapture
-                    && !self.position.see(
-                        mov,
-                        SEE_PRUNING_MARGIN_CAPTURE * (depth / INC_PLY) * (depth / INC_PLY),
-                    )
-                {
-                    pruned = true;
-                    continue;
-                } else if mtype == MoveType::Quiet
-                    && !self
-                        .position
-                        .see(mov, SEE_PRUNING_MARGIN_QUIET * (depth / INC_PLY))
-                {
-                    pruned = true;
-                    continue;
+                // Static exchange evaluation pruning
+                //
+                // Do not play very bad moves at shallow depths.
+                // Does not trigger for winning or equal tactical moves
+                // (MoveType::GoodCapture) because those are assumed to have a
+                // non-negative static exchange evaluation.
+                if depth < SEE_PRUNING_DEPTH && !check && !in_check {
+                    if mtype == MoveType::BadCapture
+                        && !self.position.see(
+                            mov,
+                            SEE_PRUNING_MARGIN_CAPTURE * (depth / INC_PLY) * (depth / INC_PLY),
+                        )
+                    {
+                        pruned = true;
+                        continue;
+                    } else if mtype == MoveType::Quiet
+                        && !self
+                            .position
+                            .see(mov, SEE_PRUNING_MARGIN_QUIET * (depth / INC_PLY))
+                    {
+                        pruned = true;
+                        continue;
+                    }
                 }
             }
 
@@ -769,6 +771,7 @@ impl<'a> Search<'a> {
                 && mtype == MoveType::Quiet
                 && !check
                 && !in_check
+                && best_score > -MATE_SCORE + MAX_PLY
             {
                 reduction += lmr_reduction(depth, num_moves, false);
             };
@@ -874,12 +877,14 @@ impl<'a> Search<'a> {
             if let Some(ttentry) = ttentry {
                 let score = ttentry.score.to_score(ply);
 
-                if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
-                    return Some(score);
-                }
+                if alpha + 1 < beta {
+                    if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
+                        return Some(score);
+                    }
 
-                if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
-                    return Some(score);
+                    if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
+                        return Some(score);
+                    }
                 }
 
                 if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
