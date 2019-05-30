@@ -473,16 +473,8 @@ impl<'a> Search<'a> {
                                     self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
                                 }
 
-                                self.tt.insert(
-                                    self.hasher.get_hash(),
-                                    depth,
-                                    TTScore::from_score(value, ply),
-                                    mov,
-                                    LOWER_BOUND,
-                                );
                                 self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
-                                self.mp_allocations.push(mp_allocations);
-                                return Some(value);
+                                break;
                             }
                         }
                     }
@@ -492,7 +484,9 @@ impl<'a> Search<'a> {
 
         self.mp_allocations.push(mp_allocations);
         if let Some(best_move) = best_move {
-            let tt_bound = if increased_alpha {
+            let tt_bound = if best_score >= beta {
+                LOWER_BOUND
+            } else if increased_alpha {
                 EXACT_BOUND
             } else {
                 UPPER_BOUND
@@ -801,15 +795,7 @@ impl<'a> Search<'a> {
                         self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
                     }
 
-                    self.tt.insert(
-                        self.hasher.get_hash(),
-                        depth,
-                        TTScore::from_score(best_score, ply),
-                        mov,
-                        LOWER_BOUND,
-                    );
-                    self.mp_allocations.push(mp_allocations);
-                    return Some(value);
+                    break;
                 }
             } else {
                 self.mp_allocations.push(mp_allocations);
@@ -829,12 +815,18 @@ impl<'a> Search<'a> {
             }
         }
 
+        let bound = if best_score >= beta {
+            LOWER_BOUND
+        } else {
+            UPPER_BOUND
+        };
+
         self.tt.insert(
             self.hasher.get_hash(),
             depth,
             TTScore::from_score(best_score, ply),
             best_move.unwrap(),
-            UPPER_BOUND,
+            bound,
         );
         Some(best_score)
     }
@@ -939,17 +931,7 @@ impl<'a> Search<'a> {
                         if score > alpha {
                             alpha = score;
                             if score >= beta {
-                                if depth == 0 || depth == INC_PLY && in_check {
-                                    self.tt.insert(
-                                        self.hasher.get_hash(),
-                                        0,
-                                        TTScore::from_score(score, ply),
-                                        mov,
-                                        LOWER_BOUND,
-                                    );
-                                }
-                                self.mp_allocations.push(mp_allocations);
-                                return value;
+                                break;
                             }
                         }
                     }
@@ -966,16 +948,26 @@ impl<'a> Search<'a> {
             }
         }
 
+        let score = if best_score >= beta {
+            best_score
+        } else {
+            alpha
+        };
         if depth == 0 || depth == INC_PLY && in_check {
+            let bound = if best_score >= beta {
+                LOWER_BOUND
+            } else {
+                UPPER_BOUND
+            };
             self.tt.insert(
                 self.hasher.get_hash(),
                 0,
-                TTScore::from_score(alpha, ply),
+                TTScore::from_score(score, ply),
                 best_move.unwrap(),
-                UPPER_BOUND,
+                bound,
             );
         }
-        Some(alpha)
+        Some(score)
     }
 
     fn get_tt_entry(&mut self) -> (Option<TTEntry>, Option<Move>) {
