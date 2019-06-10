@@ -410,14 +410,17 @@ impl<'a> Search<'a> {
             }
 
             let mut reduction = 0;
-            if extension <= 0
-                && depth >= 3 * INC_PLY
-                && mtype == MoveType::Quiet
-                && !check
-                && !in_check
-                && best_score > -MATE_SCORE + MAX_PLY
+            if depth >= LMR_DEPTH && mtype == MoveType::Quiet && best_score > -MATE_SCORE + MAX_PLY
             {
                 reduction += lmr_reduction(depth, num_moves, true);
+
+                if check {
+                    reduction -= INC_PLY;
+                }
+
+                if in_check {
+                    reduction -= INC_PLY;
+                }
             };
 
             extension = cmp::min(extension, INC_PLY);
@@ -760,14 +763,17 @@ impl<'a> Search<'a> {
                 reduction += INC_PLY;
             }
 
-            if extension <= 0
-                && depth >= LMR_DEPTH
-                && mtype == MoveType::Quiet
-                && !check
-                && !in_check
-                && best_score > -MATE_SCORE + MAX_PLY
+            if depth >= LMR_DEPTH && mtype == MoveType::Quiet && best_score > -MATE_SCORE + MAX_PLY
             {
                 reduction += lmr_reduction(depth, num_moves, false);
+
+                if check {
+                    reduction -= INC_PLY;
+                }
+
+                if in_check {
+                    reduction -= INC_PLY;
+                }
             };
 
             extension = cmp::min(extension, INC_PLY);
