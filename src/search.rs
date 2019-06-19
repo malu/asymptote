@@ -666,18 +666,14 @@ impl<'a> Search<'a> {
             let check = self.position.move_will_check(mov);
             if best_score > -MATE_SCORE + MAX_PLY {
                 // Futility pruning
-                if !check {
-                    let capture_value = mov.captured.map_or(0, Piece::value);
-                    let promotion_value = mov
-                        .promoted
-                        .map_or(0, |piece| piece.value() - Piece::Pawn.value());
-
-                    if eval + 200 * ((depth / INC_PLY + 1) / 2) + capture_value + promotion_value
-                        < alpha
-                    {
-                        pruned = true;
-                        continue;
-                    }
+                if !in_check
+                    && !check
+                    && depth < 9 * INC_PLY
+                    && mtype == MoveType::Quiet
+                    && eval + 64 + 64 * (depth / INC_PLY) < alpha
+                {
+                    pruned = true;
+                    continue;
                 }
 
                 // History leaf pruning
