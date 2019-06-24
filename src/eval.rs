@@ -118,8 +118,8 @@ pub const ISOLATED_PAWN: EScore = S(-24, -2);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN: [EScore; 8] = [
-    S(   0,    0), S(  63,  164), S(  59,  106), S(  40,   43),
-    S(  20,   21), S(  15,    1), S(  11,    4), S(   0,    0),
+    S(   0,    0), S(  11,    4), S(  15,    1), S(  20,   21),
+    S(  40,   43), S(  59,  106), S(  63,  164), S(   0,    0),
 ];
 
 pub const XRAYED_SQUARE: EScore = S(5, 0);
@@ -446,9 +446,9 @@ impl Eval {
 
             if passed && !doubled {
                 let relative_rank = if white {
-                    pawn.rank() as usize ^ 7
-                } else {
                     pawn.rank() as usize
+                } else {
+                    pawn.rank() as usize ^ 7
                 };
 
                 score += PASSED_PAWN[relative_rank];
