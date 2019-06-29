@@ -394,14 +394,6 @@ impl<'a> Search<'a> {
                 }
             }
 
-            self.internal_make_move(mov, ply);
-
-            num_moves += 1;
-            if mov.is_quiet() {
-                self.quiets[ply as usize][num_quiets] = Some(mov);
-                num_quiets += 1;
-            }
-
             // Recapture extension
             if let Some(previous_move) = previous_move {
                 if previous_move.to == mov.to {
@@ -425,8 +417,15 @@ impl<'a> Search<'a> {
 
             extension = cmp::min(extension, INC_PLY);
             let new_depth = depth - INC_PLY + extension;
-
             reduction = cmp::max(0, cmp::min(reduction, new_depth - INC_PLY));
+
+            self.internal_make_move(mov, ply);
+
+            num_moves += 1;
+            if mov.is_quiet() {
+                self.quiets[ply as usize][num_quiets] = Some(mov);
+                num_quiets += 1;
+            }
 
             let mut value = if num_moves > 1 {
                 self.search_zw(ply + 1, -alpha, new_depth - reduction)
@@ -738,14 +737,6 @@ impl<'a> Search<'a> {
                 }
             }
 
-            self.internal_make_move(mov, ply);
-
-            num_moves += 1;
-
-            if mov.is_quiet() {
-                self.quiets[ply as usize][num_quiets] = Some(mov);
-                num_quiets += 1;
-            }
             if let Some(previous_move) = previous_move {
                 if previous_move.to == mov.to {
                     extension += INC_PLY / 2;
@@ -774,8 +765,15 @@ impl<'a> Search<'a> {
 
             extension = cmp::min(extension, INC_PLY);
             let new_depth = depth - INC_PLY + extension;
-
             reduction = cmp::max(0, cmp::min(reduction, new_depth - INC_PLY));
+
+            self.internal_make_move(mov, ply);
+
+            num_moves += 1;
+            if mov.is_quiet() {
+                self.quiets[ply as usize][num_quiets] = Some(mov);
+                num_quiets += 1;
+            }
 
             let mut value = self
                 .search_zw(ply + 1, -alpha, new_depth - reduction)
