@@ -305,4 +305,3 @@ fn rook_from(from: Square, blockers: Bitboard) -> Bitboard {
 fn sparse_random(rng: &mut ChaChaRng) -> u64 {
     rng.gen::<u64>() & rng.gen::<u64>() & rng.gen::<u64>()
 }
-

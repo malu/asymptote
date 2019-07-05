@@ -120,7 +120,8 @@ impl<'a> Search<'a> {
     pub fn iterative_deepening(&mut self) -> Move {
         let mut moves = MoveList::new();
         MoveGenerator::from(&self.position).all_moves(&mut moves);
-        let mut moves = moves.into_iter()
+        let mut moves = moves
+            .into_iter()
             .filter(|&mov| self.position.move_is_legal(mov))
             .map(|mov| (mov, 0))
             .collect::<arrayvec::ArrayVec<[(Move, i64); 256]>>();
@@ -163,7 +164,9 @@ impl<'a> Search<'a> {
         }
 
         if self.id == 0 {
-            self.time_manager.abort.store(true, std::sync::atomic::Ordering::SeqCst);
+            self.time_manager
+                .abort
+                .store(true, std::sync::atomic::Ordering::SeqCst);
         }
 
         moves[0].0
@@ -226,18 +229,19 @@ impl<'a> Search<'a> {
             let num_nodes_before = self.visited_nodes;
             let value;
             if i == 0 {
-                value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
+                value = self.search(1, -beta, -alpha, new_depth, true).map(|v| -v);
             } else {
-                let value_zw = self.search_zw(1, -alpha, new_depth).map(|v| -v);
+                let value_zw = self
+                    .search(1, -alpha - 1, -alpha, new_depth, false)
+                    .map(|v| -v);
                 if Some(alpha) < value_zw {
-                    value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
+                    value = self.search(1, -beta, -alpha, new_depth, true).map(|v| -v);
                 } else {
                     value = value_zw;
                 }
             }
 
-            *subtree_size =
-                ((self.visited_nodes - num_nodes_before) / 2) as i64;
+            *subtree_size = ((self.visited_nodes - num_nodes_before) / 2) as i64;
 
             self.internal_unmake_move(mov, 0);
 
@@ -274,36 +278,20 @@ impl<'a> Search<'a> {
         Some((best_score, best_move_index))
     }
 
-    pub fn search_pv(
+    pub fn search(
         &mut self,
         ply: Ply,
         alpha: Score,
         beta: Score,
         depth: Depth,
+        is_pv: bool,
     ) -> Option<Score> {
-        if self
-            .time_manager
-            .should_stop(self.visited_nodes)
-        {
+        if self.time_manager.should_stop(self.visited_nodes) {
             return None;
         }
 
         self.visited_nodes += 1;
         self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
-
-        // Check if there is a draw by insufficient mating material or threefold repetition.
-        if self.is_draw(ply) {
-            return Some(0);
-        }
-
-        // Check if the fifty moves rule applies and if so, return the apropriate score.
-        if let Some(score) = self.fifty_moves_rule(ply) {
-            return Some(score);
-        }
-
-        if ply == MAX_PLY {
-            return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
-        }
 
         // Mate distance pruning
         let mdp_alpha = if alpha > -MATE_SCORE + ply {
@@ -320,15 +308,45 @@ impl<'a> Search<'a> {
             return Some(mdp_alpha);
         }
 
+        // Check if there is a draw by insufficient mating material or threefold repetition.
+        if self.is_draw(ply) {
+            return Some(0);
+        }
+
+        // Check if the fifty moves rule applies and if so, return the apropriate score.
+        if let Some(score) = self.fifty_moves_rule(ply) {
+            return Some(score);
+        }
+
+        if ply == MAX_PLY {
+            return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
+        }
+
         let (mut ttentry, mut ttmove) = self.get_tt_entry();
 
         if let Some(ttentry) = ttentry {
             let score = ttentry.score.to_score(ply);
 
-            // In PV nodes we only cutoff on TT hits if we would drop into quiescence search otherwise.
-            // Otherwise we would get shorter principal variations as output.
-            if depth < INC_PLY && ttentry.bound & EXACT_BOUND == EXACT_BOUND {
-                return Some(score);
+            if is_pv {
+                // In PV nodes we only cutoff on TT hits if we would drop into quiescence search otherwise.
+                // Otherwise we would get shorter principal variations as output.
+                if depth < INC_PLY && ttentry.bound & EXACT_BOUND == EXACT_BOUND {
+                    return Some(score);
+                }
+            } else {
+                if ttentry.depth >= depth || depth < INC_PLY {
+                    if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
+                        return Some(score);
+                    }
+
+                    if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
+                        return Some(score);
+                    }
+
+                    if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
+                        return Some(score);
+                    }
+                }
             }
         }
 
@@ -337,16 +355,69 @@ impl<'a> Search<'a> {
             return self.qsearch(ply, alpha, beta, 0);
         }
 
-        let in_check = self.position.in_check();
+        let previous_move = self.stack[ply as usize - 1].current_move;
+        let nullmove_reply = previous_move == None;
+        let in_check = !nullmove_reply && self.position.in_check();
+
+        let mut eval = None;
+        let mut skip_quiets = false;
+        if !is_pv {
+            eval = Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
+        }
+
+        if let Some(eval) = eval {
+            skip_quiets = !in_check
+                && depth < 3 * INC_PLY
+                && eval + FUTILITY_MARGIN * (depth / INC_PLY) < alpha;
+
+            // Static beta pruning
+            //
+            // Prune nodes at shallow depth if current evaluation is above beta by
+            // a large (depth-dependent) margin.
+            if !in_check
+                && depth < STATIC_BETA_DEPTH
+                && eval - STATIC_BETA_MARGIN * (depth / INC_PLY) > beta
+            {
+                return Some(beta);
+            }
+
+            // Nullmove pruning
+            //
+            // Prune nodes that are so good that we could pass without the opponent
+            // catching up.
+            if !in_check && self.eval.phase() > 0 && eval >= beta {
+                let r = INC_PLY + depth / 4;
+                self.internal_make_nullmove(ply);
+                let score = self
+                    .search(ply + 1, -alpha - 1, -alpha, depth - INC_PLY - r, false)
+                    .map(|v| -v);
+                self.internal_unmake_nullmove(ply);
+                match score {
+                    None => return None,
+                    Some(score) => {
+                        if score >= beta {
+                            return Some(beta);
+                        }
+                    }
+                }
+            }
+        }
 
         // Internal iterative deepening
         // If we don't get a previous best move from the TT, do a reduced-depth search first to get one.
-        if depth >= 4 * INC_PLY && ttmove.is_none() {
-            self.search_pv(ply, alpha, beta, depth - 2 * INC_PLY);
-            self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
-            let (ttentry_, ttmove_) = self.get_tt_entry();
-            ttentry = ttentry_;
-            ttmove = ttmove_;
+        if ttmove.is_none() {
+            if is_pv && depth >= 4 * INC_PLY {
+                self.search(ply, alpha, beta, depth - 2 * INC_PLY, true);
+                self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
+                let (ttentry_, ttmove_) = self.get_tt_entry();
+                ttentry = ttentry_;
+                ttmove = ttmove_;
+            } else if !is_pv && depth >= 6 * INC_PLY {
+                self.search(ply, alpha, beta, depth / 2, false);
+                let (ttentry_, ttmove_) = self.get_tt_entry();
+                ttentry = ttentry_;
+                ttmove = ttmove_;
+            }
         }
 
         let previous_move = self.stack[ply as usize - 1].current_move;
@@ -356,13 +427,20 @@ impl<'a> Search<'a> {
             previous_move,
         );
 
+        // Futility pruning
+        //
+        // If we are too far behind at shallow depth, then don't search moves
+        // which don't change material.
+        moves.skip_quiets(skip_quiets);
+
+        // We have to remember whether we pruned any moves to avoid returing
+        // invalid (stale)mate scores.
+        let mut pruned = skip_quiets;
+
         let mut alpha = alpha;
         let mut increased_alpha = false;
-
-        let previous_move = self.stack[ply as usize - 1].current_move;
-        let mut best_move = None;
         let mut best_score = -Score::max_value();
-
+        let mut best_move = None;
         let mut num_moves = 0;
         let mut num_quiets = 0;
         while let Some((mtype, mov)) = moves.next(&self.position, &self.history) {
@@ -372,6 +450,64 @@ impl<'a> Search<'a> {
 
             let check = self.position.move_will_check(mov);
 
+            // Prunings
+            if let Some(eval) = eval {
+                if best_score > -MATE_SCORE + MAX_PLY {
+                    // Futility pruning
+                    if !in_check
+                        && !check
+                        && depth < 9 * INC_PLY
+                        && mtype == MoveType::Quiet
+                        && eval + 64 + 64 * (depth / INC_PLY) < alpha
+                    {
+                        pruned = true;
+                        continue;
+                    }
+
+                    // History leaf pruning
+                    //
+                    // Do not play moves with negative history score if at very low
+                    // depth.
+                    if depth < HISTORY_PRUNING_DEPTH
+                        && mtype == MoveType::Quiet
+                        && self.history.get_score(self.position.white_to_move, mov)
+                            < HISTORY_PRUNING_THRESHOLD
+                    {
+                        pruned = true;
+
+                        // We can skip the remaining quiet moves because quiet moves
+                        // are ordered by history score.
+                        moves.skip_quiets(true);
+                        continue;
+                    }
+
+                    // Static exchange evaluation pruning
+                    //
+                    // Do not play very bad moves at shallow depths.
+                    // Does not trigger for winning or equal tactical moves
+                    // (MoveType::GoodCapture) because those are assumed to have a
+                    // non-negative static exchange evaluation.
+                    if depth < SEE_PRUNING_DEPTH && !check && !in_check {
+                        if mtype == MoveType::BadCapture
+                            && !self.position.see(
+                                mov,
+                                SEE_PRUNING_MARGIN_CAPTURE * (depth / INC_PLY) * (depth / INC_PLY),
+                            )
+                        {
+                            pruned = true;
+                            continue;
+                        } else if mtype == MoveType::Quiet
+                            && !self
+                                .position
+                                .see(mov, SEE_PRUNING_MARGIN_QUIET * (depth / INC_PLY))
+                        {
+                            pruned = true;
+                            continue;
+                        }
+                    }
+                }
+            }
+
             let mut extension = 0;
 
             if check {
@@ -380,7 +516,7 @@ impl<'a> Search<'a> {
                 // * node is near horizon
                 // * move is the hash move from a previous search
                 // * move does not lose material
-                if depth < 3 * INC_PLY
+                if depth < CHECK_EXTENSION_DEPTH
                     || mtype == MoveType::GoodCapture
                     || mtype == MoveType::TTMove
                     // Filter tactically bad moves. They wouldn't pass the SEE
@@ -394,14 +530,18 @@ impl<'a> Search<'a> {
             // Recapture extension
             if let Some(previous_move) = previous_move {
                 if previous_move.to == mov.to {
-                    extension += INC_PLY;
+                    extension += if is_pv { INC_PLY } else { INC_PLY / 2 };
                 }
             }
 
             let mut reduction = 0;
+            if nullmove_reply && mtype == MoveType::Quiet {
+                reduction += INC_PLY;
+            }
+
             if depth >= LMR_DEPTH && mtype == MoveType::Quiet && best_score > -MATE_SCORE + MAX_PLY
             {
-                reduction += lmr_reduction(depth, num_moves, true);
+                reduction += lmr_reduction(depth, num_moves, is_pv);
 
                 if check {
                     reduction -= INC_PLY;
@@ -424,28 +564,42 @@ impl<'a> Search<'a> {
                 num_quiets += 1;
             }
 
-            let mut value = if num_moves > 1 {
-                self.search_zw(ply + 1, -alpha, new_depth - reduction)
-                    .map(|v| -v)
+            let mut value = Some(Score::max_value());
+            if is_pv {
+                if num_moves > 1 {
+                    value = self
+                        .search(ply + 1, -alpha - 1, -alpha, new_depth - reduction, false)
+                        .map(|v| -v);
+                }
+
+                if reduction > 0 && Some(alpha) < value {
+                    value = self
+                        .search(ply + 1, -alpha - 1, -alpha, new_depth, false)
+                        .map(|v| -v);
+                }
+
+                if Some(alpha) < value {
+                    value = self
+                        .search(ply + 1, -beta, -alpha, new_depth, true)
+                        .map(|v| -v);
+                }
             } else {
-                Some(Score::max_value())
-            };
-
-            if reduction > 0 && Some(alpha) < value {
-                value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
-            }
-
-            if Some(alpha) < value {
                 value = self
-                    .search_pv(ply + 1, -beta, -alpha, new_depth)
+                    .search(ply + 1, -alpha - 1, -alpha, new_depth - reduction, false)
                     .map(|v| -v);
+
+                if reduction > 0 && Some(alpha) < value {
+                    value = self
+                        .search(ply + 1, -beta, -alpha, new_depth, false)
+                        .map(|v| -v);
+                }
             }
 
             self.internal_unmake_move(mov, ply);
 
             match value {
                 None => {
-                    if increased_alpha {
+                    if is_pv && increased_alpha {
                         self.tt.insert(
                             self.hasher.get_hash(),
                             depth,
@@ -462,19 +616,27 @@ impl<'a> Search<'a> {
                     if value > best_score {
                         best_score = value;
                         best_move = Some(mov);
-                        if value > alpha {
-                            increased_alpha = true;
-                            alpha = value;
-                            self.add_pv_move(mov, ply);
-                            if value >= beta {
-                                if mov.is_quiet() {
-                                    self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
-                                }
+                    }
 
-                                self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
-                                break;
-                            }
+                    if value > alpha {
+                        increased_alpha = true;
+                        alpha = value;
+
+                        if is_pv {
+                            self.add_pv_move(mov, ply);
                         }
+                    }
+
+                    if value >= beta {
+                        if mov.is_quiet() {
+                            self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
+                        }
+
+                        if is_pv {
+                            self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
+                        }
+
+                        break;
                     }
                 }
             }
@@ -500,7 +662,9 @@ impl<'a> Search<'a> {
             Some(best_score)
         } else {
             // No best move => no legal moves
-            if self.position.in_check() {
+            if pruned {
+                Some(alpha)
+            } else if self.position.in_check() {
                 Some(-MATE_SCORE + ply)
             } else {
                 // Stalemate
@@ -509,322 +673,8 @@ impl<'a> Search<'a> {
         }
     }
 
-    pub fn search_zw(&mut self, ply: Ply, beta: Score, depth: Depth) -> Option<Score> {
-        if self
-            .time_manager
-            .should_stop(self.visited_nodes)
-        {
-            return None;
-        }
-
-        let alpha = beta - 1;
-        // Mate distance pruning
-        let mdp_alpha = if alpha > -MATE_SCORE + ply {
-            alpha
-        } else {
-            -MATE_SCORE + ply
-        };
-        let mdp_beta = if beta < MATE_SCORE - ply - 1 {
-            beta
-        } else {
-            MATE_SCORE - ply - 1
-        };
-        if mdp_alpha >= mdp_beta {
-            return Some(mdp_alpha);
-        }
-
-        // Check if there is a draw by insufficient mating material or threefold repetition.
-        if self.is_draw(ply) {
-            return Some(0);
-        }
-
-        // Check if the fifty moves rule applies and if so, return the apropriate score.
-        if let Some(score) = self.fifty_moves_rule(ply) {
-            return Some(score);
-        }
-
-        if ply == MAX_PLY {
-            return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
-        }
-
-        self.visited_nodes += 1;
-        self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
-
-        let previous_move = self.stack[ply as usize - 1].current_move;
-        let nullmove_reply = previous_move == None;
-
-        let in_check = !nullmove_reply && self.position.in_check();
-
-        let (mut ttentry, mut ttmove) = self.get_tt_entry();
-
-        if let Some(ttentry) = ttentry {
-            let score = ttentry.score.to_score(ply);
-
-            if ttentry.depth >= depth || depth < INC_PLY {
-                if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
-                    return Some(score);
-                }
-
-                if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
-                    return Some(score);
-                }
-
-                if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
-                    return Some(score);
-                }
-            }
-        }
-
-        // Do a quiescent search if we have no depth left.
-        if depth < INC_PLY {
-            self.visited_nodes -= 1;
-            return self.qsearch(ply, alpha, beta, 0);
-        }
-
-        let eval = self.eval.score(&self.position, self.hasher.get_pawn_hash());
-
-        // Static beta pruning
-        //
-        // Prune nodes at shallow depth if current evaluation is above beta by
-        // a large (depth-dependent) margin.
-        if !in_check
-            && depth < STATIC_BETA_DEPTH
-            && eval - STATIC_BETA_MARGIN * (depth / INC_PLY) > beta
-        {
-            return Some(beta);
-        }
-
-        // Nullmove pruning
-        //
-        // Prune nodes that are so good that we could pass without the opponent
-        // catching up.
-        if !in_check && self.eval.phase() > 0 && eval >= beta {
-            let r = INC_PLY + depth / 4;
-            self.internal_make_nullmove(ply);
-            let score = self
-                .search_zw(ply + 1, -alpha, depth - INC_PLY - r)
-                .map(|v| -v);
-            self.internal_unmake_nullmove(ply);
-            match score {
-                None => return None,
-                Some(score) => {
-                    if score >= beta {
-                        return Some(beta);
-                    }
-                }
-            }
-        }
-
-        let mut best_score = -Score::max_value();
-        let mut best_move = None;
-
-        // Internal deepening
-        //
-        // If we do not have a previous best move for this node, try to find
-        // one first.
-        if depth >= 6 * INC_PLY && ttmove.is_none() {
-            self.search_zw(ply, beta, depth / 2);
-            let (ttentry_, ttmove_) = self.get_tt_entry();
-            ttentry = ttentry_;
-            ttmove = ttmove_;
-        }
-
-        let mut moves = MovePicker::new(
-            ttmove,
-            self.stack[ply as usize].killers_moves,
-            previous_move,
-        );
-
-        // Futility pruning
-        //
-        // If we are too far behind at shallow depth, then don't search moves
-        // which don't change material.
-        let skip_quiets =
-            !in_check && depth < 3 * INC_PLY && eval + FUTILITY_MARGIN * (depth / INC_PLY) < alpha;
-        moves.skip_quiets(skip_quiets);
-
-        // We have to remember whether we pruned any moves to avoid returing
-        // invalid (stale)mate scores.
-        let mut pruned = skip_quiets;
-
-        let mut num_moves = 0;
-        let mut num_quiets = 0;
-        while let Some((mtype, mov)) = moves.next(&self.position, &self.history) {
-            if !self.position.move_is_legal(mov) {
-                continue;
-            }
-
-            let check = self.position.move_will_check(mov);
-            if best_score > -MATE_SCORE + MAX_PLY {
-                // Futility pruning
-                if !in_check
-                    && !check
-                    && depth < 9 * INC_PLY
-                    && mtype == MoveType::Quiet
-                    && eval + 64 + 64 * (depth / INC_PLY) < alpha
-                {
-                    pruned = true;
-                    continue;
-                }
-
-                // History leaf pruning
-                //
-                // Do not play moves with negative history score if at very low
-                // depth.
-                if depth < HISTORY_PRUNING_DEPTH
-                    && mtype == MoveType::Quiet
-                    && self.history.get_score(self.position.white_to_move, mov)
-                        < HISTORY_PRUNING_THRESHOLD
-                {
-                    pruned = true;
-
-                    // We can skip the remaining quiet moves because quiet moves
-                    // are ordered by history score.
-                    moves.skip_quiets(true);
-                    continue;
-                }
-
-                // Static exchange evaluation pruning
-                //
-                // Do not play very bad moves at shallow depths.
-                // Does not trigger for winning or equal tactical moves
-                // (MoveType::GoodCapture) because those are assumed to have a
-                // non-negative static exchange evaluation.
-                if depth < SEE_PRUNING_DEPTH && !check && !in_check {
-                    if mtype == MoveType::BadCapture
-                        && !self.position.see(
-                            mov,
-                            SEE_PRUNING_MARGIN_CAPTURE * (depth / INC_PLY) * (depth / INC_PLY),
-                        )
-                    {
-                        pruned = true;
-                        continue;
-                    } else if mtype == MoveType::Quiet
-                        && !self
-                            .position
-                            .see(mov, SEE_PRUNING_MARGIN_QUIET * (depth / INC_PLY))
-                    {
-                        pruned = true;
-                        continue;
-                    }
-                }
-            }
-
-            let mut extension = 0;
-
-            if check {
-                // We only extend checks which satify at least one of the
-                // following conditions:
-                // * node is near horizon
-                // * move is the hash move from a previous search
-                // * move does not lose material
-                if depth < CHECK_EXTENSION_DEPTH
-                    || mtype == MoveType::GoodCapture
-                    || mtype == MoveType::TTMove
-                    // Filter tactically bad moves. They wouldn't pass the SEE
-                    // test anyway.
-                    || mtype != MoveType::BadCapture && self.position.see(mov, 0)
-                {
-                    extension += INC_PLY;
-                }
-            }
-
-            if let Some(previous_move) = previous_move {
-                if previous_move.to == mov.to {
-                    extension += INC_PLY / 2;
-                }
-            }
-
-            let mut reduction = 0;
-            // Reduce quiet responses to a null move one ply. They are unlikely to produce a
-            // cutoff.
-            if nullmove_reply && mtype == MoveType::Quiet {
-                reduction += INC_PLY;
-            }
-
-            if depth >= LMR_DEPTH && mtype == MoveType::Quiet && best_score > -MATE_SCORE + MAX_PLY
-            {
-                reduction += lmr_reduction(depth, num_moves, false);
-
-                if check {
-                    reduction -= INC_PLY;
-                }
-
-                if in_check {
-                    reduction -= INC_PLY;
-                }
-            };
-
-            extension = cmp::min(extension, INC_PLY);
-            let new_depth = depth - INC_PLY + extension;
-            reduction = cmp::max(0, cmp::min(reduction, new_depth - INC_PLY));
-
-            self.internal_make_move(mov, ply);
-
-            num_moves += 1;
-            if mov.is_quiet() {
-                self.quiets[ply as usize][num_quiets] = Some(mov);
-                num_quiets += 1;
-            }
-
-            let mut value = self
-                .search_zw(ply + 1, -alpha, new_depth - reduction)
-                .map(|v| -v);
-            if Some(alpha) < value && reduction > 0 {
-                value = self.search_zw(ply + 1, -alpha, new_depth).map(|v| -v);
-            }
-
-            self.internal_unmake_move(mov, ply);
-
-            if let Some(value) = value {
-                if value > best_score {
-                    best_score = value;
-                    best_move = Some(mov);
-                }
-
-                if value >= beta {
-                    if mov.is_quiet() {
-                        self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
-                    }
-
-                    break;
-                }
-            } else {
-                return None;
-            }
-        }
-
-        if num_moves == 0 {
-            if pruned {
-                return Some(alpha);
-            } else if self.position.in_check() {
-                return Some(-MATE_SCORE + ply);
-            } else {
-                return Some(0);
-            }
-        }
-
-        let bound = if best_score >= beta {
-            LOWER_BOUND
-        } else {
-            UPPER_BOUND
-        };
-
-        self.tt.insert(
-            self.hasher.get_hash(),
-            depth,
-            TTScore::from_score(best_score, ply),
-            best_move.unwrap(),
-            bound,
-        );
-        Some(best_score)
-    }
-
     pub fn qsearch(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
-        if self
-            .time_manager
-            .should_stop(self.visited_nodes)
-        {
+        if self.time_manager.should_stop(self.visited_nodes) {
             return None;
         }
 

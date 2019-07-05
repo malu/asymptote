@@ -159,8 +159,11 @@ impl Position {
         let to_bb = mov.to.to_bb();
 
         let mut attackers = Bitboard::from(0);
-        attackers |= (to_bb.left(1) | to_bb.right(1)).backward(false, 1) & self.pawns() & self.black_pieces();
-        attackers |= (to_bb.left(1) | to_bb.right(1)).backward(true, 1) & self.pawns() & self.white_pieces();
+        attackers |= (to_bb.left(1) | to_bb.right(1)).backward(false, 1)
+            & self.pawns()
+            & self.black_pieces();
+        attackers |=
+            (to_bb.left(1) | to_bb.right(1)).backward(true, 1) & self.pawns() & self.white_pieces();
         attackers |= KNIGHT_ATTACKS[mov.to] & self.knights();
         attackers |= get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
         attackers |= get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
