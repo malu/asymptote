@@ -436,14 +436,12 @@ impl Position {
                 rooks |= mov.to;
             }
             Piece::King => {
-                if mov.to == mov.from.right(2) {
-                    // kingside castling
+                if mov.is_kingside_castle() {
                     rooks ^= mov.to.right(1);
                     rooks |= mov.to.left(1);
                     all_pieces ^= mov.to.right(1);
                     all_pieces |= mov.to.left(1);
-                } else if mov.to == mov.from.left(2) {
-                    // queenside castling
+                } else if mov.is_queenside_castle() {
                     rooks ^= mov.to.left(2);
                     rooks |= mov.to.right(1);
                     all_pieces ^= mov.to.left(2);
@@ -755,7 +753,7 @@ impl Position {
                     & mov.to
             }
             Piece::King => {
-                if mov.to == mov.from.right(2) {
+                if mov.is_kingside_castle() {
                     if self.white_to_move {
                         return (self.details.castling & CASTLE_WHITE_KSIDE) > 0
                             && (self.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_60))
@@ -769,7 +767,7 @@ impl Position {
                     }
                 }
 
-                if mov.to == mov.from.left(2) {
+                if mov.is_queenside_castle() {
                     if self.white_to_move {
                         return (self.details.castling & CASTLE_WHITE_QSIDE) > 0
                             && (self.all_pieces & Bitboard::from(0x00_00_00_00_00_00_00_0E))

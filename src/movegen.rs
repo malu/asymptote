@@ -791,6 +791,14 @@ impl Move {
         self.captured.is_none() && self.promoted.is_none()
     }
 
+    pub fn is_kingside_castle(self) -> bool {
+        self.to == self.from.right(2)
+    }
+
+    pub fn is_queenside_castle(self) -> bool {
+        self.to == self.from.left(2)
+    }
+
     pub fn mvv_lva_score(self) -> i64 {
         let mut score = i64::from(self.captured.map_or(0, Piece::value)) * 128;
         if self.promoted == Some(Piece::Queen) {
