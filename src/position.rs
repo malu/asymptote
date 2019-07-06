@@ -131,22 +131,24 @@ impl Position {
     }
 
     pub fn see(&self, mov: Move, threshold: i16) -> bool {
-        let mut white = !self.white_to_move;
         let mut score = mov.captured.map_or(0, Piece::see_value)
             + mov
                 .promoted
                 .map_or(0, |p| p.see_value() - Piece::Pawn.see_value())
             - threshold;
-        let mut next_victim = mov.promoted.unwrap_or(mov.piece);
 
+        // Even if the opponent cannot recapture, this move does not surpass the threshold.
         if score < 0 {
             return false;
         }
 
+        let mut next_victim = mov.promoted.unwrap_or(mov.piece);
+        // Even if the opponent recaptures and we cannot, this move surpasses the threshold.
         if score - next_victim.see_value() >= 0 {
             return true;
         }
 
+        let mut white = !self.white_to_move;
         let mut occupancy = self.all_pieces & !(mov.from.to_bb() | mov.to.to_bb());
         if mov.en_passant {
             occupancy ^= mov.to.backward(self.white_to_move, 1);
@@ -156,20 +158,18 @@ impl Position {
 
         let to_bb = mov.to.to_bb();
 
-        let mut attackers =
-            (to_bb.left(1) | to_bb.right(1)).forward(true, 1) & self.pawns() & self.black_pieces()
-                | (to_bb.left(1) | to_bb.right(1)).backward(true, 1)
-                    & self.pawns()
-                    & self.white_pieces()
-                | KNIGHT_ATTACKS[mov.to] & self.knights()
-                | get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens())
-                | get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens())
-                | KING_ATTACKS[mov.to] & self.kings();
+        let mut attackers = Bitboard::from(0);
+        attackers |= (to_bb.left(1) | to_bb.right(1)).backward(false, 1) & self.pawns() & self.black_pieces();
+        attackers |= (to_bb.left(1) | to_bb.right(1)).backward(true, 1) & self.pawns() & self.white_pieces();
+        attackers |= KNIGHT_ATTACKS[mov.to] & self.knights();
+        attackers |= get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
+        attackers |= get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
+        attackers |= KING_ATTACKS[mov.to] & self.kings();
         attackers &= occupancy;
 
         if next_victim == Piece::King {
             // SEE test is successful if king cannot be recaptured since currently score >= 0 (see above)
-            return (self.us(white) & attackers).is_empty();
+            return (self.them(self.white_to_move) & attackers).is_empty();
         }
 
         while (attackers & self.us(white)).at_least_one() {
@@ -229,7 +229,9 @@ impl Position {
                 let lsb_bb = (us & self.kings()).lsb_bb();
                 occupancy ^= lsb_bb;
 
-                // Do not need to update attackers because we will stop now, either because there are no more captures or the king would be recaptured.
+                // Do not need to update attackers because we will stop now,
+                // either because there are no more captures or the king would
+                // be recaptured.
                 if (self.them(white) & attackers).at_least_one() {
                     break;
                 }
@@ -246,6 +248,8 @@ impl Position {
             attackers &= occupancy;
         }
 
+        // The side which made the last move (which also pushed the score to at
+        // least 0) is successful, since the other side cannot recapture.
         self.white_to_move != white
     }
 
