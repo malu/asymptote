@@ -44,12 +44,14 @@ pub struct TimeManager {
     searching_for_white: bool,
     pub abort: sync::Arc<sync::atomic::AtomicBool>,
     force_stop: bool,
+    move_overhead: u64,
 }
 
 impl TimeManager {
     pub fn new(
         position: &Position,
         control: TimeControl,
+        move_overhead: u64,
         abort: sync::Arc<sync::atomic::AtomicBool>,
     ) -> TimeManager {
         TimeManager {
@@ -58,6 +60,7 @@ impl TimeManager {
             searching_for_white: position.white_to_move,
             abort,
             force_stop: false,
+            move_overhead,
         }
     }
 
@@ -89,7 +92,7 @@ impl TimeManager {
             TimeControl::Infinite => true,
             TimeControl::FixedMillis(millis) => {
                 let elapsed = self.elapsed_millis();
-                elapsed + 10 <= millis
+                elapsed + self.move_overhead <= millis
             }
             TimeControl::FixedDepth(stop_depth) => ply <= stop_depth,
             TimeControl::FixedNodes(_) => true, // handled by should_stop
@@ -108,7 +111,7 @@ impl TimeManager {
                 };
                 let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
                 let movestogo = movestogo.unwrap_or(40);
-                elapsed <= cmp::min(time, time / movestogo + inc) / 2
+                elapsed + self.move_overhead <= cmp::min(time, time / movestogo + inc)
             }
         };
 
@@ -132,7 +135,7 @@ impl TimeManager {
             TimeControl::FixedMillis(millis) => {
                 if visited_nodes & 0x7F == 0 {
                     let elapsed = self.elapsed_millis();
-                    return elapsed + 10 > millis;
+                    return elapsed + self.move_overhead > millis;
                 }
                 false
             }
@@ -154,7 +157,7 @@ impl TimeManager {
                     };
                     let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
                     let movestogo = cmp::min(10, movestogo.unwrap_or(10));
-                    return elapsed >= cmp::min(time - 10, time / movestogo + inc);
+                    return elapsed + self.move_overhead >= cmp::min(time, time / movestogo + inc);
                 }
                 false
             }

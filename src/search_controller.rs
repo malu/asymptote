@@ -33,6 +33,7 @@ pub struct PersistentOptions {
     hash_bits: u64,
     pub show_pv_board: bool,
     threads: usize,
+    pub move_overhead: u64,
 }
 
 impl Default for PersistentOptions {
@@ -41,6 +42,7 @@ impl Default for PersistentOptions {
             hash_bits: 14,
             show_pv_board: false,
             threads: 1,
+            move_overhead: 10,
         }
     }
 }
@@ -161,6 +163,7 @@ impl SearchController {
         println!("option name Hash type spin default 1 min 0 max 2048");
         println!("option name Threads type spin default 1 min 1 max 64");
         println!("option name ShowPVBoard type check default false");
+        println!("option name MoveOverhead type spin default 10 min 0");
         self.handle_ucinewgame();
         println!("uciok");
     }
@@ -210,6 +213,13 @@ impl SearchController {
             }
             "showpvboard" => {
                 self.options.show_pv_board = value.eq_ignore_ascii_case("true");
+            }
+            "moveoverhead" => {
+                if let Ok(move_overhead) = value.parse::<u64>() {
+                    self.options.move_overhead = move_overhead;
+                } else {
+                    eprintln!("Unable to parse value '{}' as integer", value);
+                }
             }
             _ => {
                 eprintln!("Unrecognized option {}", name);

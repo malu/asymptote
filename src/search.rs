@@ -99,7 +99,7 @@ impl<'a> Search<'a> {
             stack: [PlyDetails::default(); MAX_PLY as usize],
             eval: Eval::from(&position),
             time_control,
-            time_manager: TimeManager::new(&position, time_control, abort),
+            time_manager: TimeManager::new(&position, time_control, options.move_overhead, abort),
             position,
             hasher,
             tt,
