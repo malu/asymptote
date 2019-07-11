@@ -9,6 +9,8 @@ environment:
 
     # TODO Update this to match the name of your project.
     CRATE_NAME: asymptote
+    FEATURES: ''
+    CPU: ''
 
   # TODO These are all the build jobs. Adjust as necessary. Comment out what you
   # don't need
@@ -28,6 +30,9 @@ environment:
     - TARGET: x86_64-pc-windows-msvc
       FEATURES: +popcnt
       NAME: windows-msvc-64bit-popcount
+    - TARGET: x86_64-pc-windows-msvc
+      CPU: broadwell
+      NAME: windows-msvc-64bit-broadwell
 
     # Testing other channels
     - TARGET: x86_64-pc-windows-gnu
@@ -49,7 +54,7 @@ install:
   - curl -sSf -o rustup-init.exe https://win.rustup.rs/
   - rustup-init.exe -y --default-host %TARGET% --default-toolchain %RUST_VERSION%
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
-  - set RUSTFLAGS=-C target-feature=%FEATURES%
+  - set RUSTFLAGS=-C target-feature=%FEATURES% -C target-cpu=%CPU%
   - rustc -Vv
   - cargo -V
 
@@ -65,7 +70,7 @@ test_script:
 
 before_deploy:
   # TODO Update this to build the artifacts that matter to you
-  - cargo rustc --target %TARGET% --release -- -C lto -C target-feature=%FEATURES%
+  - cargo rustc --target %TARGET% --release -- -C lto -C target-feature=%FEATURES% -C target-cpu=%CPU%
   - ps: ci\before_deploy.ps1
 
 deploy:

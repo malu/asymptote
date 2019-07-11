@@ -5,10 +5,13 @@ sudo: required
 env:
   global:
   - CRATE_NAME=asymptote
+  - CPU=
+  - FEATURES=
 matrix:
   include:
   - env: TARGET=x86_64-unknown-linux-gnu FEATURES=-popcnt NAME=linux-64bit
   - env: TARGET=x86_64-unknown-linux-gnu FEATURES=+popcnt NAME=linux-64bit-popcount
+  - env: TARGET=x86_64-unknown-linux-gnu CPU=broadwell NAME=linux-64bit-broadwell
   - env: TARGET=x86_64-apple-darwin FEATURES=-popcnt NAME=osx-64bit
     os: osx
   - env: TARGET=x86_64-apple-darwin FEATURES=+popcnt NAME=osx-64bit-popcount
