@@ -16,7 +16,6 @@
 */
 use std::cmp;
 use std::sync;
-use std::sync::atomic::Ordering;
 
 use crate::eval::*;
 use crate::hash::*;
@@ -58,7 +57,7 @@ pub struct Search<'a> {
     time_control: TimeControl,
     time_manager: TimeManager,
     hasher: Hasher,
-    visited_nodes: sync::Arc<sync::atomic::AtomicUsize>,
+    pub visited_nodes: u64,
     tt: &'a SharedTT<'a>,
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
@@ -79,7 +78,6 @@ pub struct PlyDetails {
 impl<'a> Search<'a> {
     pub fn new(
         abort: sync::Arc<sync::atomic::AtomicBool>,
-        visited_nodes: sync::Arc<sync::atomic::AtomicUsize>,
         hasher: Hasher,
         options: PersistentOptions,
         position: Position,
@@ -103,7 +101,7 @@ impl<'a> Search<'a> {
             position,
             hasher,
             tt,
-            visited_nodes,
+            visited_nodes: 0,
             pv,
             max_ply_searched: 0,
             repetitions,
@@ -223,7 +221,7 @@ impl<'a> Search<'a> {
                 new_depth += INC_PLY;
             }
 
-            let num_nodes_before = self.visited_nodes.load(Ordering::SeqCst);
+            let num_nodes_before = self.visited_nodes;
             let value;
             if i == 0 {
                 value = self.search_pv(1, -beta, -alpha, new_depth).map(|v| -v);
@@ -237,7 +235,7 @@ impl<'a> Search<'a> {
             }
 
             *subtree_size =
-                ((self.visited_nodes.load(Ordering::SeqCst) - num_nodes_before) / 2) as i64;
+                ((self.visited_nodes - num_nodes_before) / 2) as i64;
 
             self.internal_unmake_move(mov, 0);
 
@@ -283,12 +281,12 @@ impl<'a> Search<'a> {
     ) -> Option<Score> {
         if self
             .time_manager
-            .should_stop(self.visited_nodes.load(Ordering::SeqCst) as u64)
+            .should_stop(self.visited_nodes)
         {
             return None;
         }
 
-        self.visited_nodes.fetch_add(1, Ordering::SeqCst);
+        self.visited_nodes += 1;
         self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
 
         // Check if there is a draw by insufficient mating material or threefold repetition.
@@ -333,7 +331,7 @@ impl<'a> Search<'a> {
         }
 
         if depth < INC_PLY {
-            self.visited_nodes.fetch_sub(1, Ordering::SeqCst);
+            self.visited_nodes -= 1;
             return self.qsearch(ply, alpha, beta, 0);
         }
 
@@ -517,7 +515,7 @@ impl<'a> Search<'a> {
     pub fn search_zw(&mut self, ply: Ply, beta: Score, depth: Depth) -> Option<Score> {
         if self
             .time_manager
-            .should_stop(self.visited_nodes.load(Ordering::SeqCst) as u64)
+            .should_stop(self.visited_nodes)
         {
             return None;
         }
@@ -552,7 +550,7 @@ impl<'a> Search<'a> {
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
-        self.visited_nodes.fetch_add(1, Ordering::SeqCst);
+        self.visited_nodes += 1;
         self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
 
         let previous_move = self.stack[ply as usize - 1].current_move;
@@ -582,7 +580,7 @@ impl<'a> Search<'a> {
 
         // Do a quiescent search if we have no depth left.
         if depth < INC_PLY {
-            self.visited_nodes.fetch_sub(1, Ordering::SeqCst);
+            self.visited_nodes -= 1;
             return self.qsearch(ply, alpha, beta, 0);
         }
 
@@ -834,7 +832,7 @@ impl<'a> Search<'a> {
     pub fn qsearch(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
         if self
             .time_manager
-            .should_stop(self.visited_nodes.load(Ordering::SeqCst) as u64)
+            .should_stop(self.visited_nodes)
         {
             return None;
         }
@@ -843,7 +841,7 @@ impl<'a> Search<'a> {
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
-        self.visited_nodes.fetch_add(1, Ordering::SeqCst);
+        self.visited_nodes += 1;
 
         let in_check = self.position.in_check();
         let mut alpha = alpha;
@@ -1041,12 +1039,13 @@ impl<'a> Search<'a> {
         };
 
         let mut pos = self.position.clone();
+        let estimated_nodes = self.visited_nodes * self.options.threads as u64;
         print!(
             "info depth {} seldepth {} nodes {} nps {} score {} time {} hashfull {} pv ",
             d / INC_PLY,
             self.max_ply_searched,
-            self.visited_nodes.load(Ordering::SeqCst) as u64,
-            1000 * self.visited_nodes.load(Ordering::SeqCst) as u64 / cmp::max(1, elapsed),
+            estimated_nodes,
+            1000 * estimated_nodes / cmp::max(1, elapsed),
             score_str,
             elapsed,
             self.tt.usage()

@@ -14,7 +14,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::{self, Arc};
 
 use crossbeam::thread;
@@ -32,7 +32,7 @@ use crate::uci::{GoParams, UciCommand};
 pub struct PersistentOptions {
     hash_bits: u64,
     pub show_pv_board: bool,
-    threads: usize,
+    pub threads: usize,
     pub move_overhead: u64,
 }
 
@@ -49,7 +49,7 @@ impl Default for PersistentOptions {
 
 pub struct SearchController {
     abort: Arc<AtomicBool>,
-    node_count: Arc<AtomicUsize>,
+    node_count: u64,
     hasher: Hasher,
     options: PersistentOptions,
     position: Position,
@@ -64,7 +64,7 @@ impl SearchController {
         hasher.from_position(&position);
         SearchController {
             abort,
-            node_count: Arc::new(AtomicUsize::new(0)),
+            node_count: 0,
             hasher,
             options: PersistentOptions::default(),
             position,
@@ -75,7 +75,6 @@ impl SearchController {
     }
 
     pub fn get_best_move(&mut self) -> Move {
-        self.node_count.store(0, Ordering::SeqCst);
         self.tt.next_generation();
 
         let threads = self.options.threads;
@@ -83,7 +82,6 @@ impl SearchController {
 
         let mut main_thread = Search::new(
             Arc::clone(&self.abort),
-            Arc::clone(&self.node_count),
             self.hasher.clone(),
             self.options,
             self.position.clone(),
@@ -92,7 +90,7 @@ impl SearchController {
             self.repetitions.clone(),
         );
 
-        thread::scope(|s| {
+        let mov = thread::scope(|s| {
             main_thread.prepare_search();
 
             for id in 1..threads {
@@ -104,11 +102,15 @@ impl SearchController {
 
             main_thread.iterative_deepening()
         })
-        .unwrap()
+        .unwrap();
+
+        self.node_count = main_thread.visited_nodes;
+
+        mov
     }
 
     pub fn get_node_count(&self) -> u64 {
-        self.node_count.load(Ordering::SeqCst) as u64
+        self.node_count
     }
 
     pub fn make_move(&mut self, mov: Move) {
@@ -274,7 +276,6 @@ impl SearchController {
         let tt = self.tt.share();
         let mut thread = Search::new(
             Arc::clone(&self.abort),
-            Arc::clone(&self.node_count),
             self.hasher.clone(),
             self.options,
             self.position.clone(),
