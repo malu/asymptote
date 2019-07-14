@@ -113,13 +113,13 @@ pub const QUEEN_MOBILITY: [EScore; 29] = [
     S(   0,    0),
 ];
 
-pub const DOUBLED_PAWN: EScore = S(0, -16);
-pub const ISOLATED_PAWN: EScore = S(-24, -2);
-
+pub const DOUBLED_PAWN: EScore = S(-5, -23);
+pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
+pub const ISOLATED_PAWN: EScore = S(-27, 5);
 #[rustfmt::skip]
 pub const PASSED_PAWN: [EScore; 8] = [
-    S(   0,    0), S(  11,    4), S(  15,    1), S(  20,   21),
-    S(  40,   43), S(  59,  106), S(  63,  164), S(   0,    0),
+    S(   0,    0), S(  14,   -1), S(  13,   -2), S(  14,   20),
+    S(  31,   43), S(  54,  106), S(  64,  170), S(   0,    0),
 ];
 
 pub const XRAYED_SQUARE: EScore = S(5, 0);
@@ -427,6 +427,7 @@ impl Eval {
             let passed = (corridor_bb & them & pos.pawns()).is_empty();
             let doubled = (file_forward_bb & us & pos.pawns()).at_least_one();
             let isolated = ((file_bb.left(1) | file_bb.right(1)) & pos.pawns() & us).is_empty();
+            let halfopen_file = (file_forward_bb & pos.pawns() & them).is_empty();
 
             if doubled {
                 score += DOUBLED_PAWN;
@@ -448,11 +449,20 @@ impl Eval {
             }
 
             if isolated {
-                score += ISOLATED_PAWN;
+                if halfopen_file {
+                    score += OPEN_ISOLATED_PAWN;
 
-                #[cfg(feature = "tune")]
-                {
-                    self.trace.pawns_isolated[side] += 1;
+                    #[cfg(feature = "tune")]
+                    {
+                        self.trace.pawns_open_isolated[side] += 1;
+                    }
+                } else {
+                    score += ISOLATED_PAWN;
+
+                    #[cfg(feature = "tune")]
+                    {
+                        self.trace.pawns_isolated[side] += 1;
+                    }
                 }
             }
         }

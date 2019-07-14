@@ -60,6 +60,7 @@ const TUNE_MOBILITY_ROOK: bool = false;
 const TUNE_MOBILITY_QUEEN: bool = false;
 
 const TUNE_PAWNS_DOUBLED: bool = false;
+const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
 const TUNE_PAWNS_ISOLATED: bool = false;
 const TUNE_PAWNS_PASSED: bool = false;
 
@@ -96,6 +97,7 @@ pub struct Trace {
 
     pub pawns_doubled: [i8; 2],
     pub pawns_passed: [[i8; 2]; 8],
+    pub pawns_open_isolated: [i8; 2],
     pub pawns_isolated: [i8; 2],
 
     pub bishops_xray: [i8; 2],
@@ -136,6 +138,7 @@ pub struct CompactTrace {
 
     pawns_doubled: i8,
     pawns_passed: [i8; 8],
+    pawns_open_isolated: i8,
     pawns_isolated: i8,
 
     bishops_xray: i8,
@@ -228,6 +231,7 @@ impl From<Trace> for CompactTrace {
 
             pawns_doubled: t.pawns_doubled[1] - t.pawns_doubled[0],
             pawns_passed,
+            pawns_open_isolated: t.pawns_open_isolated[1] - t.pawns_open_isolated[0],
             pawns_isolated: t.pawns_isolated[1] - t.pawns_isolated[0],
 
             bishops_xray: t.bishops_xray[1] - t.bishops_xray[0],
@@ -270,6 +274,7 @@ pub struct Parameters {
 
     pawns_doubled: (f32, f32),
     pawns_passed: [(f32, f32); 8],
+    pawns_open_isolated: (f32, f32),
     pawns_isolated: (f32, f32),
 
     bishops_xray: (f32, f32),
@@ -396,6 +401,7 @@ impl Default for Trace {
 
             pawns_doubled: [0; 2],
             pawns_passed: [[0; 2]; 8],
+            pawns_open_isolated: [0; 2],
             pawns_isolated: [0; 2],
 
             bishops_xray: [0; 2],
@@ -475,6 +481,9 @@ impl CompactTrace {
             score.0 += params.pawns_passed[i].0 * self.pawns_passed[i] as f32;
             score.1 += params.pawns_passed[i].1 * self.pawns_passed[i] as f32;
         }
+
+        score.0 += params.pawns_open_isolated.0 * self.pawns_open_isolated as f32;
+        score.1 += params.pawns_open_isolated.1 * self.pawns_open_isolated as f32;
 
         score.0 += params.pawns_isolated.0 * self.pawns_isolated as f32;
         score.1 += params.pawns_isolated.1 * self.pawns_isolated as f32;
@@ -591,6 +600,10 @@ impl Parameters {
 
         if TUNE_PAWNS_PASSED {
             print_array(&self.pawns_passed, "PASSED_PAWN");
+        }
+
+        if TUNE_PAWNS_OPEN_ISOLATED {
+            print_single(self.pawns_open_isolated, "OPEN_ISOLATED_PAWN");
         }
 
         if TUNE_PAWNS_ISOLATED {
@@ -723,6 +736,7 @@ impl Parameters {
 
         let mut g_pawns_doubled = (0., 0.);
         let mut g_pawns_passed = [(0., 0.); 8];
+        let mut g_pawns_open_isolated = (0., 0.);
         let mut g_pawns_isolated = (0., 0.);
 
         let mut g_bishops_xray = (0., 0.);
@@ -833,6 +847,12 @@ impl Parameters {
                 let x = trace.pawns_doubled as f32;
                 g_pawns_doubled.0 += x * grad * phase / 62.;
                 g_pawns_doubled.1 += x * grad * (62. - phase) / 62.;
+            }
+
+            if TUNE_PAWNS_OPEN_ISOLATED {
+                let x = trace.pawns_open_isolated as f32;
+                g_pawns_open_isolated.0 += x * grad * phase / 62.;
+                g_pawns_open_isolated.1 += x * grad * (62. - phase) / 62.;
             }
 
             if TUNE_PAWNS_ISOLATED {
@@ -1007,6 +1027,9 @@ impl Parameters {
         norm += g_pawns_doubled.0.powf(2.);
         norm += g_pawns_doubled.1.powf(2.);
 
+        norm += g_pawns_open_isolated.0.powf(2.);
+        norm += g_pawns_open_isolated.1.powf(2.);
+
         norm += g_pawns_isolated.0.powf(2.);
         norm += g_pawns_isolated.1.powf(2.);
 
@@ -1102,6 +1125,9 @@ impl Parameters {
             self.pawns_passed[i].1 -= 2. / n * f * g_pawns_passed[i].1;
         }
 
+        self.pawns_open_isolated.0 -= 2. / n * f * g_pawns_open_isolated.0;
+        self.pawns_open_isolated.1 -= 2. / n * f * g_pawns_open_isolated.1;
+
         self.pawns_isolated.0 -= 2. / n * f * g_pawns_isolated.0;
         self.pawns_isolated.1 -= 2. / n * f * g_pawns_isolated.1;
 
@@ -1182,6 +1208,7 @@ impl Default for Parameters {
         }
 
         let pawns_doubled = (mg(DOUBLED_PAWN) as f32, eg(DOUBLED_PAWN) as f32);
+        let pawns_open_isolated = (mg(OPEN_ISOLATED_PAWN) as f32, eg(OPEN_ISOLATED_PAWN) as f32);
         let pawns_isolated = (mg(ISOLATED_PAWN) as f32, eg(ISOLATED_PAWN) as f32);
         let mut pawns_passed = [(0., 0.); 8];
         for i in 0..8 {
@@ -1236,6 +1263,7 @@ impl Default for Parameters {
 
             pawns_doubled,
             pawns_passed,
+            pawns_open_isolated,
             pawns_isolated,
 
             bishops_xray: (mg(XRAYED_SQUARE) as f32, eg(XRAYED_SQUARE) as f32),
