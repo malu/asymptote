@@ -149,7 +149,7 @@ impl<'a> Search<'a> {
         }
 
         for d in 1_i16.. {
-            if !self.time_manager.start_another_iteration(d) {
+            if d >= MAX_PLY || !self.time_manager.start_another_iteration(d) {
                 break;
             }
             let depth = d * INC_PLY;
@@ -162,6 +162,10 @@ impl<'a> Search<'a> {
             }
 
             self.uci_info(depth, last_score, EXACT_BOUND);
+        }
+
+        if self.id == 0 {
+            self.time_manager.abort.store(true, std::sync::atomic::Ordering::SeqCst);
         }
 
         moves[0].0

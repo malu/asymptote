@@ -135,9 +135,10 @@ impl TimeManager {
             TimeControl::FixedMillis(millis) => {
                 if visited_nodes & 0x7F == 0 {
                     let elapsed = self.elapsed_millis();
-                    return elapsed + self.move_overhead > millis;
+                    elapsed + self.move_overhead > millis
+                } else {
+                    false
                 }
-                false
             }
             TimeControl::FixedDepth(_) => false, // handled by start_another_iteration
             TimeControl::FixedNodes(nodes) => visited_nodes >= nodes,
@@ -157,9 +158,10 @@ impl TimeManager {
                     };
                     let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
                     let movestogo = cmp::min(10, movestogo.unwrap_or(10));
-                    return elapsed + self.move_overhead >= cmp::min(time, time / movestogo + inc);
+                    elapsed + self.move_overhead >= cmp::min(time, time / movestogo + inc)
+                } else {
+                    false
                 }
-                false
             }
         };
 
