@@ -218,6 +218,14 @@ impl Square {
     pub fn flip_rank(self) -> Square {
         Square(self.0 ^ 0b11_1000)
     }
+
+    pub fn relative_rank(self, white: bool) -> u8 {
+        if white {
+            self.rank()
+        } else {
+            self.flip_rank().rank()
+        }
+    }
 }
 
 impl Into<u8> for Square {

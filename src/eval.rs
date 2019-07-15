@@ -225,7 +225,43 @@ pub const KING_PST: SquareMap<EScore> = SquareMap::from_array([
 ]);
 
 impl Eval {
-    fn mobility_for_side(&mut self, white: bool, pos: &Position) -> EScore {
+    pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
+        let mut score = S(0, 0);
+
+        score += self.pst(true) - self.pst(false);
+        score += self.mobility_for_side(pos, true) - self.mobility_for_side(pos, false);
+        score += self.bishops_for_side(pos, true) - self.bishops_for_side(pos, false);
+        score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
+        score += self.material(true) - self.material(false);
+        score += self.king_safety_for_side(pos, true) - self.king_safety_for_side(pos, false);
+        score += self.pawns(pos, pawn_hash);
+
+        let phase = self.phase();
+        let mut score = interpolate(score, phase);
+
+        let sf = self.endgame_scale_factor(score);
+        score *= sf;
+        score /= SF_NORMAL;
+
+        let score = score as Score;
+
+        if pos.white_to_move {
+            score
+        } else {
+            -score
+        }
+    }
+
+    fn pst(&self, white: bool) -> EScore {
+        #[cfg(feature = "tune")]
+        {
+            self.trace_pst(pos, white);
+        }
+
+        self.pst[white as usize]
+    }
+
+    fn mobility_for_side(&mut self, pos: &Position, white: bool) -> EScore {
         let us = pos.us(white);
         let them = pos.them(white);
 
@@ -323,83 +359,40 @@ impl Eval {
     }
 
     fn material(&mut self, white: bool) -> EScore {
-        let pawn = Piece::Pawn.index();
-        let knight = Piece::Knight.index();
-        let bishop = Piece::Bishop.index();
-        let rook = Piece::Rook.index();
-        let queen = Piece::Queen.index();
+        let p = Piece::Pawn.index();
+        let n = Piece::Knight.index();
+        let b = Piece::Bishop.index();
+        let r = Piece::Rook.index();
+        let q = Piece::Queen.index();
         let side = white as usize;
 
         let mut score = 0;
-        score += PAWN_SCORE * self.material[side][pawn] as EScore;
-        score += KNIGHT_SCORE * self.material[side][knight] as EScore;
-        score += BISHOP_SCORE * self.material[side][bishop] as EScore;
-        score += ROOK_SCORE * self.material[side][rook] as EScore;
-        score += QUEEN_SCORE * self.material[side][queen] as EScore;
+        score += self.material[side][p] as EScore * PAWN_SCORE;
+        score += self.material[side][n] as EScore * KNIGHT_SCORE;
+        score += self.material[side][b] as EScore * BISHOP_SCORE;
+        score += self.material[side][r] as EScore * ROOK_SCORE;
+        score += self.material[side][q] as EScore * QUEEN_SCORE;
 
-        if self.material[side][bishop] > 1 {
+        if self.material[side][b] > 1 {
             score += BISHOP_PAIR;
         }
 
         #[cfg(feature = "tune")]
         {
-            let king = Piece::King.index();
-            self.trace.material[pawn][side] = self.material[side][pawn] as i8;
-            self.trace.material[knight][side] = self.material[side][knight] as i8;
-            self.trace.material[bishop][side] = self.material[side][bishop] as i8;
-            self.trace.material[rook][side] = self.material[side][rook] as i8;
-            self.trace.material[queen][side] = self.material[side][queen] as i8;
-            self.trace.material[king][side] = 1;
+            let k = Piece::King.index();
+            self.trace.material[p][side] = self.material[side][p] as i8;
+            self.trace.material[n][side] = self.material[side][n] as i8;
+            self.trace.material[b][side] = self.material[side][b] as i8;
+            self.trace.material[r][side] = self.material[side][r] as i8;
+            self.trace.material[q][side] = self.material[side][q] as i8;
+            self.trace.material[k][side] = 1;
 
-            if self.material[side][bishop] > 1 {
+            if self.material[side][b] > 1 {
                 self.trace.bishops_pair[side] = 1;
             }
         }
 
         score
-    }
-
-    pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
-        let mut score = S(0, 0);
-
-        score += self.pst[1] - self.pst[0];
-        score += self.mobility_for_side(true, pos) - self.mobility_for_side(false, pos);
-        score += self.bishops_for_side(pos, true) - self.bishops_for_side(pos, false);
-        score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
-        score += self.material(true) - self.material(false);
-        score += self.king_safety_for_side(pos, true) - self.king_safety_for_side(pos, false);
-        score += self.pawns(pos, pawn_hash);
-
-        let phase = self.phase();
-        let mut score = interpolate(score, phase);
-
-        #[cfg(feature = "tune")]
-        {
-            self.trace_pst(pos, true);
-            self.trace_pst(pos, false);
-        }
-
-        let sf = if self.material[(score > 0) as usize][Piece::Pawn.index()] == 0 {
-            SF_PAWNLESS
-        } else {
-            SF_NORMAL
-        };
-
-        #[cfg(feature = "tune")]
-        {
-            self.trace.sf = sf as i8;
-        }
-
-        score *= sf;
-        score /= SF_NORMAL;
-
-        let score = score as Score;
-
-        if pos.white_to_move {
-            score
-        } else {
-            -score
-        }
     }
 
     fn pawns(&mut self, pos: &Position, pawn_hash: Hash) -> EScore {
@@ -445,13 +438,9 @@ impl Eval {
             }
 
             if passed && !doubled {
-                let relative_rank = if white {
-                    pawn.rank() as usize
-                } else {
-                    pawn.rank() as usize ^ 7
-                };
+                let relative_rank = pawn.relative_rank(white);
+                score += PASSED_PAWN[relative_rank as usize];
 
-                score += PASSED_PAWN[relative_rank];
                 #[cfg(feature = "tune")]
                 {
                     self.trace.pawns_passed[relative_rank][side] += 1;
@@ -460,6 +449,7 @@ impl Eval {
 
             if isolated {
                 score += ISOLATED_PAWN;
+
                 #[cfg(feature = "tune")]
                 {
                     self.trace.pawns_isolated[side] += 1;
@@ -653,6 +643,21 @@ impl Eval {
         }
 
         phase
+    }
+
+    fn endgame_scale_factor(&self, score: i32) -> i32 {
+        let sf = if self.material[(score > 0) as usize][Piece::Pawn.index()] == 0 {
+            SF_PAWNLESS
+        } else {
+            SF_NORMAL
+        };
+
+        #[cfg(feature = "tune")]
+        {
+            self.trace.sf = sf as i8;
+        }
+
+        sf
     }
 
     pub fn make_move(&mut self, mov: Move, pos: &Position) {
