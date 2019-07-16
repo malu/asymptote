@@ -1100,17 +1100,18 @@ impl<'a> Search<'a> {
     }
 
     fn add_pv_move(&mut self, mov: Move, ply: Ply) {
-        self.pv[ply as usize][0] = Some(mov);
-        for i in 0..MAX_PLY - ply - 1 {
-            self.pv[ply as usize][1 + i as usize] = self.pv[1 + ply as usize][i as usize];
+        let ply = ply as usize;
+        self.pv[ply][0] = Some(mov);
+        for i in 0..MAX_PLY as usize - ply - 1 {
+            self.pv[ply][1 + i] = self.pv[1 + ply][i];
 
-            if self.pv[1 + ply as usize][i as usize] == None {
-                for j in i + 1..MAX_PLY - ply - 1 {
-                    self.pv[ply as usize][j as usize] = None;
+            if self.pv[1 + ply][i] == None {
+                for j in i + 1..MAX_PLY as usize - ply - 1 {
+                    self.pv[ply][j] = None;
                 }
                 break;
             }
-            self.pv[1 + ply as usize][i as usize] = None;
+            self.pv[1 + ply][i] = None;
         }
     }
 
