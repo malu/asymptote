@@ -111,7 +111,7 @@ impl TimeManager {
                 };
                 let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
                 let movestogo = movestogo.unwrap_or(40);
-                elapsed + self.move_overhead <= cmp::min(time, time / movestogo + inc)
+                elapsed + self.move_overhead <= cmp::min(time, time / movestogo + inc) / 2
             }
         };
 
