@@ -25,7 +25,7 @@ use crate::bitboard::{Square, ALL_SQUARES};
 use crate::eval::*;
 use crate::history::History;
 use crate::movegen::Piece;
-use crate::movepick::{MovePicker, MovePickerAllocations};
+use crate::movepick::MovePicker;
 use crate::position::Position;
 use crate::types::SquareMap;
 
@@ -1306,9 +1306,7 @@ fn qsearch(position: &mut Position, alpha: Score, beta: Score) -> (Score, Positi
         }
     }
 
-    let mut mp_allocations = MovePickerAllocations::default();
-
-    let mut moves = MovePicker::qsearch(&position, &mut mp_allocations);
+    let mut moves = MovePicker::qsearch(&position);
 
     let mut best_score = -MATE_SCORE;
     let mut best_pos = position.clone();

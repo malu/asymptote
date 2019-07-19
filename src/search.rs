@@ -64,7 +64,6 @@ pub struct Search<'a> {
     repetitions: Repetitions,
     options: PersistentOptions,
 
-    mp_allocations: Vec<MovePickerAllocations>,
     quiets: [[Option<Move>; 256]; MAX_PLY as usize],
 }
 
@@ -107,7 +106,6 @@ impl<'a> Search<'a> {
             repetitions,
             options,
 
-            mp_allocations: vec![MovePickerAllocations::default(); MAX_PLY as usize],
             quiets: [[None; 256]; MAX_PLY as usize],
         }
     }
@@ -120,12 +118,12 @@ impl<'a> Search<'a> {
     }
 
     pub fn iterative_deepening(&mut self) -> Move {
-        let mut moves = MoveGenerator::from(&self.position)
-            .all_moves()
-            .into_iter()
+        let mut moves = MoveList::new();
+        MoveGenerator::from(&self.position).all_moves(&mut moves);
+        let mut moves = moves.into_iter()
             .filter(|&mov| self.position.move_is_legal(mov))
             .map(|mov| (mov, 0))
-            .collect::<Vec<_>>();
+            .collect::<arrayvec::ArrayVec<[(Move, i64); 256]>>();
 
         if moves.len() == 1 {
             return moves[0].0;
@@ -174,7 +172,7 @@ impl<'a> Search<'a> {
     fn aspiration(
         &mut self,
         last_score: Score,
-        moves: &mut Vec<(Move, i64)>,
+        moves: &mut arrayvec::ArrayVec<[(Move, i64); 256]>,
         depth: Depth,
     ) -> Option<Score> {
         let mut delta = 50;
@@ -351,14 +349,11 @@ impl<'a> Search<'a> {
             ttmove = ttmove_;
         }
 
-        let mut mp_allocations = self.mp_allocations.pop().unwrap();
-
         let previous_move = self.stack[ply as usize - 1].current_move;
         let mut moves = MovePicker::new(
             ttmove,
             self.stack[ply as usize].killers_moves,
             previous_move,
-            &mut mp_allocations,
         );
 
         let mut alpha = alpha;
@@ -461,7 +456,6 @@ impl<'a> Search<'a> {
                     }
 
                     self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
-                    self.mp_allocations.push(mp_allocations);
                     return None;
                 }
                 Some(value) => {
@@ -486,7 +480,6 @@ impl<'a> Search<'a> {
             }
         }
 
-        self.mp_allocations.push(mp_allocations);
         if let Some(best_move) = best_move {
             let tt_bound = if best_score >= beta {
                 LOWER_BOUND
@@ -636,13 +629,10 @@ impl<'a> Search<'a> {
             ttmove = ttmove_;
         }
 
-        let mut mp_allocations = self.mp_allocations.pop().unwrap();
-
         let mut moves = MovePicker::new(
             ttmove,
             self.stack[ply as usize].killers_moves,
             previous_move,
-            &mut mp_allocations,
         );
 
         // Futility pruning
@@ -800,12 +790,9 @@ impl<'a> Search<'a> {
                     break;
                 }
             } else {
-                self.mp_allocations.push(mp_allocations);
                 return None;
             }
         }
-
-        self.mp_allocations.push(mp_allocations);
 
         if num_moves == 0 {
             if pruned {
@@ -893,8 +880,7 @@ impl<'a> Search<'a> {
             depth += INC_PLY;
         }
 
-        let mut mp_allocations = self.mp_allocations.pop().unwrap();
-        let mut moves = MovePicker::qsearch(&self.position, &mut mp_allocations);
+        let mut moves = MovePicker::qsearch(&self.position);
 
         let mut best_move = None;
         let mut best_score = -MATE_SCORE;
@@ -941,7 +927,6 @@ impl<'a> Search<'a> {
             }
         }
 
-        self.mp_allocations.push(mp_allocations);
         if num_moves == 0 {
             if in_check {
                 return Some(-MATE_SCORE + ply);
@@ -1005,9 +990,7 @@ impl<'a> Search<'a> {
             return false;
         }
 
-        let mp_allocations = &mut self.mp_allocations[0];
-
-        let mut moves = MovePicker::new(None, [None; 2], None, mp_allocations);
+        let mut moves = MovePicker::new(None, [None; 2], None);
 
         while let Some((_, mov)) = moves.next(&self.position, &self.history) {
             if self.position.move_is_legal(mov) {
@@ -1132,10 +1115,12 @@ impl<'a> Search<'a> {
             .update(&self.position, TimeControl::Infinite);
 
         let mut num_moves = 0;
-        let moves = MoveGenerator::from(&self.position).all_moves();
+
+        let mut moves = MoveList::new();
+        MoveGenerator::from(&self.position).all_moves(&mut moves);
 
         if depth > 0 {
-            for mov in moves {
+            for &mov in &moves {
                 if !self.position.move_is_legal(mov) {
                     continue;
                 }
@@ -1162,9 +1147,10 @@ impl<'a> Search<'a> {
         }
 
         let mut num_moves = 0;
-        let moves = MoveGenerator::from(&self.position).all_moves();
+        let mut moves = MoveList::new();
+        MoveGenerator::from(&self.position).all_moves(&mut moves);
 
-        for mov in moves {
+        for &mov in &moves {
             if !self.position.move_is_legal(mov) {
                 continue;
             }

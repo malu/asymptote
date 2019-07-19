@@ -20,7 +20,7 @@ use std::sync::{self, Arc};
 use crossbeam::thread;
 
 use crate::hash::Hasher;
-use crate::movegen::{Move, MoveGenerator};
+use crate::movegen::{Move, MoveGenerator, MoveList};
 use crate::position::{Position, STARTING_POSITION};
 use crate::repetitions::Repetitions;
 use crate::search::{Search, INC_PLY};
@@ -231,13 +231,17 @@ impl SearchController {
 
     fn handle_showmoves(&mut self) {
         println!("Pseudo-legal moves");
-        for mov in MoveGenerator::from(&self.position).all_moves() {
+        let mut moves = MoveList::new();
+        MoveGenerator::from(&self.position).all_moves(&mut moves);
+        for &mov in &moves {
             print!("{} ", mov.to_algebraic());
         }
         println!("\n");
 
         println!("Legal moves");
-        for mov in MoveGenerator::from(&self.position).all_moves() {
+        let mut moves = MoveList::new();
+        MoveGenerator::from(&self.position).all_moves(&mut moves);
+        for &mov in &moves {
             if self.position.move_is_legal(mov) {
                 print!("{} ", mov.to_algebraic());
             }

@@ -18,36 +18,15 @@ use crate::history::*;
 use crate::movegen::*;
 use crate::position::*;
 
-#[derive(Clone)]
-pub struct MovePickerAllocations {
-    excluded: Vec<Move>,
-    moves: Vec<Move>,
-    scores: Vec<i64>,
-    bad_moves: Vec<Move>,
-    bad_scores: Vec<i64>,
-}
-
-impl Default for MovePickerAllocations {
-    fn default() -> Self {
-        MovePickerAllocations {
-            excluded: Vec::with_capacity(8),
-            moves: Vec::with_capacity(128),
-            scores: Vec::with_capacity(128),
-            bad_moves: Vec::with_capacity(128),
-            bad_scores: Vec::with_capacity(128),
-        }
-    }
-}
-
 pub struct MovePicker<'a> {
     ttmove: Option<Move>,
-    excluded: &'a mut Vec<Move>,
+    excluded: ShortMoveList,
     stage: usize,
     stages: &'a [Stage],
-    moves: &'a mut Vec<Move>,
-    scores: &'a mut Vec<i64>,
-    bad_moves: &'a mut Vec<Move>,
-    bad_scores: &'a mut Vec<i64>,
+    moves: MoveList,
+    scores: ScoreList,
+    bad_moves: MoveList,
+    bad_scores: ScoreList,
     index: usize,
     killers: [Option<Move>; 2],
     skip_quiets: bool,
@@ -104,23 +83,16 @@ impl<'a> MovePicker<'a> {
         ttmove: Option<Move>,
         killers: [Option<Move>; 2],
         previous_move: Option<Move>,
-        allocations: &'a mut MovePickerAllocations,
     ) -> Self {
-        allocations.excluded.clear();
-        allocations.moves.clear();
-        allocations.scores.clear();
-        allocations.bad_moves.clear();
-        allocations.bad_scores.clear();
-
         MovePicker {
             ttmove,
-            excluded: &mut allocations.excluded,
+            excluded: ShortMoveList::new(),
             stage: 0,
             stages: ALPHA_BETA_STAGES,
-            moves: &mut allocations.moves,
-            scores: &mut allocations.scores,
-            bad_moves: &mut allocations.bad_moves,
-            bad_scores: &mut allocations.bad_scores,
+            moves: MoveList::new(),
+            scores: ScoreList::new(),
+            bad_moves: MoveList::new(),
+            bad_scores: ScoreList::new(),
             index: 0,
             killers,
             skip_quiets: false,
@@ -128,13 +100,7 @@ impl<'a> MovePicker<'a> {
         }
     }
 
-    pub fn qsearch(position: &Position, allocations: &'a mut MovePickerAllocations) -> Self {
-        allocations.excluded.clear();
-        allocations.moves.clear();
-        allocations.scores.clear();
-        allocations.bad_moves.clear();
-        allocations.bad_scores.clear();
-
+    pub fn qsearch(position: &Position) -> Self {
         let stages = if position.in_check() {
             QUIESCENCE_CHECK_STAGES
         } else {
@@ -143,13 +109,13 @@ impl<'a> MovePicker<'a> {
 
         MovePicker {
             ttmove: None,
-            excluded: &mut allocations.excluded,
+            excluded: ShortMoveList::new(),
             stage: 0,
             stages,
-            moves: &mut allocations.moves,
-            scores: &mut allocations.scores,
-            bad_moves: &mut allocations.bad_moves,
-            bad_scores: &mut allocations.bad_scores,
+            moves: MoveList::new(),
+            scores: ScoreList::new(),
+            bad_moves: MoveList::new(),
+            bad_scores: ScoreList::new(),
             index: 0,
             killers: [None; 2],
             skip_quiets: false,
@@ -195,6 +161,11 @@ impl<'a> MovePicker<'a> {
                 self.next(position, history)
             }
             Stage::GenerateGoodCaptures => {
+                self.moves.clear();
+                self.scores.clear();
+                self.bad_moves.clear();
+                self.bad_scores.clear();
+
                 MoveGenerator::from(position).good_captures(
                     &mut self.moves,
                     &mut self.scores,
@@ -228,9 +199,10 @@ impl<'a> MovePicker<'a> {
                 {
                     self.moves.extend(
                         self.killers
-                            .iter()
+                            .into_iter()
                             .flatten()
-                            .filter(|&&m| position.move_is_pseudo_legal(m)),
+                            .filter(|&&m| position.move_is_pseudo_legal(m))
+                            .map(|&m| m),
                     );
                     if let Some(prev_move) = self.previous_move {
                         if prev_move.is_quiet() {
@@ -238,7 +210,8 @@ impl<'a> MovePicker<'a> {
                                 history.last_best_reply[position.white_to_move as usize]
                                     [prev_move.piece.index()][prev_move.to]
                                     .iter()
-                                    .filter(|&&m| position.move_is_pseudo_legal(m)),
+                                    .filter(|&&m| position.move_is_pseudo_legal(m))
+                                    .map(|&m| m),
                             );
                         }
                     }
@@ -272,10 +245,12 @@ impl<'a> MovePicker<'a> {
                     return self.next(position, history);
                 }
 
+                self.moves.clear();
+                self.scores.clear();
+
                 MoveGenerator::from(position).quiet_moves(&mut self.moves);
                 {
                     let wtm = position.white_to_move;
-                    self.scores.clear();
                     self.scores
                         .extend(self.moves.iter().map(|&mov| history.get_score(wtm, mov)));
                 }

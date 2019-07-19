@@ -19,6 +19,9 @@ use crate::eval::*;
 use crate::magic::{BISHOP_ATTACKS, MAGIC_TABLE, ROOK_ATTACKS};
 use crate::position::*;
 
+pub type MoveList = arrayvec::ArrayVec<[Move; 256]>;
+pub type ShortMoveList = arrayvec::ArrayVec<[Move; 4]>;
+pub type ScoreList = arrayvec::ArrayVec<[i64; 256]>;
 
 pub fn get_bishop_attacks_from(from: Square, blockers: Bitboard) -> Bitboard {
     unsafe {
@@ -91,15 +94,13 @@ pub struct MoveGenerator<'p> {
 impl<'p> MoveGenerator<'p> {
     pub fn good_captures(
         &mut self,
-        moves: &mut Vec<Move>,
-        scores: &mut Vec<i64>,
-        bad_moves: &mut Vec<Move>,
-        bad_scores: &mut Vec<i64>,
+        moves: &mut MoveList,
+        scores: &mut ScoreList,
+        bad_moves: &mut MoveList,
+        bad_scores: &mut ScoreList,
     ) {
         let all_pieces = self.position.all_pieces;
         let them = self.position.them(self.position.white_to_move);
-        moves.clear();
-        scores.clear();
 
         if self.position.details.checkers.more_than_one() {
             self.king(them & all_pieces, moves);
@@ -164,8 +165,7 @@ impl<'p> MoveGenerator<'p> {
         }
     }
 
-    pub fn quiet_moves(&self, moves: &mut Vec<Move>) {
-        moves.clear();
+    pub fn quiet_moves(&self, moves: &mut MoveList) {
         if self.position.details.checkers.more_than_one() {
             self.king(!self.position.all_pieces, moves);
             return;
@@ -195,20 +195,18 @@ impl<'p> MoveGenerator<'p> {
         self.king(!self.position.all_pieces, moves);
     }
 
-    pub fn all_moves(&self) -> Vec<Move> {
+    pub fn all_moves(&self, moves: &mut MoveList) {
         let us = self.position.us(self.position.white_to_move);
         let all = !us;
-        let mut moves = Vec::with_capacity(128);
-        self.pawn(all, &mut moves);
-        self.knight(all, &mut moves);
-        self.bishop(all, &mut moves);
-        self.rook(all, &mut moves);
-        self.queen(all, &mut moves);
-        self.king(all, &mut moves);
-        moves
+        self.pawn(all, moves);
+        self.knight(all, moves);
+        self.bishop(all, moves);
+        self.rook(all, moves);
+        self.queen(all, moves);
+        self.king(all, moves);
     }
 
-    pub fn pawn(&self, targets: Bitboard, moves: &mut Vec<Move>) {
+    pub fn pawn(&self, targets: Bitboard, moves: &mut MoveList) {
         let us = self.position.us(self.position.white_to_move);
         let them = self.position.them(self.position.white_to_move);
         let promoting = if self.position.white_to_move { 7 } else { 0 };
@@ -354,7 +352,7 @@ impl<'p> MoveGenerator<'p> {
         }
     }
 
-    pub fn knight(&self, targets: Bitboard, moves: &mut Vec<Move>) {
+    pub fn knight(&self, targets: Bitboard, moves: &mut MoveList) {
         let us = self.position.us(self.position.white_to_move);
         for from in (self.position.knights() & us).squares() {
             for to in (targets & self.knight_from(from)).squares() {
@@ -374,7 +372,7 @@ impl<'p> MoveGenerator<'p> {
         KNIGHT_ATTACKS[from]
     }
 
-    pub fn bishop(&self, targets: Bitboard, moves: &mut Vec<Move>) {
+    pub fn bishop(&self, targets: Bitboard, moves: &mut MoveList) {
         let us = self.position.us(self.position.white_to_move);
         for from in (self.position.bishops() & us).squares() {
             for to in (targets & get_bishop_attacks_from(from, self.position.all_pieces)).squares()
@@ -391,7 +389,7 @@ impl<'p> MoveGenerator<'p> {
         }
     }
 
-    pub fn rook(&self, targets: Bitboard, moves: &mut Vec<Move>) {
+    pub fn rook(&self, targets: Bitboard, moves: &mut MoveList) {
         let us = self.position.us(self.position.white_to_move);
         for from in (self.position.rooks() & us).squares() {
             for to in (targets & get_rook_attacks_from(from, self.position.all_pieces)).squares() {
@@ -407,7 +405,7 @@ impl<'p> MoveGenerator<'p> {
         }
     }
 
-    pub fn queen(&self, targets: Bitboard, moves: &mut Vec<Move>) {
+    pub fn queen(&self, targets: Bitboard, moves: &mut MoveList) {
         let us = self.position.us(self.position.white_to_move);
         for from in (self.position.queens() & us).squares() {
             for to in (targets
@@ -427,7 +425,7 @@ impl<'p> MoveGenerator<'p> {
         }
     }
 
-    pub fn king(&self, targets: Bitboard, moves: &mut Vec<Move>) {
+    pub fn king(&self, targets: Bitboard, moves: &mut MoveList) {
         let us = self.position.us(self.position.white_to_move);;
         let castle_kside;
         let castle_qside;
