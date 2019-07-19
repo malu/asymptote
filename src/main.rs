@@ -28,6 +28,7 @@ mod bitboard;
 mod eval;
 mod hash;
 mod history;
+mod magic;
 mod movegen;
 mod movepick;
 pub mod position;
@@ -42,7 +43,7 @@ mod types;
 mod uci;
 
 use crate::bench::run_benchmark;
-use crate::movegen::initialize_magics;
+use crate::magic::initialize_magics;
 use crate::uci::*;
 
 fn main() {
