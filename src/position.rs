@@ -301,7 +301,7 @@ impl Position {
         self.details.checkers.at_least_one()
     }
 
-    pub fn move_is_legal(&mut self, mov: Move) -> bool {
+    pub fn move_is_legal(&self, mov: Move) -> bool {
         let mut all_pieces = self.all_pieces;
         let mut king = self.king_sq(self.white_to_move);
         let mut them = self.them(self.white_to_move) & all_pieces;
