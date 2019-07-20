@@ -228,7 +228,7 @@ impl Eval {
     pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
         let mut score = S(0, 0);
 
-        score += self.pst(true) - self.pst(false);
+        score += self.pst(pos, true) - self.pst(pos, false);
         score += self.mobility_for_side(pos, true) - self.mobility_for_side(pos, false);
         score += self.bishops_for_side(pos, true) - self.bishops_for_side(pos, false);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
@@ -252,7 +252,7 @@ impl Eval {
         }
     }
 
-    fn pst(&self, white: bool) -> EScore {
+    fn pst(&mut self, pos: &Position, white: bool) -> EScore {
         #[cfg(feature = "tune")]
         {
             self.trace_pst(pos, white);
@@ -655,7 +655,7 @@ impl Eval {
         phase
     }
 
-    fn endgame_scale_factor(&self, score: i32) -> i32 {
+    fn endgame_scale_factor(&mut self, score: i32) -> i32 {
         let sf = if self.material[(score > 0) as usize][Piece::Pawn.index()] == 0 {
             SF_PAWNLESS
         } else {
