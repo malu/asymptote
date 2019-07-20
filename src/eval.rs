@@ -116,10 +116,17 @@ pub const QUEEN_MOBILITY: [EScore; 29] = [
 pub const DOUBLED_PAWN: EScore = S(-5, -23);
 pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
 pub const ISOLATED_PAWN: EScore = S(-27, 5);
+
 #[rustfmt::skip]
-pub const PASSED_PAWN: [EScore; 8] = [
-    S(   0,    0), S(  14,   -1), S(  13,   -2), S(  14,   20),
-    S(  31,   43), S(  54,  106), S(  64,  170), S(   0,    0),
+pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
+    S(   0,    0), S(  15,   -3), S(  12,   -2), S(  12,   20),
+    S(  28,   43), S(  53,  108), S(  65,  171), S(   0,    0),
+];
+
+#[rustfmt::skip]
+pub const PASSED_PAWN_ON_FILE: [EScore; 8] = [
+    S(   2,   15), S(   1,    8), S(  -1,    0), S(  -5,  -11),
+    S(  -3,  -12), S(   0,   -7), S(   1,    3), S(   1,    6),
 ];
 
 pub const XRAYED_SQUARE: EScore = S(5, 0);
@@ -440,11 +447,14 @@ impl Eval {
 
             if passed && !doubled {
                 let relative_rank = pawn.relative_rank(white) as usize;
-                score += PASSED_PAWN[relative_rank];
+
+                score += PASSED_PAWN_ON_RANK[relative_rank];
+                score += PASSED_PAWN_ON_FILE[pawn.file() as usize];
 
                 #[cfg(feature = "tune")]
                 {
                     self.trace.pawns_passed[relative_rank][side] += 1;
+                    self.trace.pawns_passed_file[pawn.file() as usize][side] += 1;
                 }
             }
 

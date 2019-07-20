@@ -97,6 +97,7 @@ pub struct Trace {
 
     pub pawns_doubled: [i8; 2],
     pub pawns_passed: [[i8; 2]; 8],
+    pub pawns_passed_file: [[i8; 2]; 8],
     pub pawns_open_isolated: [i8; 2],
     pub pawns_isolated: [i8; 2],
 
@@ -138,6 +139,7 @@ pub struct CompactTrace {
 
     pawns_doubled: i8,
     pawns_passed: [i8; 8],
+    pawns_passed_file: [i8; 8],
     pawns_open_isolated: i8,
     pawns_isolated: i8,
 
@@ -199,6 +201,11 @@ impl From<Trace> for CompactTrace {
             pawns_passed[i] = t.pawns_passed[i][1] - t.pawns_passed[i][0];
         }
 
+        let mut pawns_passed_file = [0; 8];
+        for i in 0..8 {
+            pawns_passed_file[i] = t.pawns_passed_file[i][1] - t.pawns_passed_file[i][0];
+        }
+
         let mut king_safety = [0; 30];
         for i in 0..30 {
             king_safety[i] = t.king_safety[i][1] - t.king_safety[i][0];
@@ -231,6 +238,7 @@ impl From<Trace> for CompactTrace {
 
             pawns_doubled: t.pawns_doubled[1] - t.pawns_doubled[0],
             pawns_passed,
+            pawns_passed_file,
             pawns_open_isolated: t.pawns_open_isolated[1] - t.pawns_open_isolated[0],
             pawns_isolated: t.pawns_isolated[1] - t.pawns_isolated[0],
 
@@ -274,6 +282,7 @@ pub struct Parameters {
 
     pawns_doubled: (f32, f32),
     pawns_passed: [(f32, f32); 8],
+    pawns_passed_file: [(f32, f32); 8],
     pawns_open_isolated: (f32, f32),
     pawns_isolated: (f32, f32),
 
@@ -401,6 +410,7 @@ impl Default for Trace {
 
             pawns_doubled: [0; 2],
             pawns_passed: [[0; 2]; 8],
+            pawns_passed_file: [[0; 2]; 8],
             pawns_open_isolated: [0; 2],
             pawns_isolated: [0; 2],
 
@@ -480,6 +490,11 @@ impl CompactTrace {
         for i in 0..8 {
             score.0 += params.pawns_passed[i].0 * self.pawns_passed[i] as f32;
             score.1 += params.pawns_passed[i].1 * self.pawns_passed[i] as f32;
+        }
+
+        for (i, &coeff) in self.pawns_passed_file.iter().enumerate() {
+            score.0 += params.pawns_passed_file[i].0 * coeff as f32;
+            score.1 += params.pawns_passed_file[i].1 * coeff as f32;
         }
 
         score.0 += params.pawns_open_isolated.0 * self.pawns_open_isolated as f32;
@@ -599,7 +614,8 @@ impl Parameters {
         }
 
         if TUNE_PAWNS_PASSED {
-            print_array(&self.pawns_passed, "PASSED_PAWN");
+            print_array(&self.pawns_passed, "PASSED_PAWN_ON_RANK");
+            print_array(&self.pawns_passed_file, "PASSED_PAWN_ON_FILE");
         }
 
         if TUNE_PAWNS_OPEN_ISOLATED {
@@ -736,6 +752,7 @@ impl Parameters {
 
         let mut g_pawns_doubled = (0., 0.);
         let mut g_pawns_passed = [(0., 0.); 8];
+        let mut g_pawns_passed_file = [(0., 0.); 8];
         let mut g_pawns_open_isolated = (0., 0.);
         let mut g_pawns_isolated = (0., 0.);
 
@@ -866,6 +883,12 @@ impl Parameters {
                     let x = trace.pawns_passed[i] as f32;
                     g_pawns_passed[i].0 += x * grad * phase / 62.;
                     g_pawns_passed[i].1 += x * grad * (62. - phase) / 62.;
+                }
+
+                for (i, &coeff) in trace.pawns_passed_file.iter().enumerate() {
+                    let x = coeff as f32;
+                    g_pawns_passed_file[i].0 += x * grad * phase / 62.;
+                    g_pawns_passed_file[i].1 += x * grad * (62. - phase) / 62.;
                 }
             }
 
@@ -1038,6 +1061,11 @@ impl Parameters {
             norm += g_pawns_passed[i].1.powf(2.);
         }
 
+        for &grad in g_pawns_passed_file.iter() {
+            norm += grad.0.powf(2.);
+            norm += grad.1.powf(2.);
+        }
+
         norm += g_bishops_xray.0.powf(2.);
         norm += g_bishops_xray.1.powf(2.);
 
@@ -1123,6 +1151,11 @@ impl Parameters {
         for i in 0..8 {
             self.pawns_passed[i].0 -= 2. / n * f * g_pawns_passed[i].0;
             self.pawns_passed[i].1 -= 2. / n * f * g_pawns_passed[i].1;
+        }
+
+        for (i, &(mg, eg)) in g_pawns_passed_file.iter().enumerate() {
+            self.pawns_passed_file[i].0 -= 2. / n * f * mg;
+            self.pawns_passed_file[i].1 -= 2. / n * f * eg;
         }
 
         self.pawns_open_isolated.0 -= 2. / n * f * g_pawns_open_isolated.0;
@@ -1212,7 +1245,15 @@ impl Default for Parameters {
         let pawns_isolated = (mg(ISOLATED_PAWN) as f32, eg(ISOLATED_PAWN) as f32);
         let mut pawns_passed = [(0., 0.); 8];
         for i in 0..8 {
-            pawns_passed[i] = (mg(PASSED_PAWN[i]) as f32, eg(PASSED_PAWN[i]) as f32);
+            pawns_passed[i] = (
+                mg(PASSED_PAWN_ON_RANK[i]) as f32,
+                eg(PASSED_PAWN_ON_RANK[i]) as f32,
+            );
+        }
+
+        let mut pawns_passed_file = [(0., 0.); 8];
+        for (i, &weight) in PASSED_PAWN_ON_FILE.iter().enumerate() {
+            pawns_passed_file[i] = (mg(weight) as f32, eg(weight) as f32);
         }
 
         let mut king_safety = [0.; 30];
@@ -1263,6 +1304,7 @@ impl Default for Parameters {
 
             pawns_doubled,
             pawns_passed,
+            pawns_passed_file,
             pawns_open_isolated,
             pawns_isolated,
 
