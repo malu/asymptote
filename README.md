@@ -6,7 +6,7 @@ Asymptote does not include a graphical user interface. You need a UCI-compliant 
 The UCI options currently supported (as reported by the `uci` command) are:
 ```
 > uci
-< id name Asymptote 0.6.2
+< id name Asymptote 0.6.3
 < id author Maximilian Lupke
 < option name Hash type spin default 1 min 0 max 16384
 < option name Threads type spin default 1 min 1 max 64
