@@ -439,8 +439,8 @@ impl Eval {
             }
 
             if passed && !doubled {
-                let relative_rank = pawn.relative_rank(white);
-                score += PASSED_PAWN[relative_rank as usize];
+                let relative_rank = pawn.relative_rank(white) as usize;
+                score += PASSED_PAWN[relative_rank];
 
                 #[cfg(feature = "tune")]
                 {
