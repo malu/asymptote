@@ -454,78 +454,44 @@ impl CompactTrace {
     fn evaluate(&self, params: &Parameters) -> f32 {
         let phase = self.phase as f32;
         let sf = self.sf as f32 / SF_NORMAL as f32;
-
         let mut score = (0., 0.);
-        for i in 0..6 {
-            score.0 += params.material[i].0 * self.material[i] as f32;
-            score.1 += params.material[i].1 * self.material[i] as f32;
-        }
 
-        score.0 += params.mobility_pawn.0 * self.mobility_pawn as f32;
-        score.1 += params.mobility_pawn.1 * self.mobility_pawn as f32;
+        // Material
+        evaluate_array(&mut score, &params.material, &self.material);
 
-        for i in 0..9 {
-            score.0 += params.mobility_knight[i].0 * self.mobility_knight[i] as f32;
-            score.1 += params.mobility_knight[i].1 * self.mobility_knight[i] as f32;
-        }
+        // Mobility
+        evaluate_single(&mut score, params.mobility_pawn, self.mobility_pawn);
+        evaluate_array(&mut score, &params.mobility_knight, &self.mobility_knight);
+        evaluate_array(&mut score, &params.mobility_bishop, &self.mobility_bishop);
+        evaluate_array(&mut score, &params.mobility_rook, &self.mobility_rook);
+        evaluate_array(&mut score, &params.mobility_queen, &self.mobility_queen);
 
-        for i in 0..14 {
-            score.0 += params.mobility_bishop[i].0 * self.mobility_bishop[i] as f32;
-            score.1 += params.mobility_bishop[i].1 * self.mobility_bishop[i] as f32;
-        }
-
-        for i in 0..15 {
-            score.0 += params.mobility_rook[i].0 * self.mobility_rook[i] as f32;
-            score.1 += params.mobility_rook[i].1 * self.mobility_rook[i] as f32;
-        }
-
-        for i in 0..29 {
-            score.0 += params.mobility_queen[i].0 * self.mobility_queen[i] as f32;
-            score.1 += params.mobility_queen[i].1 * self.mobility_queen[i] as f32;
-        }
-
-        score.0 += params.pawns_doubled.0 * self.pawns_doubled as f32;
-        score.1 += params.pawns_doubled.1 * self.pawns_doubled as f32;
-
-        for i in 0..8 {
-            score.0 += params.pawns_passed[i].0 * self.pawns_passed[i] as f32;
-            score.1 += params.pawns_passed[i].1 * self.pawns_passed[i] as f32;
-        }
+        // Pawns
+        evaluate_single(&mut score, params.pawns_doubled, self.pawns_doubled);
+        evaluate_single(&mut score, params.pawns_open_isolated, self.pawns_open_isolated);
+        evaluate_single(&mut score, params.pawns_isolated, self.pawns_isolated);
+        evaluate_array(&mut score, &params.pawns_passed, &self.pawns_passed);
 
         for (i, &coeff) in self.pawns_passed_file.iter().enumerate() {
-            score.0 += params.pawns_passed_file[i].0 * coeff as f32;
-            score.1 += params.pawns_passed_file[i].1 * coeff as f32;
+            evaluate_single(&mut score, params.pawns_passed_file[i], coeff);
         }
 
-        score.0 += params.pawns_open_isolated.0 * self.pawns_open_isolated as f32;
-        score.1 += params.pawns_open_isolated.1 * self.pawns_open_isolated as f32;
+        // Bishops
+        evaluate_single(&mut score, params.bishops_xray, self.bishops_xray);
+        evaluate_single(&mut score, params.bishops_pair, self.bishops_pair);
 
-        score.0 += params.pawns_isolated.0 * self.pawns_isolated as f32;
-        score.1 += params.pawns_isolated.1 * self.pawns_isolated as f32;
+        // Rooks
+        evaluate_single(&mut score, params.rooks_open_file, self.rooks_open_file);
+        evaluate_single(&mut score, params.rooks_halfopen_file, self.rooks_halfopen_file);
 
-        score.0 += params.bishops_xray.0 * self.bishops_xray as f32;
-        score.1 += params.bishops_xray.1 * self.bishops_xray as f32;
-
-        score.0 += params.bishops_pair.0 * self.bishops_pair as f32;
-        score.1 += params.bishops_pair.1 * self.bishops_pair as f32;
-
-        score.0 += params.rooks_open_file.0 * self.rooks_open_file as f32;
-        score.1 += params.rooks_open_file.1 * self.rooks_open_file as f32;
-
-        score.0 += params.rooks_halfopen_file.0 * self.rooks_halfopen_file as f32;
-        score.1 += params.rooks_halfopen_file.1 * self.rooks_halfopen_file as f32;
-
+        // King safety
+        score.0 += params.king_check_knight * self.king_check_knight as f32;
+        score.0 += params.king_check_bishop * self.king_check_bishop as f32;
+        score.0 += params.king_check_rook * self.king_check_rook as f32;
+        score.0 += params.king_check_queen * self.king_check_queen as f32;
         for i in 0..30 {
             score.0 += params.king_safety[i] * self.king_safety[i] as f32;
         }
-
-        score.0 += params.king_check_knight * self.king_check_knight as f32;
-
-        score.0 += params.king_check_bishop * self.king_check_bishop as f32;
-
-        score.0 += params.king_check_rook * self.king_check_rook as f32;
-
-        score.0 += params.king_check_queen * self.king_check_queen as f32;
 
         let mut danger_white = 0.;
         let mut danger_black = 0.;
@@ -539,24 +505,14 @@ impl CompactTrace {
         score.0 -=
             danger_black * params.king_danger_attacks[self.king_danger_attacks[0] as usize] / 128.;
 
+        // PST
         for i in ALL_SQUARES.squares() {
-            score.0 += params.pst_pawn[i].0 * self.pst_pawn[i] as f32;
-            score.1 += params.pst_pawn[i].1 * self.pst_pawn[i] as f32;
-
-            score.0 += params.pst_knight[i].0 * self.pst_knight[i] as f32;
-            score.1 += params.pst_knight[i].1 * self.pst_knight[i] as f32;
-
-            score.0 += params.pst_bishop[i].0 * self.pst_bishop[i] as f32;
-            score.1 += params.pst_bishop[i].1 * self.pst_bishop[i] as f32;
-
-            score.0 += params.pst_rook[i].0 * self.pst_rook[i] as f32;
-            score.1 += params.pst_rook[i].1 * self.pst_rook[i] as f32;
-
-            score.0 += params.pst_queen[i].0 * self.pst_queen[i] as f32;
-            score.1 += params.pst_queen[i].1 * self.pst_queen[i] as f32;
-
-            score.0 += params.pst_king[i].0 * self.pst_king[i] as f32;
-            score.1 += params.pst_king[i].1 * self.pst_king[i] as f32;
+            evaluate_single(&mut score, params.pst_pawn[i], self.pst_pawn[i]);
+            evaluate_single(&mut score, params.pst_knight[i], self.pst_knight[i]);
+            evaluate_single(&mut score, params.pst_bishop[i], self.pst_bishop[i]);
+            evaluate_single(&mut score, params.pst_rook[i], self.pst_rook[i]);
+            evaluate_single(&mut score, params.pst_queen[i], self.pst_queen[i]);
+            evaluate_single(&mut score, params.pst_king[i], self.pst_king[i]);
         }
 
         sf * (score.0 as f32 * phase + score.1 as f32 * (62. - phase)) / 62.
@@ -790,130 +746,82 @@ impl Parameters {
 
             if TUNE_MATERIAL_PAWN {
                 // For pawns we only tune endgame scores and leave the midgame scores fixed at 100.
-                let x = trace.material[0] as f32;
-                g_material[0].1 += x * grad * (62. - phase) / 62.;
+                let i = Piece::Pawn.index();
+                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
+                g_material[i].0 = 0.;
             }
 
             if TUNE_MATERIAL_KNIGHT {
                 let i = Piece::Knight.index();
-                let x = trace.material[i] as f32;
-                g_material[i].0 += x * grad * phase / 62.;
-                g_material[i].1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
             }
 
             if TUNE_MATERIAL_BISHOP {
                 let i = Piece::Bishop.index();
-                let x = trace.material[i] as f32;
-                g_material[i].0 += x * grad * phase / 62.;
-                g_material[i].1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
             }
 
             if TUNE_MATERIAL_ROOK {
                 let i = Piece::Rook.index();
-                let x = trace.material[i] as f32;
-                g_material[i].0 += x * grad * phase / 62.;
-                g_material[i].1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
             }
 
             if TUNE_MATERIAL_QUEEN {
                 let i = Piece::Queen.index();
-                let x = trace.material[i] as f32;
-                g_material[i].0 += x * grad * phase / 62.;
-                g_material[i].1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
             }
 
             if TUNE_MOBILITY_PAWN {
-                let x = trace.mobility_pawn as f32;
-                g_mobility_pawn.0 += x * grad * phase / 62.;
-                g_mobility_pawn.1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_mobility_pawn, trace.mobility_pawn, grad, phase);
             }
 
             if TUNE_MOBILITY_KNIGHT {
-                for i in 0..9 {
-                    let x = trace.mobility_knight[i] as f32;
-                    g_mobility_knight[i].0 += x * grad * phase / 62.;
-                    g_mobility_knight[i].1 += x * grad * (62. - phase) / 62.;
-                }
+                update_gradient_array(&mut g_mobility_knight, &trace.mobility_knight, grad, phase);
             }
 
             if TUNE_MOBILITY_BISHOP {
-                for i in 0..14 {
-                    let x = trace.mobility_bishop[i] as f32;
-                    g_mobility_bishop[i].0 += x * grad * phase / 62.;
-                    g_mobility_bishop[i].1 += x * grad * (62. - phase) / 62.;
-                }
+                update_gradient_array(&mut g_mobility_bishop, &trace.mobility_bishop, grad, phase);
             }
 
             if TUNE_MOBILITY_ROOK {
-                for i in 0..15 {
-                    let x = trace.mobility_rook[i] as f32;
-                    g_mobility_rook[i].0 += x * grad * phase / 62.;
-                    g_mobility_rook[i].1 += x * grad * (62. - phase) / 62.;
-                }
+                update_gradient_array(&mut g_mobility_rook, &trace.mobility_rook, grad, phase);
             }
 
             if TUNE_MOBILITY_QUEEN {
-                for i in 0..29 {
-                    let x = trace.mobility_queen[i] as f32;
-                    g_mobility_queen[i].0 += x * grad * phase / 62.;
-                    g_mobility_queen[i].1 += x * grad * (62. - phase) / 62.;
-                }
+                update_gradient_array(&mut g_mobility_queen, &trace.mobility_queen, grad, phase);
             }
 
             if TUNE_PAWNS_DOUBLED {
-                let x = trace.pawns_doubled as f32;
-                g_pawns_doubled.0 += x * grad * phase / 62.;
-                g_pawns_doubled.1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_pawns_doubled, trace.pawns_doubled, grad, phase);
             }
 
             if TUNE_PAWNS_OPEN_ISOLATED {
-                let x = trace.pawns_open_isolated as f32;
-                g_pawns_open_isolated.0 += x * grad * phase / 62.;
-                g_pawns_open_isolated.1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_pawns_open_isolated, trace.pawns_open_isolated, grad, phase);
             }
 
             if TUNE_PAWNS_ISOLATED {
-                let x = trace.pawns_isolated as f32;
-                g_pawns_isolated.0 += x * grad * phase / 62.;
-                g_pawns_isolated.1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_pawns_isolated, trace.pawns_isolated, grad, phase);
             }
 
             if TUNE_PAWNS_PASSED {
-                for i in 0..8 {
-                    let x = trace.pawns_passed[i] as f32;
-                    g_pawns_passed[i].0 += x * grad * phase / 62.;
-                    g_pawns_passed[i].1 += x * grad * (62. - phase) / 62.;
-                }
-
-                for (i, &coeff) in trace.pawns_passed_file.iter().enumerate() {
-                    let x = coeff as f32;
-                    g_pawns_passed_file[i].0 += x * grad * phase / 62.;
-                    g_pawns_passed_file[i].1 += x * grad * (62. - phase) / 62.;
-                }
+                update_gradient_array(&mut g_pawns_passed, &trace.pawns_passed, grad, phase);
+                update_gradient_array(&mut g_pawns_passed_file, &trace.pawns_passed_file, grad, phase);
             }
 
             if TUNE_BISHOPS_XRAY {
-                let x = trace.bishops_xray as f32;
-                g_bishops_xray.0 += x * grad * phase / 62.;
-                g_bishops_xray.1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_bishops_xray, trace.bishops_xray, grad, phase);
             }
 
             if TUNE_BISHOPS_PAIR {
-                let x = trace.bishops_pair as f32;
-                g_bishops_pair.0 += x * grad * phase / 62.;
-                g_bishops_pair.1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_bishops_pair, trace.bishops_pair, grad, phase);
             }
 
             if TUNE_ROOKS_OPEN_FILE {
-                let x = trace.rooks_open_file as f32;
-                g_rooks_open_file.0 += x * grad * phase / 62.;
-                g_rooks_open_file.1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_rooks_open_file, trace.rooks_open_file, grad, phase);
             }
 
             if TUNE_ROOKS_HALFOPEN_FILE {
-                let x = trace.rooks_halfopen_file as f32;
-                g_rooks_halfopen_file.0 += x * grad * phase / 62.;
-                g_rooks_halfopen_file.1 += x * grad * (62. - phase) / 62.;
+                update_gradient(&mut g_rooks_halfopen_file, trace.rooks_halfopen_file, grad, phase);
             }
 
             if TUNE_KING_SAFETY {
@@ -970,113 +878,62 @@ impl Parameters {
 
             if TUNE_PST_PAWN {
                 for i in ALL_SQUARES.squares() {
-                    let x = trace.pst_pawn[i] as f32;
-                    g_pst_pawn[i].0 += x * grad * phase / 62.;
-                    g_pst_pawn[i].1 += x * grad * (62. - phase) / 62.;
+                    update_gradient(&mut g_pst_pawn[i], trace.pst_pawn[i], grad, phase);
                 }
             }
 
             if TUNE_PST_KNIGHT {
                 for i in ALL_SQUARES.squares() {
-                    let x = trace.pst_knight[i] as f32;
-                    g_pst_knight[i].0 += x * grad * phase / 62.;
-                    g_pst_knight[i].1 += x * grad * (62. - phase) / 62.;
+                    update_gradient(&mut g_pst_knight[i], trace.pst_knight[i], grad, phase);
                 }
             }
 
             if TUNE_PST_BISHOP {
                 for i in ALL_SQUARES.squares() {
-                    let x = trace.pst_bishop[i] as f32;
-                    g_pst_bishop[i].0 += x * grad * phase / 62.;
-                    g_pst_bishop[i].1 += x * grad * (62. - phase) / 62.;
+                    update_gradient(&mut g_pst_bishop[i], trace.pst_bishop[i], grad, phase);
                 }
             }
 
             if TUNE_PST_ROOK {
                 for i in ALL_SQUARES.squares() {
-                    let x = trace.pst_rook[i] as f32;
-                    g_pst_rook[i].0 += x * grad * phase / 62.;
-                    g_pst_rook[i].1 += x * grad * (62. - phase) / 62.;
+                    update_gradient(&mut g_pst_rook[i], trace.pst_rook[i], grad, phase);
                 }
             }
 
             if TUNE_PST_QUEEN {
                 for i in ALL_SQUARES.squares() {
-                    let x = trace.pst_queen[i] as f32;
-                    g_pst_queen[i].0 += x * grad * phase / 62.;
-                    g_pst_queen[i].1 += x * grad * (62. - phase) / 62.;
+                    update_gradient(&mut g_pst_queen[i], trace.pst_queen[i], grad, phase);
                 }
             }
 
             if TUNE_PST_KING {
                 for i in ALL_SQUARES.squares() {
-                    let x = trace.pst_king[i] as f32;
-                    g_pst_king[i].0 += x * grad * phase / 62.;
-                    g_pst_king[i].1 += x * grad * (62. - phase) / 62.;
+                    update_gradient(&mut g_pst_king[i], trace.pst_king[i], grad, phase);
                 }
             }
         }
 
         let mut norm = 0.;
 
-        for i in 0..5 {
-            norm += g_material[i].0.powf(2.);
-            norm += g_material[i].1.powf(2.);
-        }
+        norm += norm_array(&g_material);
 
-        norm += g_mobility_pawn.0.powf(2.);
-        norm += g_mobility_pawn.1.powf(2.);
+        norm += norm_single(g_mobility_pawn);
+        norm += norm_array(&g_mobility_knight);
+        norm += norm_array(&g_mobility_bishop);
+        norm += norm_array(&g_mobility_rook);
+        norm += norm_array(&g_mobility_queen);
 
-        for i in 0..9 {
-            norm += g_mobility_knight[i].0.powf(2.);
-            norm += g_mobility_knight[i].1.powf(2.);
-        }
+        norm += norm_single(g_pawns_doubled);
+        norm += norm_single(g_pawns_open_isolated);
+        norm += norm_single(g_pawns_isolated);
+        norm += norm_array(&g_pawns_passed);
+        norm += norm_array(&g_pawns_passed_file);
 
-        for i in 0..14 {
-            norm += g_mobility_bishop[i].0.powf(2.);
-            norm += g_mobility_bishop[i].1.powf(2.);
-        }
+        norm += norm_single(g_bishops_xray);
+        norm += norm_single(g_bishops_pair);
 
-        for i in 0..15 {
-            norm += g_mobility_rook[i].0.powf(2.);
-            norm += g_mobility_rook[i].1.powf(2.);
-        }
-
-        for i in 0..29 {
-            norm += g_mobility_queen[i].0.powf(2.);
-            norm += g_mobility_queen[i].1.powf(2.);
-        }
-
-        norm += g_pawns_doubled.0.powf(2.);
-        norm += g_pawns_doubled.1.powf(2.);
-
-        norm += g_pawns_open_isolated.0.powf(2.);
-        norm += g_pawns_open_isolated.1.powf(2.);
-
-        norm += g_pawns_isolated.0.powf(2.);
-        norm += g_pawns_isolated.1.powf(2.);
-
-        for i in 0..8 {
-            norm += g_pawns_passed[i].0.powf(2.);
-            norm += g_pawns_passed[i].1.powf(2.);
-        }
-
-        for &grad in g_pawns_passed_file.iter() {
-            norm += grad.0.powf(2.);
-            norm += grad.1.powf(2.);
-        }
-
-        norm += g_bishops_xray.0.powf(2.);
-        norm += g_bishops_xray.1.powf(2.);
-
-        norm += g_bishops_pair.0.powf(2.);
-        norm += g_bishops_pair.1.powf(2.);
-
-        norm += g_rooks_open_file.0.powf(2.);
-        norm += g_rooks_open_file.1.powf(2.);
-
-        norm += g_rooks_halfopen_file.0.powf(2.);
-        norm += g_rooks_halfopen_file.1.powf(2.);
+        norm += norm_single(g_rooks_open_file);
+        norm += norm_single(g_rooks_halfopen_file);
 
         for i in 0..30 {
             norm += g_king_safety[i].powf(2.);
@@ -1096,18 +953,12 @@ impl Parameters {
         }
 
         for i in ALL_SQUARES.squares() {
-            norm += g_pst_pawn[i].0.powf(2.);
-            norm += g_pst_pawn[i].1.powf(2.);
-            norm += g_pst_knight[i].0.powf(2.);
-            norm += g_pst_knight[i].1.powf(2.);
-            norm += g_pst_bishop[i].0.powf(2.);
-            norm += g_pst_bishop[i].1.powf(2.);
-            norm += g_pst_rook[i].0.powf(2.);
-            norm += g_pst_rook[i].1.powf(2.);
-            norm += g_pst_queen[i].0.powf(2.);
-            norm += g_pst_queen[i].1.powf(2.);
-            norm += g_pst_king[i].0.powf(2.);
-            norm += g_pst_king[i].1.powf(2.);
+            norm += norm_single(g_pst_pawn[i]);
+            norm += norm_single(g_pst_knight[i]);
+            norm += norm_single(g_pst_bishop[i]);
+            norm += norm_single(g_pst_rook[i]);
+            norm += norm_single(g_pst_queen[i]);
+            norm += norm_single(g_pst_king[i]);
         }
 
         if norm == 0.0 {
@@ -1117,75 +968,33 @@ impl Parameters {
         norm = norm.sqrt();
         let f = f / norm;
 
-        for i in 0..6 {
-            self.material[i].0 -= 2. / n * f * g_material[i].0;
-            self.material[i].1 -= 2. / n * f * g_material[i].1;
-        }
+        update_parameter_array(&mut self.material, &g_material, f / n);
 
-        self.mobility_pawn.0 -= 2. / n * f * g_mobility_pawn.0;
-        self.mobility_pawn.1 -= 2. / n * f * g_mobility_pawn.1;
+        update_parameter(&mut self.mobility_pawn, g_mobility_pawn, f / n);
+        update_parameter_array(&mut self.mobility_knight, &g_mobility_knight, f / n);
+        update_parameter_array(&mut self.mobility_bishop, &g_mobility_bishop, f / n);
+        update_parameter_array(&mut self.mobility_rook, &g_mobility_rook, f / n);
+        update_parameter_array(&mut self.mobility_queen, &g_mobility_queen, f / n);
 
-        for i in 0..9 {
-            self.mobility_knight[i].0 -= 2. / n * f * g_mobility_knight[i].0;
-            self.mobility_knight[i].1 -= 2. / n * f * g_mobility_knight[i].1;
-        }
+        update_parameter(&mut self.pawns_doubled, g_pawns_doubled, f / n);
+        update_parameter(&mut self.pawns_isolated, g_pawns_isolated, f / n);
+        update_parameter(&mut self.pawns_open_isolated, g_pawns_open_isolated, f / n);
+        update_parameter_array(&mut self.pawns_passed, &g_pawns_passed, f / n);
+        update_parameter_array(&mut self.pawns_passed_file, &g_pawns_passed_file, f / n);
 
-        for i in 0..14 {
-            self.mobility_bishop[i].0 -= 2. / n * f * g_mobility_bishop[i].0;
-            self.mobility_bishop[i].1 -= 2. / n * f * g_mobility_bishop[i].1;
-        }
+        update_parameter(&mut self.bishops_pair, g_bishops_pair, f / n);
+        update_parameter(&mut self.bishops_xray, g_bishops_xray, f / n);
 
-        for i in 0..15 {
-            self.mobility_rook[i].0 -= 2. / n * f * g_mobility_rook[i].0;
-            self.mobility_rook[i].1 -= 2. / n * f * g_mobility_rook[i].1;
-        }
-
-        for i in 0..29 {
-            self.mobility_queen[i].0 -= 2. / n * f * g_mobility_queen[i].0;
-            self.mobility_queen[i].1 -= 2. / n * f * g_mobility_queen[i].1;
-        }
-
-        self.pawns_doubled.0 -= 2. / n * f * g_pawns_doubled.0;
-        self.pawns_doubled.1 -= 2. / n * f * g_pawns_doubled.1;
-
-        for i in 0..8 {
-            self.pawns_passed[i].0 -= 2. / n * f * g_pawns_passed[i].0;
-            self.pawns_passed[i].1 -= 2. / n * f * g_pawns_passed[i].1;
-        }
-
-        for (i, &(mg, eg)) in g_pawns_passed_file.iter().enumerate() {
-            self.pawns_passed_file[i].0 -= 2. / n * f * mg;
-            self.pawns_passed_file[i].1 -= 2. / n * f * eg;
-        }
-
-        self.pawns_open_isolated.0 -= 2. / n * f * g_pawns_open_isolated.0;
-        self.pawns_open_isolated.1 -= 2. / n * f * g_pawns_open_isolated.1;
-
-        self.pawns_isolated.0 -= 2. / n * f * g_pawns_isolated.0;
-        self.pawns_isolated.1 -= 2. / n * f * g_pawns_isolated.1;
-
-        self.bishops_xray.0 -= 2. / n * f * g_bishops_xray.0;
-        self.bishops_xray.1 -= 2. / n * f * g_bishops_xray.1;
-
-        self.bishops_pair.0 -= 2. / n * f * g_bishops_pair.0;
-        self.bishops_pair.1 -= 2. / n * f * g_bishops_pair.1;
-
-        self.rooks_open_file.0 -= 2. / n * f * g_rooks_open_file.0;
-        self.rooks_open_file.1 -= 2. / n * f * g_rooks_open_file.1;
-
-        self.rooks_halfopen_file.0 -= 2. / n * f * g_rooks_halfopen_file.0;
-        self.rooks_halfopen_file.1 -= 2. / n * f * g_rooks_halfopen_file.1;
+        update_parameter(&mut self.rooks_open_file, g_rooks_open_file, f / n);
+        update_parameter(&mut self.rooks_halfopen_file, g_rooks_halfopen_file, f / n);
 
         for i in 0..30 {
             self.king_safety[i] -= 2. / n * f * g_king_safety[i];
         }
 
         self.king_check_knight -= 2. / n * f * g_king_check_knight;
-
         self.king_check_bishop -= 2. / n * f * g_king_check_bishop;
-
         self.king_check_rook -= 2. / n * f * g_king_check_rook;
-
         self.king_check_queen -= 2. / n * f * g_king_check_queen;
 
         for i in 0..6 {
@@ -1197,23 +1006,12 @@ impl Parameters {
         }
 
         for i in ALL_SQUARES.squares() {
-            self.pst_pawn[i].0 -= 2. / n * f * g_pst_pawn[i].0;
-            self.pst_pawn[i].1 -= 2. / n * f * g_pst_pawn[i].1;
-
-            self.pst_knight[i].0 -= 2. / n * f * g_pst_knight[i].0;
-            self.pst_knight[i].1 -= 2. / n * f * g_pst_knight[i].1;
-
-            self.pst_bishop[i].0 -= 2. / n * f * g_pst_bishop[i].0;
-            self.pst_bishop[i].1 -= 2. / n * f * g_pst_bishop[i].1;
-
-            self.pst_rook[i].0 -= 2. / n * f * g_pst_rook[i].0;
-            self.pst_rook[i].1 -= 2. / n * f * g_pst_rook[i].1;
-
-            self.pst_queen[i].0 -= 2. / n * f * g_pst_queen[i].0;
-            self.pst_queen[i].1 -= 2. / n * f * g_pst_queen[i].1;
-
-            self.pst_king[i].0 -= 2. / n * f * g_pst_king[i].0;
-            self.pst_king[i].1 -= 2. / n * f * g_pst_king[i].1;
+            update_parameter(&mut self.pst_pawn[i], g_pst_pawn[i], f / n);
+            update_parameter(&mut self.pst_knight[i], g_pst_knight[i], f / n);
+            update_parameter(&mut self.pst_bishop[i], g_pst_bishop[i], f / n);
+            update_parameter(&mut self.pst_rook[i], g_pst_rook[i], f / n);
+            update_parameter(&mut self.pst_queen[i], g_pst_queen[i], f / n);
+            update_parameter(&mut self.pst_king[i], g_pst_king[i], f / n);
         }
     }
 }
@@ -1455,3 +1253,57 @@ fn print_pst(pst: &SquareMap<(f32, f32)>, name: &str) {
     }
     println!("]);");
 }
+
+fn evaluate_single(score: &mut (f32, f32), param: (f32, f32), coeff: i8) {
+    score.0 += param.0 * coeff as f32;
+    score.1 += param.1 * coeff as f32;
+}
+
+fn evaluate_array(score: &mut (f32, f32), params: &[(f32, f32)], coeffs: &[i8]) {
+    assert!(params.len() == coeffs.len());
+
+    for (&param, &coeff) in params.iter().zip(coeffs) {
+        evaluate_single(score, param, coeff);
+    }
+}
+
+fn norm_single(param: (f32, f32)) -> f32 {
+    param.0.powf(2.) + param.1.powf(2.)
+}
+
+fn norm_array(params: &[(f32, f32)]) -> f32 {
+    let mut result = 0.;
+    for &param in params {
+        result += norm_single(param);
+    }
+
+    result
+}
+
+fn update_gradient(gradient: &mut (f32, f32), coeff: i8, grad: f32, phase: f32) {
+    let x = coeff as f32;
+    gradient.0 += x * grad * phase / 62.;
+    gradient.1 += x * grad * (62. - phase) / 62.;
+}
+
+fn update_gradient_array(gradients: &mut [(f32, f32)], coeffs: &[i8], grad: f32, phase: f32) {
+    assert!(gradients.len() == coeffs.len());
+
+    for (gradient, &coeff) in gradients.iter_mut().zip(coeffs) {
+        update_gradient(gradient, coeff, grad, phase);
+    }
+}
+
+fn update_parameter(param: &mut (f32, f32), gradient: (f32, f32), step: f32) {
+    param.0 -= 2. * step * gradient.0;
+    param.1 -= 2. * step * gradient.1;
+}
+
+fn update_parameter_array(params: &mut [(f32, f32)], gradients: &[(f32, f32)], step: f32) {
+    assert!(gradients.len() == params.len());
+
+    for (param, &gradient) in params.iter_mut().zip(gradients) {
+        update_parameter(param, gradient, step);
+    }
+}
+
