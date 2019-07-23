@@ -178,7 +178,7 @@ impl<'a> Search<'a> {
         moves: &mut arrayvec::ArrayVec<[(Move, i64); 256]>,
         depth: Depth,
     ) -> Option<Score> {
-        let mut delta = 50;
+        let mut delta = 30;
         let mut alpha = cmp::max(last_score - delta, -MATE_SCORE);
         let mut beta = cmp::min(last_score + delta, MATE_SCORE);
 
