@@ -1017,6 +1017,9 @@ impl<'a> Search<'a> {
         let current_ply = &mut self.stack[ply as usize];
         current_ply.irreversible_details = self.position.details;
         current_ply.current_move = Some(mov);
+        if ply + 2 < MAX_PLY {
+            self.stack[2 + ply as usize].killers_moves = [None; 2];
+        }
 
         self.hasher.make_move(&self.position, mov);
         self.eval.make_move(mov, &self.position);
