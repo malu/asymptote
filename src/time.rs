@@ -74,7 +74,7 @@ impl TimeManager {
 
     pub fn elapsed_millis(&self) -> u64 {
         let duration = time::Instant::now() - self.started_at;
-        1000 * duration.as_secs() + u64::from(duration.subsec_millis())
+        duration.as_millis() as u64
     }
 
     pub fn check_for_stop(&mut self) {
