@@ -19,6 +19,7 @@ use std::cmp;
 use std::sync;
 use std::time;
 
+use crate::eval::Score;
 use crate::position::Position;
 use crate::search::{Ply, MAX_PLY};
 
@@ -45,6 +46,15 @@ pub struct TimeManager {
     pub abort: sync::Arc<sync::atomic::AtomicBool>,
     force_stop: bool,
     move_overhead: u64,
+
+    dynamic: DynamicTimeManagement,
+}
+
+#[derive(Copy, Clone, Default)]
+struct DynamicTimeManagement {
+    maximum: u64,
+    initial: u64,
+    target: u64,
 }
 
 impl TimeManager {
@@ -54,14 +64,18 @@ impl TimeManager {
         move_overhead: u64,
         abort: sync::Arc<sync::atomic::AtomicBool>,
     ) -> TimeManager {
-        TimeManager {
+        let mut tm = TimeManager {
             started_at: time::Instant::now(),
             control,
             searching_for_white: position.white_to_move,
             abort,
             force_stop: false,
             move_overhead,
-        }
+            dynamic: DynamicTimeManagement::default(),
+        };
+
+        tm.update(position, control);
+        tm
     }
 
     pub fn update(&mut self, position: &Position, control: TimeControl) {
@@ -70,6 +84,30 @@ impl TimeManager {
         self.control = control;
         self.searching_for_white = position.white_to_move;
         self.abort.store(false, sync::atomic::Ordering::SeqCst);
+
+        if let TimeControl::Variable {
+            wtime,
+            btime,
+            winc,
+            binc,
+            movestogo,
+        } = control
+        {
+            let time = if self.searching_for_white {
+                wtime
+            } else {
+                btime
+            };
+            let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
+
+            let initial = cmp::min(time, time / movestogo.unwrap_or(40) + inc);
+            let target = initial;
+            let maximum = target + (time - target) / 4;
+
+            self.dynamic.initial = initial;
+            self.dynamic.target = target;
+            self.dynamic.maximum = maximum;
+        }
     }
 
     pub fn elapsed_millis(&self) -> u64 {
@@ -96,22 +134,9 @@ impl TimeManager {
             }
             TimeControl::FixedDepth(stop_depth) => ply <= stop_depth,
             TimeControl::FixedNodes(_) => true, // handled by should_stop
-            TimeControl::Variable {
-                wtime,
-                btime,
-                winc,
-                binc,
-                movestogo,
-            } => {
+            TimeControl::Variable { .. } => {
                 let elapsed = self.elapsed_millis();
-                let time = if self.searching_for_white {
-                    wtime
-                } else {
-                    btime
-                };
-                let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
-                let movestogo = movestogo.unwrap_or(40);
-                elapsed + self.move_overhead <= cmp::min(time, time / movestogo + inc) / 2
+                elapsed + self.move_overhead <= self.dynamic.target / 2
             }
         };
 
@@ -142,23 +167,10 @@ impl TimeManager {
             }
             TimeControl::FixedDepth(_) => false, // handled by start_another_iteration
             TimeControl::FixedNodes(nodes) => visited_nodes >= nodes,
-            TimeControl::Variable {
-                wtime,
-                btime,
-                winc,
-                binc,
-                movestogo,
-            } => {
+            TimeControl::Variable { .. } => {
                 if visited_nodes & 0x7F == 0 {
                     let elapsed = self.elapsed_millis();
-                    let time = if self.searching_for_white {
-                        wtime
-                    } else {
-                        btime
-                    };
-                    let inc = if self.searching_for_white { winc } else { binc }.unwrap_or(0);
-                    let movestogo = cmp::min(10, movestogo.unwrap_or(10));
-                    elapsed + self.move_overhead >= cmp::min(time, time / movestogo + inc)
+                    elapsed + self.move_overhead >= self.dynamic.maximum
                 } else {
                     false
                 }
@@ -169,5 +181,17 @@ impl TimeManager {
             self.abort.store(true, sync::atomic::Ordering::Relaxed);
         }
         stop
+    }
+
+    pub fn fail_low(&mut self, diff: Score) {
+        if diff > -25 {
+            return;
+        }
+
+        if diff > -75 {
+            self.dynamic.target = cmp::min(self.dynamic.maximum, self.dynamic.target * 5 / 4);
+        }
+
+        self.dynamic.target = cmp::min(self.dynamic.maximum, self.dynamic.target * 3 / 2);
     }
 }

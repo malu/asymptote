@@ -156,6 +156,9 @@ impl<'a> Search<'a> {
             self.max_ply_searched = 0;
 
             if let Some(best_score) = self.aspiration(last_score, &mut moves, depth) {
+                if d >= 4 && best_score < last_score {
+                    self.time_manager.fail_low(best_score - last_score);
+                }
                 last_score = best_score;
                 moves[1..].sort_by_key(|&(_, subtree_size)| -subtree_size);
             }
