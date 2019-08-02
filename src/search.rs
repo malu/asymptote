@@ -774,12 +774,6 @@ impl<'a> Search<'a> {
             }
         }
 
-        let mut depth = depth;
-
-        if in_check {
-            depth += INC_PLY;
-        }
-
         let mut moves = MovePicker::qsearch(&self.position);
 
         let mut best_move = None;
@@ -840,7 +834,7 @@ impl<'a> Search<'a> {
         } else {
             alpha
         };
-        if depth == 0 || depth == INC_PLY && in_check {
+        if depth == 0 {
             let bound = if best_score >= beta {
                 LOWER_BOUND
             } else {
