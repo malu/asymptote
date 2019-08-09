@@ -69,6 +69,7 @@ const TUNE_BISHOPS_PAIR: bool = false;
 
 const TUNE_ROOKS_OPEN_FILE: bool = false;
 const TUNE_ROOKS_HALFOPEN_FILE: bool = false;
+const TUNE_ROOKS_PAIR: bool = false;
 
 const TUNE_KING_SAFETY: bool = false;
 const TUNE_KING_CHECK_KNIGHT: bool = false;
@@ -106,6 +107,7 @@ pub struct Trace {
 
     pub rooks_open_file: [i8; 2],
     pub rooks_halfopen_file: [i8; 2],
+    pub rooks_pair: [i8; 2],
 
     pub king_safety: [[i8; 2]; 30],
     pub king_check_knight: [i8; 2],
@@ -148,6 +150,7 @@ pub struct CompactTrace {
 
     rooks_open_file: i8,
     rooks_halfopen_file: i8,
+    rooks_pair: i8,
 
     king_safety: [i8; 30],
     king_check_knight: i8,
@@ -247,6 +250,7 @@ impl From<Trace> for CompactTrace {
 
             rooks_open_file: t.rooks_open_file[1] - t.rooks_open_file[0],
             rooks_halfopen_file: t.rooks_halfopen_file[1] - t.rooks_halfopen_file[0],
+            rooks_pair: t.rooks_pair[1] - t.rooks_pair[0],
 
             king_safety,
             king_check_knight: t.king_check_knight[1] - t.king_check_knight[0],
@@ -291,6 +295,7 @@ pub struct Parameters {
 
     rooks_open_file: (f32, f32),
     rooks_halfopen_file: (f32, f32),
+    rooks_pair: (f32, f32),
 
     king_safety: [f32; 30],
     king_check_knight: f32,
@@ -419,6 +424,7 @@ impl Default for Trace {
 
             rooks_open_file: [0; 2],
             rooks_halfopen_file: [0; 2],
+            rooks_pair: [0; 2],
 
             king_safety: [[0; 2]; 30],
             king_check_knight: [0; 2],
@@ -483,6 +489,7 @@ impl CompactTrace {
         // Rooks
         evaluate_single(&mut score, params.rooks_open_file, self.rooks_open_file);
         evaluate_single(&mut score, params.rooks_halfopen_file, self.rooks_halfopen_file);
+        evaluate_single(&mut score, params.rooks_pair, self.rooks_pair);
 
         // King safety
         score.0 += params.king_check_knight * self.king_check_knight as f32;
@@ -597,6 +604,11 @@ impl Parameters {
         if TUNE_ROOKS_HALFOPEN_FILE {
             print_single(self.rooks_halfopen_file, "ROOK_HALFOPEN_FILE");
         }
+
+        if TUNE_ROOKS_PAIR {
+            print_single(self.rooks_pair, "ROOK_PAIR");
+        }
+
 
         if TUNE_KING_SAFETY {
             print_array_mg(&self.king_safety, "KING_SAFETY");
@@ -717,6 +729,7 @@ impl Parameters {
 
         let mut g_rooks_open_file = (0., 0.);
         let mut g_rooks_halfopen_file = (0., 0.);
+        let mut g_rooks_pair = (0., 0.);
 
         let mut g_king_safety = [0.; 30];
         let mut g_king_check_knight = 0.;
@@ -823,6 +836,11 @@ impl Parameters {
             if TUNE_ROOKS_HALFOPEN_FILE {
                 update_gradient(&mut g_rooks_halfopen_file, trace.rooks_halfopen_file, grad, phase);
             }
+
+            if TUNE_ROOKS_PAIR {
+                update_gradient(&mut g_rooks_pair, trace.rooks_pair, grad, phase);
+            }
+
 
             if TUNE_KING_SAFETY {
                 for i in 0..30 {
@@ -934,6 +952,7 @@ impl Parameters {
 
         norm += norm_single(g_rooks_open_file);
         norm += norm_single(g_rooks_halfopen_file);
+        norm += norm_single(g_rooks_pair);
 
         for i in 0..30 {
             norm += g_king_safety[i].powf(2.);
@@ -987,6 +1006,7 @@ impl Parameters {
 
         update_parameter(&mut self.rooks_open_file, g_rooks_open_file, f / n);
         update_parameter(&mut self.rooks_halfopen_file, g_rooks_halfopen_file, f / n);
+        update_parameter(&mut self.rooks_pair, g_rooks_pair, f / n);
 
         for i in 0..30 {
             self.king_safety[i] -= 2. / n * f * g_king_safety[i];
@@ -1111,6 +1131,7 @@ impl Default for Parameters {
 
             rooks_open_file: (mg(ROOK_OPEN_FILE) as f32, eg(ROOK_OPEN_FILE) as f32),
             rooks_halfopen_file: (mg(ROOK_HALFOPEN_FILE) as f32, eg(ROOK_HALFOPEN_FILE) as f32),
+            rooks_pair: (mg(ROOK_PAIR) as f32, eg(ROOK_PAIR) as f32),
 
             king_safety,
             king_check_knight: mg(KING_CHECK_KNIGHT) as f32,

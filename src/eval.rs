@@ -76,7 +76,7 @@ const SF_PAWNLESS: i32 = 32;
 pub const PAWN_SCORE: EScore = S(100, 121);
 pub const KNIGHT_SCORE: EScore = S(330, 290);
 pub const BISHOP_SCORE: EScore = S(324, 318);
-pub const ROOK_SCORE: EScore = S(496, 534);
+pub const ROOK_SCORE: EScore = S(459, 568);
 pub const QUEEN_SCORE: EScore = S(990, 1000);
 
 pub const PAWN_MOBILITY: EScore = S(9, 6);
@@ -134,6 +134,7 @@ pub const BISHOP_PAIR: EScore = S(42, 48);
 
 pub const ROOK_OPEN_FILE: EScore = S(30, 8);
 pub const ROOK_HALFOPEN_FILE: EScore = S(10, 18);
+pub const ROOK_PAIR: EScore = S(17, -58);
 
 #[rustfmt::skip]
 pub const KING_SAFETY: [Score; 30] = [
@@ -383,6 +384,10 @@ impl Eval {
             score += BISHOP_PAIR;
         }
 
+        if self.material[side][r] > 1 {
+            score += ROOK_PAIR;
+        }
+
         #[cfg(feature = "tune")]
         {
             let k = Piece::King.index();
@@ -395,6 +400,10 @@ impl Eval {
 
             if self.material[side][b] > 1 {
                 self.trace.bishops_pair[side] = 1;
+            }
+
+            if self.material[side][r] > 1 {
+                self.trace.rooks_pair[side] = 1;
             }
         }
 
