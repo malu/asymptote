@@ -20,7 +20,7 @@ use crate::magic::{BISHOP_ATTACKS, MAGIC_TABLE, ROOK_ATTACKS};
 use crate::position::*;
 
 pub type MoveList = arrayvec::ArrayVec<[Move; 256]>;
-pub type ShortMoveList = arrayvec::ArrayVec<[Move; 4]>;
+pub type ShortMoveList = arrayvec::ArrayVec<[Move; 8]>;
 pub type ScoreList = arrayvec::ArrayVec<[i64; 256]>;
 
 pub fn get_bishop_attacks_from(from: Square, blockers: Bitboard) -> Bitboard {

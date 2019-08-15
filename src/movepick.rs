@@ -123,6 +123,10 @@ impl<'a> MovePicker<'a> {
         }
     }
 
+    pub fn add_excluded_move(&mut self, mov: Move) {
+        self.excluded.push(mov);
+    }
+
     pub fn skip_quiets(&mut self, skip_quiets: bool) {
         self.skip_quiets = skip_quiets;
     }

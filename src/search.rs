@@ -72,6 +72,7 @@ pub struct PlyDetails {
     irreversible_details: IrreversibleDetails,
     current_move: Option<Move>,
     pub killers_moves: [Option<Move>; 2],
+    exclude_move: Option<Move>,
 }
 
 impl<'a> Search<'a> {
@@ -326,6 +327,7 @@ impl<'a> Search<'a> {
         }
 
         let (mut ttentry, mut ttmove) = self.get_tt_entry();
+        let has_excluded_move = self.stack[ply as usize].exclude_move.is_some();
 
         if let Some(ttentry) = ttentry {
             let score = ttentry.score.to_score(ply);
@@ -388,7 +390,7 @@ impl<'a> Search<'a> {
             //
             // Prune nodes that are so good that we could pass without the opponent
             // catching up.
-            if !in_check && self.eval.phase() > 0 && eval >= beta {
+            if !has_excluded_move && !in_check && self.eval.phase() > 0 && eval >= beta {
                 let r = INC_PLY + depth / 4;
                 self.internal_make_nullmove(ply);
                 let score = self
@@ -429,6 +431,10 @@ impl<'a> Search<'a> {
             self.stack[ply as usize].killers_moves,
             previous_move,
         );
+
+        if let Some(excluded_move) = self.stack[ply as usize].exclude_move {
+            moves.add_excluded_move(excluded_move);
+        }
 
         // Futility pruning
         //
@@ -534,6 +540,12 @@ impl<'a> Search<'a> {
             if let Some(previous_move) = previous_move {
                 if previous_move.to == mov.to {
                     extension += if is_pv { INC_PLY } else { INC_PLY / 2 };
+                }
+            }
+
+            if let (Some(ttentry), Some(ttmove)) = (ttentry, ttmove) {
+                if mtype == MoveType::TTMove && extension < INC_PLY && self.is_singular(ttentry, ttmove, depth, ply) {
+                    extension += INC_PLY;
                 }
             }
 
@@ -646,21 +658,23 @@ impl<'a> Search<'a> {
         }
 
         if let Some(best_move) = best_move {
-            let tt_bound = if best_score >= beta {
-                LOWER_BOUND
-            } else if increased_alpha {
-                EXACT_BOUND
-            } else {
-                UPPER_BOUND
-            };
+            if !has_excluded_move {
+                let tt_bound = if best_score >= beta {
+                    LOWER_BOUND
+                } else if increased_alpha {
+                    EXACT_BOUND
+                } else {
+                    UPPER_BOUND
+                };
 
-            self.tt.insert(
-                self.hasher.get_hash(),
-                depth,
-                TTScore::from_score(best_score, ply),
-                best_move,
-                tt_bound,
-            );
+                self.tt.insert(
+                    self.hasher.get_hash(),
+                    depth,
+                    TTScore::from_score(best_score, ply),
+                    best_move,
+                    tt_bound,
+                );
+            }
 
             Some(best_score)
         } else {
@@ -673,6 +687,39 @@ impl<'a> Search<'a> {
                 // Stalemate
                 Some(0)
             }
+        }
+    }
+
+    fn is_singular(&mut self, ttentry: TTEntry, ttmove: Move, depth: Depth, ply: Ply) -> bool {
+        if depth < 8 * INC_PLY {
+            return false;
+        }
+
+        if ttentry.bound == UPPER_BOUND {
+            return false;
+        }
+
+        if ttentry.depth + 2 * INC_PLY < depth {
+            return false;
+        }
+
+        if self.stack[ply as usize].exclude_move.is_some() {
+            return false;
+        }
+
+        let ttscore = ttentry.score.to_score(ply);
+        let alpha = ttscore - 2 * (depth / INC_PLY);
+        let beta = alpha + 1;
+
+        self.stack[ply as usize].exclude_move = Some(ttmove);
+        self.hasher.toggle_singular();
+        let singular_score = self.search(ply, alpha, beta, depth / 2, false);
+        self.hasher.toggle_singular();
+        self.stack[ply as usize].exclude_move = None;
+
+        match singular_score {
+            None => false,
+            Some(score) => score < beta,
         }
     }
 

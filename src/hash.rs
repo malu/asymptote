@@ -30,6 +30,7 @@ pub struct Hasher {
     white_to_move: Hash,
     en_passant: [Hash; 8],
     castle: [Hash; 16],
+    singular: Hash,
 
     hash: Hash,
     pawn_hash: Hash,
@@ -78,6 +79,7 @@ impl Hasher {
             white_to_move: 0,
             en_passant: [0; 8],
             castle: [0; 16],
+            singular: 0,
 
             hash: 0,
             pawn_hash: 0,
@@ -93,6 +95,7 @@ impl Hasher {
         hasher.white_to_move = rng.gen();
         rng.fill(&mut hasher.en_passant);
         rng.fill(&mut hasher.castle);
+        hasher.singular = rng.gen();
 
         hasher.from_position(&STARTING_POSITION);
 
@@ -105,6 +108,10 @@ impl Hasher {
 
     pub fn get_pawn_hash(&self) -> Hash {
         self.pawn_hash
+    }
+
+    pub fn toggle_singular(&mut self) {
+        self.hash ^= self.singular;
     }
 
     pub fn from_position(&mut self, pos: &Position) {
