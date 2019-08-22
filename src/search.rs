@@ -326,8 +326,14 @@ impl<'a> Search<'a> {
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
-        let (mut ttentry, mut ttmove) = self.get_tt_entry();
         let has_excluded_move = self.stack[ply as usize].exclude_move.is_some();
+        if has_excluded_move {
+            self.hasher.toggle_singular();
+        }
+        let (mut ttentry, mut ttmove) = self.get_tt_entry();
+        if has_excluded_move {
+            self.hasher.toggle_singular();
+        }
 
         if let Some(ttentry) = ttentry {
             let score = ttentry.score.to_score(ply);
@@ -712,9 +718,7 @@ impl<'a> Search<'a> {
         let beta = alpha + 1;
 
         self.stack[ply as usize].exclude_move = Some(ttmove);
-        self.hasher.toggle_singular();
         let singular_score = self.search(ply, alpha, beta, depth / 2, false);
-        self.hasher.toggle_singular();
         self.stack[ply as usize].exclude_move = None;
 
         match singular_score {
