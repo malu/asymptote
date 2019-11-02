@@ -586,34 +586,22 @@ impl<'a> Search<'a> {
             }
 
             let mut value = Some(Score::max_value());
-            if is_pv {
-                if num_moves > 1 {
-                    value = self
-                        .search(ply + 1, -alpha - 1, -alpha, new_depth - reduction, false)
-                        .map(|v| -v);
-                }
-
-                if reduction > 0 && Some(alpha) < value {
-                    value = self
-                        .search(ply + 1, -alpha - 1, -alpha, new_depth, false)
-                        .map(|v| -v);
-                }
-
-                if Some(alpha) < value {
-                    value = self
-                        .search(ply + 1, -beta, -alpha, new_depth, true)
-                        .map(|v| -v);
-                }
-            } else {
+            if !(is_pv && num_moves == 1) {
                 value = self
                     .search(ply + 1, -alpha - 1, -alpha, new_depth - reduction, false)
                     .map(|v| -v);
+            }
 
-                if reduction > 0 && Some(alpha) < value {
-                    value = self
-                        .search(ply + 1, -beta, -alpha, new_depth, false)
-                        .map(|v| -v);
-                }
+            if Some(alpha) < value && reduction > 0 {
+                value = self
+                    .search(ply + 1, -alpha - 1, -alpha, new_depth, false)
+                    .map(|v| -v);
+            }
+
+            if Some(alpha) < value && is_pv {
+                value = self
+                    .search(ply + 1, -beta, -alpha, new_depth, true)
+                    .map(|v| -v);
             }
 
             self.internal_unmake_move(mov, ply);
