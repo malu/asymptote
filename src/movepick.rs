@@ -132,6 +132,8 @@ impl<'a> MovePicker<'a> {
     }
 
     fn get_move(&mut self) -> Option<Move> {
+        assert!(self.moves.len() == self.scores.len());
+
         // Iterator::max_by_key chooses the last maximal element, but we want
         // the first (for no particular reason other than that's what was done
         // before). Hence we reverse the iterator first.
@@ -142,6 +144,8 @@ impl<'a> MovePicker<'a> {
             .skip(self.index)
             .rev()
             .max_by_key(|(_, &score)| score)?;
+
+        assert!(self.index < self.moves.len());
 
         self.moves.swap(self.index, best_index);
         self.scores.swap(self.index, best_index);

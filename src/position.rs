@@ -226,18 +226,18 @@ impl Position {
                     & (self.bishops() | self.queens())
                     | get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
             } else if (us & self.kings()).at_least_one() {
-                score = -score - 1 + next_victim.see_value();
-                next_victim = Piece::King;
-
-                let lsb_bb = (us & self.kings()).lsb_bb();
-                occupancy ^= lsb_bb;
-
                 // Do not need to update attackers because we will stop now,
                 // either because there are no more captures or the king would
                 // be recaptured.
                 if (self.them(white) & attackers).at_least_one() {
                     break;
                 }
+
+                score = -score - 1 + next_victim.see_value();
+                next_victim = Piece::King;
+
+                let lsb_bb = (us & self.kings()).lsb_bb();
+                occupancy ^= lsb_bb;
             } else {
                 // no more captures
                 unreachable!();
