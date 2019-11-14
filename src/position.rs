@@ -142,7 +142,7 @@ impl Position {
             return false;
         }
 
-        let mut next_victim = mov.promoted.unwrap_or(mov.piece);
+        let next_victim = mov.promoted.unwrap_or(mov.piece);
         // Even if the opponent recaptures and we cannot, this move surpasses the threshold.
         if score - next_victim.see_value() >= 0 {
             return true;
@@ -157,6 +157,9 @@ impl Position {
         let promotion = mov.to.rank() == 0 || mov.to.rank() == 7;
 
         let to_bb = mov.to.to_bb();
+        let bq = self.bishops() | self.queens();
+        let rq = self.rooks() | self.queens();
+
 
         let mut attackers = Bitboard::from(0);
         attackers |= (to_bb.left(1) | to_bb.right(1)).backward(false, 1)
@@ -165,8 +168,8 @@ impl Position {
         attackers |=
             (to_bb.left(1) | to_bb.right(1)).backward(true, 1) & self.pawns() & self.white_pieces();
         attackers |= KNIGHT_ATTACKS[mov.to] & self.knights();
-        attackers |= get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
-        attackers |= get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
+        attackers |= get_bishop_attacks_from(mov.to, occupancy) & bq;
+        attackers |= get_rook_attacks_from(mov.to, occupancy) & rq;
         attackers |= KING_ATTACKS[mov.to] & self.kings();
         attackers &= occupancy;
 
@@ -175,69 +178,67 @@ impl Position {
             return (self.them(self.white_to_move) & attackers).is_empty();
         }
 
+        let mut next_victim_value = next_victim.see_value();
+
         while (attackers & self.us(white)).at_least_one() {
             let us = self.us(white) & attackers;
             if !promotion && (us & self.pawns()).at_least_one() {
-                score = -score - 1 + next_victim.see_value();
-                next_victim = Piece::Pawn;
+                score = -score - 1 + next_victim_value;
+                next_victim_value = Piece::Pawn.see_value();
 
                 let lsb_bb = (us & self.pawns()).lsb_bb();
                 occupancy ^= lsb_bb;
-                attackers |=
-                    get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
+                attackers |= get_bishop_attacks_from(mov.to, occupancy) & bq;
             } else if (us & self.knights()).at_least_one() {
-                score = -score - 1 + next_victim.see_value();
-                next_victim = Piece::Knight;
+                score = -score - 1 + next_victim_value;
+                next_victim_value = Piece::Knight.see_value();
 
                 let lsb_bb = (us & self.knights()).lsb_bb();
                 occupancy ^= lsb_bb;
             } else if (us & self.bishops()).at_least_one() {
-                score = -score - 1 + next_victim.see_value();
-                next_victim = Piece::Bishop;
+                score = -score - 1 + next_victim_value;
+                next_victim_value = Piece::Bishop.see_value();
 
                 let lsb_bb = (us & self.bishops()).lsb_bb();
                 occupancy ^= lsb_bb;
-                attackers |=
-                    get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
+                attackers |= get_bishop_attacks_from(mov.to, occupancy) & bq;
             } else if (us & self.rooks()).at_least_one() {
-                score = -score - 1 + next_victim.see_value();
-                next_victim = Piece::Rook;
+                score = -score - 1 + next_victim_value;
+                next_victim_value = Piece::Rook.see_value();
 
                 let lsb_bb = (us & self.rooks()).lsb_bb();
                 occupancy ^= lsb_bb;
-                attackers |=
-                    get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
+                attackers |= get_rook_attacks_from(mov.to, occupancy) & rq;
             } else if promotion && (us & self.pawns()).at_least_one() {
-                score = -score - 1 + next_victim.see_value() + Piece::Queen.see_value()
+                score = -score - 1 + next_victim_value + Piece::Queen.see_value()
                     - Piece::Pawn.see_value();
-                next_victim = Piece::Queen;
+                next_victim_value = Piece::Queen.see_value();
 
                 let lsb_bb = (us & self.pawns()).lsb_bb();
                 occupancy ^= lsb_bb;
-                attackers |=
-                    get_bishop_attacks_from(mov.to, occupancy) & (self.bishops() | self.queens());
+                attackers |= get_bishop_attacks_from(mov.to, occupancy) & bq;
             } else if (us & self.queens()).at_least_one() {
-                score = -score - 1 + next_victim.see_value();
-                next_victim = Piece::Queen;
+                score = -score - 1 + next_victim_value;
+                next_victim_value = Piece::Queen.see_value();
 
                 let lsb_bb = (us & self.queens()).lsb_bb();
                 occupancy ^= lsb_bb;
-                attackers |= get_bishop_attacks_from(mov.to, occupancy)
-                    & (self.bishops() | self.queens())
-                    | get_rook_attacks_from(mov.to, occupancy) & (self.rooks() | self.queens());
+                attackers |= get_bishop_attacks_from(mov.to, occupancy) & bq
+                    | get_rook_attacks_from(mov.to, occupancy) & rq;
             } else if (us & self.kings()).at_least_one() {
+                score = -score - 1 + next_victim_value;
+
                 // Do not need to update attackers because we will stop now,
                 // either because there are no more captures or the king would
                 // be recaptured.
-                if (self.them(white) & attackers).at_least_one() {
-                    break;
+
+                // Capture wasn't enough or king gets recaptured -> side-to-move lost exchange
+                if score < 0 || (self.them(white) & attackers).at_least_one() {
+                    return self.white_to_move != white;
                 }
 
-                score = -score - 1 + next_victim.see_value();
-                next_victim = Piece::King;
-
-                let lsb_bb = (us & self.kings()).lsb_bb();
-                occupancy ^= lsb_bb;
+                // side-to-move won exchange
+                return self.white_to_move == white;
             } else {
                 // no more captures
                 unreachable!();
