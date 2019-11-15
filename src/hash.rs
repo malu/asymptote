@@ -110,6 +110,11 @@ impl Hasher {
         self.pawn_hash
     }
 
+    pub fn set(&mut self, hash: Hash, pawn_hash: Hash) {
+        self.hash = hash;
+        self.pawn_hash = pawn_hash;
+    }
+
     pub fn toggle_singular(&mut self) {
         self.hash ^= self.singular;
     }
@@ -281,119 +286,10 @@ impl Hasher {
         self.hash ^= self.white_to_move;
     }
 
-    pub fn unmake_move(
-        &mut self,
-        pos: &Position,
-        mov: Move,
-        irreversible_details: IrreversibleDetails,
-    ) {
-        self.hash ^= self.white_to_move;
-        if pos.details.en_passant != 255 {
-            self.hash ^= self.en_passant[pos.details.en_passant as usize];
-        }
-        if irreversible_details.en_passant != 255 {
-            self.hash ^= self.en_passant[irreversible_details.en_passant as usize];
-        }
-        self.hash ^= self.castle[pos.details.castling as usize];
-        self.hash ^= self.castle[irreversible_details.castling as usize];
-        let unmaking_white_move = !pos.white_to_move;
-
-        // Update Pawn Hash
-        if mov.captured == Some(Piece::Pawn) {
-            if mov.en_passant {
-                self.pawn_hash ^=
-                    self.hashes[Piece::Pawn.index()][mov.to.backward(unmaking_white_move, 1)];
-                if !unmaking_white_move {
-                    self.pawn_hash ^= self.color[mov.to.backward(unmaking_white_move, 1)];
-                }
-            } else {
-                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to];
-
-                if !unmaking_white_move {
-                    self.pawn_hash ^= self.color[mov.to];
-                }
-            }
-        }
-
-        if mov.piece == Piece::Pawn {
-            self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.from];
-            if unmaking_white_move {
-                self.pawn_hash ^= self.color[mov.from];
-            }
-
-            if mov.promoted.is_none() {
-                self.pawn_hash ^= self.hashes[Piece::Pawn.index()][mov.to];
-                if unmaking_white_move {
-                    self.pawn_hash ^= self.color[mov.to];
-                }
-            }
-        }
-
-        if unmaking_white_move {
-            self.hash ^= self.color[mov.from];
-            self.hash ^= self.color[mov.to];
-        }
-
-        self.hash ^= self.hashes[mov.piece.index()][mov.from];
-
-        if let Some(piece) = mov.captured {
-            if mov.en_passant {
-                self.hash ^=
-                    self.hashes[Piece::Pawn.index()][mov.to.backward(unmaking_white_move, 1)];
-                if !unmaking_white_move {
-                    self.hash ^= self.color[mov.to.backward(unmaking_white_move, 1)];
-                }
-            } else {
-                self.hash ^= self.hashes[piece.index()][mov.to];
-                if !unmaking_white_move {
-                    self.hash ^= self.color[mov.to];
-                }
-            }
-        }
-
-        if let Some(piece) = mov.promoted {
-            self.hash ^= self.hashes[piece.index()][mov.to];
-        } else {
-            self.hash ^= self.hashes[mov.piece.index()][mov.to];
-        }
-
-        if mov.piece == Piece::King {
-            if mov.from.right(2) == mov.to {
-                // castle kingside
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1)];
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(1)];
-                if unmaking_white_move {
-                    self.hash ^= self.color[mov.to.right(1)];
-                    self.hash ^= self.color[mov.to.left(1)];
-                }
-            } else if mov.from.left(2) == mov.to {
-                // castle queenside
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(2)];
-                self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1)];
-                if unmaking_white_move {
-                    self.hash ^= self.color[mov.to.left(2)];
-                    self.hash ^= self.color[mov.to.right(1)];
-                }
-            }
-        }
-    }
-
     pub fn make_nullmove(&mut self, pos: &Position) {
         self.hash ^= self.white_to_move;
         if pos.details.en_passant != 255 {
             self.hash ^= self.en_passant[pos.details.en_passant as usize];
         }
-    }
-
-    pub fn unmake_nullmove(&mut self, pos: &Position, irreversible_details: IrreversibleDetails) {
-        self.hash ^= self.white_to_move;
-        if pos.details.en_passant != 255 {
-            self.hash ^= self.en_passant[pos.details.en_passant as usize];
-        }
-        if irreversible_details.en_passant != 255 {
-            self.hash ^= self.en_passant[irreversible_details.en_passant as usize];
-        }
-        self.hash ^= self.castle[pos.details.castling as usize];
-        self.hash ^= self.castle[irreversible_details.castling as usize];
     }
 }

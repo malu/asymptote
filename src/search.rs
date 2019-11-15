@@ -73,6 +73,8 @@ pub struct PlyDetails {
     current_move: Option<Move>,
     pub killers_moves: [Option<Move>; 2],
     exclude_move: Option<Move>,
+    hash: Hash,
+    pawn_hash: Hash,
 }
 
 impl<'a> Search<'a> {
@@ -116,6 +118,8 @@ impl<'a> Search<'a> {
         self.pv
             .iter_mut()
             .for_each(|pv| pv.iter_mut().for_each(|i| *i = None));
+        self.stack[0].hash = self.hasher.get_hash();
+        self.stack[0].pawn_hash = self.hasher.get_pawn_hash();
     }
 
     pub fn iterative_deepening(&mut self) -> Move {
@@ -1053,6 +1057,7 @@ impl<'a> Search<'a> {
         let current_ply = &mut self.stack[ply as usize];
         current_ply.irreversible_details = self.position.details;
         current_ply.current_move = Some(mov);
+
         if ply + 2 < MAX_PLY {
             self.stack[2 + ply as usize].killers_moves = [None; 2];
         }
@@ -1065,6 +1070,11 @@ impl<'a> Search<'a> {
             self.repetitions.irreversible_move();
         }
         self.repetitions.push_position(self.hasher.get_hash());
+
+        let next_ply = &mut self.stack[1 + ply as usize];
+        next_ply.hash = self.hasher.get_hash();
+        next_ply.pawn_hash = self.hasher.get_pawn_hash();
+
     }
 
     fn internal_make_nullmove(&mut self, ply: Ply) {
@@ -1073,22 +1083,29 @@ impl<'a> Search<'a> {
 
         self.hasher.make_nullmove(&self.position);
         self.position.make_nullmove();
+
         self.repetitions.push_position(self.hasher.get_hash());
+
+        let next_ply = &mut self.stack[1 + ply as usize];
+        next_ply.hash = self.hasher.get_hash();
+        next_ply.pawn_hash = self.hasher.get_pawn_hash();
     }
 
     fn internal_unmake_nullmove(&mut self, ply: Ply) {
-        let irreversible = self.stack[ply as usize].irreversible_details;
-        self.hasher.unmake_nullmove(&self.position, irreversible);
+        let prev_ply = &self.stack[ply as usize];
+        let irreversible = prev_ply.irreversible_details;
         self.repetitions.pop_position();
         self.position.unmake_nullmove(irreversible);
+        self.hasher.set(prev_ply.hash, prev_ply.pawn_hash);
     }
 
     pub fn internal_unmake_move(&mut self, mov: Move, ply: Ply) {
+        let prev_ply = &self.stack[ply as usize];
         let irreversible = self.stack[ply as usize].irreversible_details;
-        self.hasher.unmake_move(&self.position, mov, irreversible);
         self.repetitions.pop_position();
         self.eval.unmake_move(mov, &self.position);
         self.position.unmake_move(mov, irreversible);
+        self.hasher.set(prev_ply.hash, prev_ply.pawn_hash);
     }
 
     pub fn set_time_control(&mut self, tc: TimeControl) {
