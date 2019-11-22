@@ -237,13 +237,13 @@ impl<'a> Search<'a> {
             let num_nodes_before = self.visited_nodes;
             let value;
             if i == 0 {
-                value = self.search(1, -beta, -alpha, new_depth, true).map(|v| -v);
+                value = self.search(1, -beta, -alpha, new_depth).map(|v| -v);
             } else {
                 let value_zw = self
-                    .search(1, -alpha - 1, -alpha, new_depth, false)
+                    .search(1, -alpha - 1, -alpha, new_depth)
                     .map(|v| -v);
                 if Some(alpha) < value_zw {
-                    value = self.search(1, -beta, -alpha, new_depth, true).map(|v| -v);
+                    value = self.search(1, -beta, -alpha, new_depth).map(|v| -v);
                 } else {
                     value = value_zw;
                 }
@@ -292,7 +292,6 @@ impl<'a> Search<'a> {
         alpha: Score,
         beta: Score,
         depth: Depth,
-        is_pv: bool,
     ) -> Option<Score> {
         if self.time_manager.should_stop(self.visited_nodes) {
             return None;
@@ -300,6 +299,7 @@ impl<'a> Search<'a> {
 
         self.visited_nodes += 1;
         self.max_ply_searched = cmp::max(ply, self.max_ply_searched);
+        let is_pv = alpha + 1 != beta;
 
         // Mate distance pruning
         let mdp_alpha = if alpha > -MATE_SCORE + ply {
@@ -404,7 +404,7 @@ impl<'a> Search<'a> {
                 let r = INC_PLY + depth / 4 + cmp::min(2 * INC_PLY, eval - beta);
                 self.internal_make_nullmove(ply);
                 let score = self
-                    .search(ply + 1, -alpha - 1, -alpha, depth - INC_PLY - r, false)
+                    .search(ply + 1, -alpha - 1, -alpha, depth - INC_PLY - r)
                     .map(|v| -v);
                 self.internal_unmake_nullmove(ply);
                 match score {
@@ -422,13 +422,13 @@ impl<'a> Search<'a> {
         // If we don't get a previous best move from the TT, do a reduced-depth search first to get one.
         if ttmove.is_none() {
             if is_pv && depth >= 4 * INC_PLY {
-                self.search(ply, alpha, beta, depth - 2 * INC_PLY, true);
+                self.search(ply, alpha, beta, depth - 2 * INC_PLY);
                 self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
                 let (ttentry_, ttmove_) = self.get_tt_entry();
                 ttentry = ttentry_;
                 ttmove = ttmove_;
             } else if !is_pv && depth >= 6 * INC_PLY {
-                self.search(ply, alpha, beta, depth / 2, false);
+                self.search(ply, alpha, beta, depth / 2);
                 let (ttentry_, ttmove_) = self.get_tt_entry();
                 ttentry = ttentry_;
                 ttmove = ttmove_;
@@ -592,19 +592,19 @@ impl<'a> Search<'a> {
             let mut value = Some(Score::max_value());
             if !(is_pv && num_moves == 1) {
                 value = self
-                    .search(ply + 1, -alpha - 1, -alpha, new_depth - reduction, false)
+                    .search(ply + 1, -alpha - 1, -alpha, new_depth - reduction)
                     .map(|v| -v);
             }
 
             if Some(alpha) < value && reduction > 0 {
                 value = self
-                    .search(ply + 1, -alpha - 1, -alpha, new_depth, false)
+                    .search(ply + 1, -alpha - 1, -alpha, new_depth)
                     .map(|v| -v);
             }
 
             if Some(alpha) < value && is_pv {
                 value = self
-                    .search(ply + 1, -beta, -alpha, new_depth, true)
+                    .search(ply + 1, -beta, -alpha, new_depth)
                     .map(|v| -v);
             }
 
@@ -710,7 +710,7 @@ impl<'a> Search<'a> {
         let beta = alpha + 1;
 
         self.stack[ply as usize].exclude_move = Some(ttmove);
-        let singular_score = self.search(ply, alpha, beta, depth / 2, false);
+        let singular_score = self.search(ply, alpha, beta, depth / 2);
         self.stack[ply as usize].exclude_move = None;
 
         match singular_score {
