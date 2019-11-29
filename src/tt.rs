@@ -184,6 +184,7 @@ impl<'a> SharedTT<'a> {
 pub struct Bucket([TTEntry; NUM_CLUSTERS]);
 const NUM_CLUSTERS: usize = 4;
 
+#[repr(align(16))]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct TTEntry {
     key: Hash,             // 8 byte
@@ -319,3 +320,20 @@ pub type Bound = u8;
 pub const LOWER_BOUND: Bound = 1;
 pub const UPPER_BOUND: Bound = 2;
 pub const EXACT_BOUND: Bound = LOWER_BOUND | UPPER_BOUND;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_size_of_structs() {
+        assert_eq!(::std::mem::size_of::<TTEntry>(), 16);
+        assert_eq!(::std::mem::size_of::<Bucket>(), 64);
+    }
+
+    #[test]
+    fn test_align_of_structs() {
+        assert_eq!(::std::mem::align_of::<TTEntry>(), 16);
+        assert_eq!(::std::mem::align_of::<Bucket>(), 64);
+    }
+}
