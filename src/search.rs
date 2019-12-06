@@ -331,12 +331,13 @@ impl<'a> Search<'a> {
         }
 
         let has_excluded_move = self.stack[ply as usize].exclude_move.is_some();
-        if has_excluded_move {
-            self.hasher.toggle_singular();
+        if let Some(mov) = self.stack[ply as usize].exclude_move {
+            self.hasher.toggle_singular(mov);
         }
-        let (mut ttentry, mut ttmove) = self.get_tt_entry();
-        if has_excluded_move {
-            self.hasher.toggle_singular();
+        let hash = self.hasher.get_hash();
+        let (mut ttentry, mut ttmove) = self.get_tt_entry(hash);
+        if let Some(mov) = self.stack[ply as usize].exclude_move {
+            self.hasher.toggle_singular(mov);
         }
 
         if let Some(ttentry) = ttentry {
@@ -424,12 +425,12 @@ impl<'a> Search<'a> {
             if is_pv && depth >= 4 * INC_PLY {
                 self.search(ply, alpha, beta, depth - 2 * INC_PLY);
                 self.pv[ply as usize].iter_mut().for_each(|mov| *mov = None);
-                let (ttentry_, ttmove_) = self.get_tt_entry();
+                let (ttentry_, ttmove_) = self.get_tt_entry(hash);
                 ttentry = ttentry_;
                 ttmove = ttmove_;
             } else if !is_pv && depth >= 6 * INC_PLY {
                 self.search(ply, alpha, beta, depth / 2);
-                let (ttentry_, ttmove_) = self.get_tt_entry();
+                let (ttentry_, ttmove_) = self.get_tt_entry(hash);
                 ttentry = ttentry_;
                 ttmove = ttmove_;
             }
@@ -614,7 +615,7 @@ impl<'a> Search<'a> {
                 None => {
                     if is_pv && increased_alpha {
                         self.tt.insert(
-                            self.hasher.get_hash(),
+                            hash,
                             depth,
                             TTScore::from_score(alpha, ply),
                             best_move.unwrap(),
@@ -656,23 +657,21 @@ impl<'a> Search<'a> {
         }
 
         if let Some(best_move) = best_move {
-            if !has_excluded_move {
-                let tt_bound = if best_score >= beta {
-                    LOWER_BOUND
-                } else if increased_alpha {
-                    EXACT_BOUND
-                } else {
-                    UPPER_BOUND
-                };
+            let tt_bound = if best_score >= beta {
+                LOWER_BOUND
+            } else if increased_alpha {
+                EXACT_BOUND
+            } else {
+                UPPER_BOUND
+            };
 
-                self.tt.insert(
-                    self.hasher.get_hash(),
-                    depth,
-                    TTScore::from_score(best_score, ply),
-                    best_move,
-                    tt_bound,
-                );
-            }
+            self.tt.insert(
+                hash,
+                depth,
+                TTScore::from_score(best_score, ply),
+                best_move,
+                tt_bound,
+            );
 
             Some(best_score)
         } else {
@@ -750,7 +749,8 @@ impl<'a> Search<'a> {
         };
 
         if depth == 0 {
-            let (ttentry, _ttmove) = self.get_tt_entry();
+            let hash = self.hasher.get_hash();
+            let (ttentry, _ttmove) = self.get_tt_entry(hash);
             if let Some(ttentry) = ttentry {
                 let score = ttentry.score.to_score(ply);
 
@@ -847,8 +847,8 @@ impl<'a> Search<'a> {
         Some(score)
     }
 
-    fn get_tt_entry(&mut self) -> (Option<TTEntry>, Option<Move>) {
-        if let Some(ttentry) = self.tt.get(self.hasher.get_hash()) {
+    fn get_tt_entry(&mut self, hash: Hash) -> (Option<TTEntry>, Option<Move>) {
+        if let Some(ttentry) = self.tt.get(hash) {
             let mov = ttentry
                 .best_move
                 .expand(&self.position)

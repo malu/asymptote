@@ -115,8 +115,12 @@ impl Hasher {
         self.pawn_hash = pawn_hash;
     }
 
-    pub fn toggle_singular(&mut self) {
+    pub fn toggle_singular(&mut self, mov: Move) {
         self.hash ^= self.singular;
+        let from: u8 = mov.from.into();
+        let to: u8 = mov.to.into();
+        self.hash ^= from as Hash;
+        self.hash ^= (to as Hash) << 8;
     }
 
     pub fn from_position(&mut self, pos: &Position) {
