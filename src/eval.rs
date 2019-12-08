@@ -29,7 +29,7 @@ use crate::tune::*;
 pub struct Eval {
     material: [[u8; 5]; 2],
     pst: [EScore; 2],
-    pawn_table: Vec<PawnHashEntry>,
+    pawn_table: [PawnHashEntry; PAWN_TABLE_NUM_ENTRIES],
     attacked_by: [[Bitboard; 6]; 2],
     attacked_by_1: [Bitboard; 2],
     attacked_by_2: [Bitboard; 2],
@@ -40,7 +40,7 @@ pub struct Eval {
 
 const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default)]
 struct PawnHashEntry {
     hash: Hash,
     score: EScore,
@@ -866,10 +866,6 @@ impl Eval {
 
 impl<'p> From<&'p Position> for Eval {
     fn from(pos: &Position) -> Eval {
-        let mut pawn_table = Vec::with_capacity(PAWN_TABLE_NUM_ENTRIES);
-        for _ in 0..PAWN_TABLE_NUM_ENTRIES {
-            pawn_table.push(PawnHashEntry::default());
-        }
 
         Eval {
             material: [
@@ -889,7 +885,7 @@ impl<'p> From<&'p Position> for Eval {
                 ],
             ],
             pst: init_pst_score(pos),
-            pawn_table,
+            pawn_table: [PawnHashEntry::default(); PAWN_TABLE_NUM_ENTRIES],
             attacked_by: [[Bitboard::from(0); 6]; 2],
             attacked_by_1: [Bitboard::from(0); 2],
             attacked_by_2: [Bitboard::from(0); 2],
