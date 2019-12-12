@@ -45,6 +45,8 @@ const SEE_PRUNING_MARGIN_QUIET: Score = -100;
 const STATIC_BETA_DEPTH: Depth = 5 * INC_PLY;
 const STATIC_BETA_MARGIN: Score = 128;
 const QS_FUTILITY_MARGIN: Score = 200;
+const LMP_MAX_DEPTH: Depth = 5 * INC_PLY;
+const LMP_MOVES: [i16; (LMP_MAX_DEPTH / INC_PLY) as usize] = [0, 4, 8, 16, 32];
 
 #[derive(Clone)]
 pub struct Search<'a> {
@@ -558,6 +560,19 @@ impl<'a> Search<'a> {
                 if mtype == MoveType::TTMove && extension < INC_PLY && self.is_singular(ttentry, ttmove, depth, ply) {
                     extension += INC_PLY;
                 }
+            }
+
+            if depth < LMP_MAX_DEPTH
+                && !is_pv
+                && !in_check
+                && !check
+                && mtype == MoveType::Quiet
+                && best_score > -MATE_SCORE + MAX_PLY
+                && num_moves > LMP_MOVES[(depth / INC_PLY) as usize]
+            {
+                moves.skip_quiets(true);
+                pruned = true;
+                continue;
             }
 
             let mut reduction = 0;
