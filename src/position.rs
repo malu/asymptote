@@ -160,7 +160,6 @@ impl Position {
         let bq = self.bishops() | self.queens();
         let rq = self.rooks() | self.queens();
 
-
         let mut attackers = Bitboard::from(0);
         attackers |= (to_bb.left(1) | to_bb.right(1)).backward(false, 1)
             & self.pawns()

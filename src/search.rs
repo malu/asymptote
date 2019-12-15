@@ -241,9 +241,7 @@ impl<'a> Search<'a> {
             if i == 0 {
                 value = self.search(1, -beta, -alpha, new_depth).map(|v| -v);
             } else {
-                let value_zw = self
-                    .search(1, -alpha - 1, -alpha, new_depth)
-                    .map(|v| -v);
+                let value_zw = self.search(1, -alpha - 1, -alpha, new_depth).map(|v| -v);
                 if Some(alpha) < value_zw {
                     value = self.search(1, -beta, -alpha, new_depth).map(|v| -v);
                 } else {
@@ -288,13 +286,7 @@ impl<'a> Search<'a> {
         Some((best_score, best_move_index))
     }
 
-    pub fn search(
-        &mut self,
-        ply: Ply,
-        alpha: Score,
-        beta: Score,
-        depth: Depth,
-    ) -> Option<Score> {
+    pub fn search(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
         if self.time_manager.should_stop(self.visited_nodes) {
             return None;
         }
@@ -557,7 +549,10 @@ impl<'a> Search<'a> {
             }
 
             if let (Some(ttentry), Some(ttmove)) = (ttentry, ttmove) {
-                if mtype == MoveType::TTMove && extension < INC_PLY && self.is_singular(ttentry, ttmove, depth, ply) {
+                if mtype == MoveType::TTMove
+                    && extension < INC_PLY
+                    && self.is_singular(ttentry, ttmove, depth, ply)
+                {
                     extension += INC_PLY;
                 }
             }
@@ -619,9 +614,7 @@ impl<'a> Search<'a> {
             }
 
             if Some(alpha) < value && is_pv {
-                value = self
-                    .search(ply + 1, -beta, -alpha, new_depth)
-                    .map(|v| -v);
+                value = self.search(ply + 1, -beta, -alpha, new_depth).map(|v| -v);
             }
 
             self.internal_unmake_move(mov, ply);
@@ -1089,7 +1082,6 @@ impl<'a> Search<'a> {
         let next_ply = &mut self.stack[1 + ply as usize];
         next_ply.hash = self.hasher.get_hash();
         next_ply.pawn_hash = self.hasher.get_pawn_hash();
-
     }
 
     fn internal_make_nullmove(&mut self, ply: Ply) {

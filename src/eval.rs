@@ -165,6 +165,7 @@ pub const KING_DANGER_WEIGHT: [i32; 7] = [
      113,  121,  124,
 ];
 
+#[rustfmt::skip]
 pub const PAWN_PST: SquareMap<EScore> = SquareMap::from_array([
     S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0), S(   0,    0),
     S(  20,   28), S(  28,   29), S(  26,   22), S(  32,   24), S(  34,   26), S(  25,   22), S(  22,   21), S(  15,   20),
@@ -866,7 +867,6 @@ impl Eval {
 
 impl<'p> From<&'p Position> for Eval {
     fn from(pos: &Position) -> Eval {
-
         Eval {
             material: [
                 [

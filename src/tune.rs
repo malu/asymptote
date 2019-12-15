@@ -474,7 +474,11 @@ impl CompactTrace {
 
         // Pawns
         evaluate_single(&mut score, params.pawns_doubled, self.pawns_doubled);
-        evaluate_single(&mut score, params.pawns_open_isolated, self.pawns_open_isolated);
+        evaluate_single(
+            &mut score,
+            params.pawns_open_isolated,
+            self.pawns_open_isolated,
+        );
         evaluate_single(&mut score, params.pawns_isolated, self.pawns_isolated);
         evaluate_array(&mut score, &params.pawns_passed, &self.pawns_passed);
 
@@ -488,7 +492,11 @@ impl CompactTrace {
 
         // Rooks
         evaluate_single(&mut score, params.rooks_open_file, self.rooks_open_file);
-        evaluate_single(&mut score, params.rooks_halfopen_file, self.rooks_halfopen_file);
+        evaluate_single(
+            &mut score,
+            params.rooks_halfopen_file,
+            self.rooks_halfopen_file,
+        );
         evaluate_single(&mut score, params.rooks_pair, self.rooks_pair);
 
         // King safety
@@ -608,7 +616,6 @@ impl Parameters {
         if TUNE_ROOKS_PAIR {
             print_single(self.rooks_pair, "ROOK_PAIR");
         }
-
 
         if TUNE_KING_SAFETY {
             print_array_mg(&self.king_safety, "KING_SAFETY");
@@ -809,7 +816,12 @@ impl Parameters {
             }
 
             if TUNE_PAWNS_OPEN_ISOLATED {
-                update_gradient(&mut g_pawns_open_isolated, trace.pawns_open_isolated, grad, phase);
+                update_gradient(
+                    &mut g_pawns_open_isolated,
+                    trace.pawns_open_isolated,
+                    grad,
+                    phase,
+                );
             }
 
             if TUNE_PAWNS_ISOLATED {
@@ -818,7 +830,12 @@ impl Parameters {
 
             if TUNE_PAWNS_PASSED {
                 update_gradient_array(&mut g_pawns_passed, &trace.pawns_passed, grad, phase);
-                update_gradient_array(&mut g_pawns_passed_file, &trace.pawns_passed_file, grad, phase);
+                update_gradient_array(
+                    &mut g_pawns_passed_file,
+                    &trace.pawns_passed_file,
+                    grad,
+                    phase,
+                );
             }
 
             if TUNE_BISHOPS_XRAY {
@@ -834,13 +851,17 @@ impl Parameters {
             }
 
             if TUNE_ROOKS_HALFOPEN_FILE {
-                update_gradient(&mut g_rooks_halfopen_file, trace.rooks_halfopen_file, grad, phase);
+                update_gradient(
+                    &mut g_rooks_halfopen_file,
+                    trace.rooks_halfopen_file,
+                    grad,
+                    phase,
+                );
             }
 
             if TUNE_ROOKS_PAIR {
                 update_gradient(&mut g_rooks_pair, trace.rooks_pair, grad, phase);
             }
-
 
             if TUNE_KING_SAFETY {
                 for i in 0..30 {
@@ -1327,4 +1348,3 @@ fn update_parameter_array(params: &mut [(f32, f32)], gradients: &[(f32, f32)], s
         update_parameter(param, gradient, step);
     }
 }
-
