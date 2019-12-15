@@ -25,7 +25,7 @@ pub fn initialize_magics() {
     initialize_rook_attacks(offset);
 }
 
-pub static mut MAGIC_TABLE: [Bitboard; 156_800] = [Bitboard(0); 156_800];
+pub static mut MAGIC_TABLE: [Bitboard; 107_648] = [Bitboard(0); 107_648];
 pub static mut BISHOP_ATTACKS: SquareMap<Magic> = SquareMap::from_array(
     [Magic {
         magic: 0,
@@ -193,8 +193,9 @@ fn initialize_rook_attacks(offset: usize) -> usize {
 
     for sq in 0..64 {
         let from = Square::from(sq);
-        let mask = (FILES[from.file() as usize] & !border_ranks)
-            ^ (RANKS[from.rank() as usize] & !border_files);
+        let mask = !from.to_bb()
+            & ((FILES[from.file() as usize] & !border_ranks)
+                | (RANKS[from.rank() as usize] & !border_files));
         let bits = mask.popcount() as u64;
         let shift = 64 - bits;
 
