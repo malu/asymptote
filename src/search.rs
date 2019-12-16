@@ -331,6 +331,7 @@ impl<'a> Search<'a> {
             self.hasher.toggle_singular(mov);
         }
 
+        let mut eval = None;
         if let Some(ttentry) = ttentry {
             let score = ttentry.score.to_score(ply);
 
@@ -355,6 +356,10 @@ impl<'a> Search<'a> {
                     }
                 }
             }
+
+            if !is_pv {
+                eval = ttentry.get_eval();
+            }
         }
 
         if depth < INC_PLY {
@@ -366,9 +371,8 @@ impl<'a> Search<'a> {
         let nullmove_reply = previous_move == None;
         let in_check = !nullmove_reply && self.position.in_check();
 
-        let mut eval = None;
         let mut skip_quiets = false;
-        if !is_pv {
+        if eval.is_none() && !is_pv {
             eval = Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
@@ -622,6 +626,7 @@ impl<'a> Search<'a> {
                             TTScore::from_score(alpha, ply),
                             best_move.unwrap(),
                             LOWER_BOUND,
+                            eval,
                         );
                     }
 
@@ -673,6 +678,7 @@ impl<'a> Search<'a> {
                 TTScore::from_score(best_score, ply),
                 best_move,
                 tt_bound,
+                eval,
             );
 
             Some(best_score)
@@ -844,6 +850,7 @@ impl<'a> Search<'a> {
                 TTScore::from_score(score, ply),
                 best_move.unwrap(),
                 bound,
+                eval,
             );
         }
         Some(score)

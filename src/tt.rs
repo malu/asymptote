@@ -70,6 +70,7 @@ impl TT {
         score: TTScore,
         best_move: Move,
         bound: Bound,
+        eval: Option<Score>,
     ) {
         let mut replace_age = None;
         let mut age_depth = Depth::max_value();
@@ -80,7 +81,7 @@ impl TT {
         {
             let entries = unsafe { self.table.get_unchecked((hash & self.bitmask) as usize).0 };
             for (i, entry) in entries.iter().enumerate() {
-                if entry.key == hash {
+                if entry.key == (hash >> 32) as u32 {
                     if bound != EXACT_BOUND && depth < entry.depth - 3 * INC_PLY {
                         return;
                     }
@@ -109,16 +110,23 @@ impl TT {
             replace = i;
         }
 
+        let mut flags = 0;
+        if eval.is_some() {
+            flags |= FLAG_HAS_SCORE;
+        }
+
         unsafe {
             self.table
                 .get_unchecked_mut((hash & self.bitmask) as usize)
                 .0[replace] = TTEntry {
-                key: hash,
+                key: (hash >> 32) as u32,
                 depth,
                 score,
                 best_move: TTMove::from(best_move),
                 bound,
                 generation: self.generation,
+                eval: eval.unwrap_or(0),
+                flags,
             }
         };
     }
@@ -130,7 +138,7 @@ impl TT {
                 .get_unchecked_mut((hash & self.bitmask) as usize)
                 .0
         } {
-            if entry.key == hash {
+            if entry.key == (hash >> 32) as u32 {
                 entry.generation = self.generation;
                 return Some(*entry);
             }
@@ -158,9 +166,17 @@ impl<'a> SharedTT<'a> {
         tt.usage()
     }
 
-    pub fn insert(&self, hash: Hash, depth: Depth, score: TTScore, best_move: Move, bound: Bound) {
+    pub fn insert(
+        &self,
+        hash: Hash,
+        depth: Depth,
+        score: TTScore,
+        best_move: Move,
+        bound: Bound,
+        eval: Option<Score>,
+    ) {
         let tt = unsafe { &mut *self.tt.get() };
-        tt.insert(hash, depth, score, best_move, bound);
+        tt.insert(hash, depth, score, best_move, bound, eval);
     }
 
     pub fn get(&self, hash: Hash) -> Option<TTEntry> {
@@ -173,15 +189,29 @@ impl<'a> SharedTT<'a> {
 pub struct Bucket([TTEntry; NUM_CLUSTERS]);
 const NUM_CLUSTERS: usize = 4;
 
+const FLAG_HAS_SCORE: u8 = 0x1;
+
 #[repr(align(16))]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct TTEntry {
-    key: Hash,             // 8 byte
+    key: u32,              // 4 byte
     pub best_move: TTMove, // 2 byte
     pub depth: Depth,      // 2 byte
     pub score: TTScore,    // 2 byte
+    pub eval: Score,       // 2 byte
     pub bound: Bound,      // 1 byte
     generation: u8,        // 1 byte
+    flags: u8,             // 1 byte
+}
+
+impl TTEntry {
+    pub fn get_eval(&self) -> Option<Score> {
+        if self.flags & FLAG_HAS_SCORE > 0 {
+            return Some(self.eval);
+        }
+
+        return None;
+    }
 }
 
 impl Default for TTEntry {
@@ -190,9 +220,11 @@ impl Default for TTEntry {
             key: 0,
             depth: 0,
             score: TTScore(0),
+            eval: 0,
             best_move: TTMove { from: 0, to: 0 },
             bound: 0,
             generation: 0,
+            flags: 0,
         }
     }
 }
