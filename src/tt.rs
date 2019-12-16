@@ -51,7 +51,7 @@ impl TT {
         let mut usage = 0;
         for bucket in self.table.iter().take(n) {
             for &entry in &bucket.0 {
-                if !entry.best_move.is_null() && entry.generation == self.generation {
+                if entry.generation == self.generation {
                     usage += 1;
                 }
             }
@@ -80,13 +80,6 @@ impl TT {
         {
             let entries = unsafe { self.table.get_unchecked((hash & self.bitmask) as usize).0 };
             for (i, entry) in entries.iter().enumerate() {
-                if entry.best_move.is_null() {
-                    replace = i;
-                    replace_age = None;
-                    replace_depth = None;
-                    break;
-                }
-
                 if entry.key == hash {
                     if bound != EXACT_BOUND && depth < entry.depth - 3 * INC_PLY {
                         return;
@@ -137,10 +130,6 @@ impl TT {
                 .get_unchecked_mut((hash & self.bitmask) as usize)
                 .0
         } {
-            if entry.best_move.is_null() {
-                break;
-            }
-
             if entry.key == hash {
                 entry.generation = self.generation;
                 return Some(*entry);
@@ -224,10 +213,6 @@ const PROMOTION_BISHOP: u8 = 0b0100_0000;
 const PROMOTION_KNIGHT: u8 = 0b0000_0000;
 
 impl TTMove {
-    fn is_null(self) -> bool {
-        unsafe { ::std::mem::transmute::<TTMove, u16>(self) == 0 }
-    }
-
     // Expands this `TTMove` to a `Move`value.
     pub fn expand(self, pos: &Position) -> Option<Move> {
         let mut result = Move {
