@@ -427,7 +427,6 @@ impl<'a> Search<'a> {
             }
         }
 
-        let previous_move = self.stack[ply as usize - 1].current_move;
         let mut moves = MovePicker::new(
             ttmove,
             self.stack[ply as usize].killers_moves,
