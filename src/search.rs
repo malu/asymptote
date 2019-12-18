@@ -237,16 +237,13 @@ impl<'a> Search<'a> {
             }
 
             let num_nodes_before = self.visited_nodes;
-            let value;
-            if i == 0 {
+            let mut value = Some(Score::max_value());
+            if i > 0 {
+                value = self.search(1, -alpha - 1, -alpha, new_depth).map(|v| -v);
+            }
+
+            if Some(alpha) < value {
                 value = self.search(1, -beta, -alpha, new_depth).map(|v| -v);
-            } else {
-                let value_zw = self.search(1, -alpha - 1, -alpha, new_depth).map(|v| -v);
-                if Some(alpha) < value_zw {
-                    value = self.search(1, -beta, -alpha, new_depth).map(|v| -v);
-                } else {
-                    value = value_zw;
-                }
             }
 
             *subtree_size = ((self.visited_nodes - num_nodes_before) / 2) as i64;
