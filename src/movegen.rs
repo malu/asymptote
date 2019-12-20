@@ -426,7 +426,7 @@ impl<'p> MoveGenerator<'p> {
     }
 
     pub fn king(&self, targets: Bitboard, moves: &mut MoveList) {
-        let us = self.position.us(self.position.white_to_move);;
+        let us = self.position.us(self.position.white_to_move);
         let castle_kside;
         let castle_qside;
         if self.position.white_to_move {

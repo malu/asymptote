@@ -207,10 +207,10 @@ impl<'a> MovePicker<'a> {
                 {
                     self.moves.extend(
                         self.killers
-                            .into_iter()
+                            .iter()
                             .flatten()
                             .filter(|&&m| position.move_is_pseudo_legal(m))
-                            .map(|&m| m),
+                            .copied()
                     );
                     if let Some(prev_move) = self.previous_move {
                         if prev_move.is_quiet() {
@@ -219,7 +219,7 @@ impl<'a> MovePicker<'a> {
                                     [prev_move.piece.index()][prev_move.to]
                                     .iter()
                                     .filter(|&&m| position.move_is_pseudo_legal(m))
-                                    .map(|&m| m),
+                                    .copied()
                             );
                         }
                     }

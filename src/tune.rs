@@ -366,7 +366,7 @@ pub fn pgn_to_positions<P: AsRef<Path>>(path: P) -> impl Iterator<Item = (f32, P
                 let skip_this = *ignore
                     || line.starts_with("{ -")
                     || line.starts_with("{ +")
-                    || line.starts_with("{ 0");;
+                    || line.starts_with("{ 0");
                 if *ignore || skip_this {
                     Some(None)
                 } else {

@@ -498,19 +498,17 @@ impl<'a> Search<'a> {
                     // (MoveType::GoodCapture) because those are assumed to have a
                     // non-negative static exchange evaluation.
                     if depth < SEE_PRUNING_DEPTH && !check && !in_check {
-                        if mtype == MoveType::BadCapture
+                        let see_prune = mtype == MoveType::BadCapture
                             && !self.position.see(
                                 mov,
                                 SEE_PRUNING_MARGIN_CAPTURE * (depth / INC_PLY) * (depth / INC_PLY),
                             )
-                        {
-                            pruned = true;
-                            continue;
-                        } else if mtype == MoveType::Quiet
-                            && !self
-                                .position
-                                .see(mov, SEE_PRUNING_MARGIN_QUIET * (depth / INC_PLY))
-                        {
+                            || mtype == MoveType::Quiet
+                                && !self
+                                    .position
+                                    .see(mov, SEE_PRUNING_MARGIN_QUIET * (depth / INC_PLY));
+
+                        if see_prune {
                             pruned = true;
                             continue;
                         }
