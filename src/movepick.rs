@@ -204,27 +204,25 @@ impl<'a> MovePicker<'a> {
 
                 self.moves.clear();
                 self.scores.clear();
-                {
-                    self.moves.extend(
-                        self.killers
-                            .iter()
-                            .flatten()
-                            .filter(|&&m| position.move_is_pseudo_legal(m))
-                            .copied()
-                    );
-                    if let Some(prev_move) = self.previous_move {
-                        if prev_move.is_quiet() {
-                            self.moves.extend(
-                                history.last_best_reply[position.white_to_move as usize]
-                                    [prev_move.piece.index()][prev_move.to]
-                                    .iter()
-                                    .filter(|&&m| position.move_is_pseudo_legal(m))
-                                    .copied()
-                            );
-                        }
+                self.moves.extend(
+                    self.killers
+                        .iter()
+                        .flatten()
+                        .filter(|&&m| position.move_is_pseudo_legal(m))
+                        .copied(),
+                );
+                if let Some(prev_move) = self.previous_move {
+                    if prev_move.is_quiet() {
+                        self.moves.extend(
+                            history.last_best_reply[position.white_to_move as usize]
+                                [prev_move.piece.index()][prev_move.to]
+                                .iter()
+                                .filter(|&&m| position.move_is_pseudo_legal(m))
+                                .copied(),
+                        );
                     }
-                    self.scores.extend(self.moves.iter().map(|_| 0));
                 }
+                self.scores.extend(self.moves.iter().map(|_| 0));
                 self.index = 0;
                 self.stage += 1;
                 self.next(position, history)
@@ -257,11 +255,9 @@ impl<'a> MovePicker<'a> {
                 self.scores.clear();
 
                 MoveGenerator::from(position).quiet_moves(&mut self.moves);
-                {
-                    let wtm = position.white_to_move;
-                    self.scores
-                        .extend(self.moves.iter().map(|&mov| history.get_score(wtm, mov)));
-                }
+                let wtm = position.white_to_move;
+                self.scores
+                    .extend(self.moves.iter().map(|&mov| history.get_score(wtm, mov)));
                 self.index = 0;
                 self.stage += 1;
                 self.next(position, history)
