@@ -25,6 +25,7 @@ use crate::movepick::*;
 use crate::position::*;
 use crate::repetitions::Repetitions;
 use crate::search_controller::PersistentOptions;
+use crate::syzygy::Syzygy;
 use crate::time::*;
 use crate::tt::*;
 
@@ -60,10 +61,12 @@ pub struct Search<'a> {
     time_manager: TimeManager,
     hasher: Hasher,
     pub visited_nodes: u64,
+    tb_hits: u64,
     tt: &'a SharedTT<'a>,
     pv: Vec<Vec<Option<Move>>>,
     max_ply_searched: Ply,
     repetitions: Repetitions,
+    syzygy: &'a Syzygy,
     options: PersistentOptions,
 
     quiets: [[Option<Move>; 256]; MAX_PLY as usize],
@@ -88,7 +91,8 @@ impl<'a> Search<'a> {
         time_control: TimeControl,
         tt: &'a SharedTT<'a>,
         repetitions: Repetitions,
-    ) -> Search {
+        syzygy: &'a Syzygy,
+    ) -> Search<'a> {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         for i in 0..MAX_PLY as usize {
             pv.push(vec![None; MAX_PLY as usize - i + 1]);
@@ -106,9 +110,11 @@ impl<'a> Search<'a> {
             hasher,
             tt,
             visited_nodes: 0,
+            tb_hits: 0,
             pv,
             max_ply_searched: 0,
             repetitions,
+            syzygy,
             options,
 
             quiets: [[None; 256]; MAX_PLY as usize],
@@ -135,6 +141,34 @@ impl<'a> Search<'a> {
 
         if moves.len() == 1 {
             return moves[0].0;
+        }
+
+        if self.id == 0 {
+            if let Some((mov, dtz)) = self.syzygy.best_move(&self.position) {
+                // Since the previous move might not have been zeroing, we
+                // have to add the current half move counter.
+                let score;
+                let bound;
+                match shakmaty_syzygy::Wdl::from_dtz_after_zeroing(
+                    dtz.add_plies(self.position.details.halfmove as i32),
+                ) {
+                    shakmaty_syzygy::Wdl::Loss => {
+                        score = -MATE_SCORE + MAX_PLY - dtz.0 as Depth + 1;
+                        bound = UPPER_BOUND;
+                    }
+                    shakmaty_syzygy::Wdl::Win => {
+                        score = MATE_SCORE - MAX_PLY - dtz.0 as Depth - 1;
+                        bound = LOWER_BOUND;
+                    }
+                    _ => {
+                        score = 0;
+                        bound = EXACT_BOUND;
+                    }
+                }
+
+                self.uci_info((MAX_PLY - 1) * INC_PLY, score, bound);
+                return mov.into();
+            }
         }
 
         let mut last_score = 0;
@@ -365,6 +399,43 @@ impl<'a> Search<'a> {
         if depth < INC_PLY {
             self.visited_nodes -= 1;
             return self.qsearch(ply, alpha, beta, 0);
+        }
+
+        if self.position.details.halfmove == 0 {
+            let piece_count = self.position.all_pieces.popcount();
+            let max_pieces = self.syzygy.get_max_pieces();
+            if (piece_count < max_pieces
+                || piece_count <= max_pieces && depth >= self.options.syzygy_probe_depth)
+                && self.position.details.en_passant == 255
+                && self.position.details.castling == 0
+            {
+                if let Some(wdl) = self.syzygy.wdl(&self.position) {
+                    self.tb_hits += 1;
+                    let value;
+                    let bound;
+                    match wdl {
+                        shakmaty_syzygy::Wdl::Loss => {
+                            value = -MATE_SCORE + MAX_PLY + ply + 1;
+                            bound = UPPER_BOUND;
+                        }
+                        shakmaty_syzygy::Wdl::Win => {
+                            value = MATE_SCORE - MAX_PLY - ply - 1;
+                            bound = UPPER_BOUND;
+                        }
+                        _ => {
+                            value = 0;
+                            bound = EXACT_BOUND;
+                        }
+                    }
+
+                    if bound == EXACT_BOUND
+                        || (bound == UPPER_BOUND && value <= alpha)
+                        || (bound == LOWER_BOUND && value >= beta)
+                    {
+                        return Some(value);
+                    }
+                }
+            }
         }
 
         let previous_move = self.stack[ply as usize - 1].current_move;
@@ -926,15 +997,17 @@ impl<'a> Search<'a> {
 
         let mut pos = self.position.clone();
         let estimated_nodes = self.visited_nodes * self.options.threads as u64;
+        let estimated_tb_hits = self.tb_hits * self.options.threads as u64;
         print!(
-            "info depth {} seldepth {} nodes {} nps {} score {} time {} hashfull {} pv ",
+            "info depth {} seldepth {} nodes {} nps {} tbhits {} score {} time {} hashfull {} pv ",
             d / INC_PLY,
             self.max_ply_searched,
             estimated_nodes,
             1000 * estimated_nodes / cmp::max(1, elapsed),
+            estimated_tb_hits,
             score_str,
             elapsed,
-            self.tt.usage()
+            self.tt.usage(),
         );
         for mov in self.pv[0]
             .iter()

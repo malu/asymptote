@@ -35,6 +35,7 @@ pub mod position;
 mod repetitions;
 mod search;
 mod search_controller;
+mod syzygy;
 mod time;
 mod tt;
 #[cfg(feature = "tune")]

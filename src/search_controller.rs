@@ -23,17 +23,20 @@ use crate::hash::Hasher;
 use crate::movegen::{Move, MoveGenerator, MoveList};
 use crate::position::{Position, STARTING_POSITION};
 use crate::repetitions::Repetitions;
-use crate::search::{Search, INC_PLY};
+use crate::search::{Depth, Search, INC_PLY};
+use crate::syzygy::Syzygy;
 use crate::time::TimeControl;
 use crate::tt::{self, TT};
 use crate::uci::{GoParams, UciCommand};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct PersistentOptions {
     hash_bits: u64,
     pub show_pv_board: bool,
     pub threads: usize,
     pub move_overhead: u64,
+    pub syzygy_directories: Vec<String>,
+    pub syzygy_probe_depth: Depth,
 }
 
 impl Default for PersistentOptions {
@@ -43,6 +46,8 @@ impl Default for PersistentOptions {
             show_pv_board: false,
             threads: 1,
             move_overhead: 10,
+            syzygy_directories: Vec::new(),
+            syzygy_probe_depth: 0,
         }
     }
 }
@@ -56,6 +61,7 @@ pub struct SearchController {
     time_control: TimeControl,
     tt: TT,
     repetitions: Repetitions,
+    syzygy: Syzygy,
 }
 
 impl SearchController {
@@ -71,6 +77,7 @@ impl SearchController {
             time_control: TimeControl::Infinite,
             tt: TT::new(14),
             repetitions: Repetitions::new(100),
+            syzygy: Syzygy::new(),
         }
     }
 
@@ -83,11 +90,12 @@ impl SearchController {
         let mut main_thread = Search::new(
             Arc::clone(&self.abort),
             self.hasher.clone(),
-            self.options,
+            self.options.clone(),
             self.position.clone(),
             self.time_control,
             &tt,
             self.repetitions.clone(),
+            &self.syzygy,
         );
 
         let mov = thread::scope(|s| {
@@ -166,6 +174,8 @@ impl SearchController {
         println!("option name Threads type spin default 1 min 1");
         println!("option name ShowPVBoard type check default false");
         println!("option name MoveOverhead type spin default 10 min 0");
+        println!("option name SyzygyPath type string default <empty>");
+        println!("option name SyzygyProbeDepth type int default 0 min 0");
         self.handle_ucinewgame();
         println!("uciok");
     }
@@ -223,6 +233,27 @@ impl SearchController {
                     eprintln!("Unable to parse value '{}' as integer", value);
                 }
             }
+            "syzygypath" => {
+                #[cfg(target_os = "windows")]
+                const PATH_LIST_SEPARATOR: char = ';';
+                #[cfg(not(target_os = "windows"))]
+                const PATH_LIST_SEPARATOR: char = ':';
+
+                let mut syzygy = Syzygy::new();
+
+                for directory in value.split(PATH_LIST_SEPARATOR) {
+                    syzygy.add_directory(&directory);
+                }
+
+                self.syzygy = syzygy;
+            }
+            "syzygyprobedepth" => {
+                if let Ok(plies) = value.parse::<u64>() {
+                    self.options.syzygy_probe_depth = plies as Depth * INC_PLY;
+                } else {
+                    eprintln!("Unable to parse value '{}' as integer", value);
+                }
+            }
             _ => {
                 eprintln!("Unrecognized option {}", name);
             }
@@ -251,6 +282,8 @@ impl SearchController {
 
     fn handle_d(&self) {
         self.position.print("");
+        println!("info Syzygy WDL: {:?}", self.syzygy.wdl(&self.position));
+        println!("info Syzygy DTZ: {:?}", self.syzygy.dtz(&self.position));
     }
 
     fn handle_tt(&mut self) {
@@ -281,11 +314,12 @@ impl SearchController {
         let mut thread = Search::new(
             Arc::clone(&self.abort),
             self.hasher.clone(),
-            self.options,
+            self.options.clone(),
             self.position.clone(),
             self.time_control,
             &tt,
             self.repetitions.clone(),
+            &self.syzygy,
         );
         thread.perft(depth);
     }
