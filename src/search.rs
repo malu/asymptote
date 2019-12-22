@@ -271,7 +271,8 @@ impl<'a> Search<'a> {
             if self.time_manager.elapsed_millis() > 10000 {
                 self.uci_curmove_info(i, mov);
             }
-            self.internal_make_move(mov, 0);
+
+            self.make_move(Some(mov), 0);
 
             let mut new_depth = depth - INC_PLY;
             if self.position.in_check() {
@@ -290,7 +291,7 @@ impl<'a> Search<'a> {
 
             *subtree_size = ((self.visited_nodes - num_nodes_before) / 2) as i64;
 
-            self.internal_unmake_move(mov, 0);
+            self.unmake_move(Some(mov), 0);
 
             match value {
                 None => {
@@ -485,11 +486,11 @@ impl<'a> Search<'a> {
             // catching up.
             if !has_excluded_move && !in_check && self.eval.phase() > 0 && eval >= beta {
                 let r = INC_PLY + depth / 4 + cmp::min(2 * INC_PLY, eval - beta);
-                self.internal_make_nullmove(ply);
+                self.make_move(None, ply);
                 let score = self
                     .search(ply + 1, -alpha - 1, -alpha, depth - INC_PLY - r)
                     .map(|v| -v);
-                self.internal_unmake_nullmove(ply);
+                self.unmake_move(None, ply);
                 match score {
                     None => return None,
                     Some(score) => {
@@ -677,7 +678,7 @@ impl<'a> Search<'a> {
             let new_depth = depth - INC_PLY + extension;
             reduction = cmp::max(0, cmp::min(reduction, new_depth - INC_PLY));
 
-            self.internal_make_move(mov, ply);
+            self.make_move(Some(mov), ply);
 
             num_moves += 1;
             if mov.is_quiet() {
@@ -702,7 +703,7 @@ impl<'a> Search<'a> {
                 value = self.search(ply + 1, -beta, -alpha, new_depth).map(|v| -v);
             }
 
-            self.internal_unmake_move(mov, ply);
+            self.unmake_move(Some(mov), ply);
 
             match value {
                 None => {
@@ -887,13 +888,13 @@ impl<'a> Search<'a> {
                 }
             }
 
-            self.internal_make_move(mov, ply);
+            self.make_move(Some(mov), ply);
             num_moves += 1;
 
             let value = self
                 .qsearch(ply + 1, -beta, -alpha, depth - INC_PLY)
                 .map(|v| -v);
-            self.internal_unmake_move(mov, ply);
+            self.unmake_move(Some(mov), ply);
 
             match value {
                 None => return None,
@@ -1137,11 +1138,11 @@ impl<'a> Search<'a> {
                     continue;
                 }
 
-                self.internal_make_move(mov, depth as Ply);
+                self.make_move(Some(mov), depth as Ply);
                 let perft = self.internal_perft(depth - 1);
                 num_moves += perft;
                 println!("{}: {}", mov.to_algebraic(), perft);
-                self.internal_unmake_move(mov, depth as Ply);
+                self.unmake_move(Some(mov), depth as Ply);
             }
         }
 
@@ -1167,26 +1168,31 @@ impl<'a> Search<'a> {
                 continue;
             }
 
-            self.internal_make_move(mov, depth as Ply);
+            self.make_move(Some(mov), depth as Ply);
             num_moves += self.internal_perft(depth - 1);
-            self.internal_unmake_move(mov, depth as Ply);
+            self.unmake_move(Some(mov), depth as Ply);
         }
 
         num_moves
     }
 
-    pub fn internal_make_move(&mut self, mov: Move, ply: Ply) {
+    fn make_move(&mut self, mov: Option<Move>, ply: Ply) {
         let current_ply = &mut self.stack[ply as usize];
         current_ply.irreversible_details = self.position.details;
-        current_ply.current_move = Some(mov);
+        current_ply.current_move = mov;
 
         if ply + 2 < MAX_PLY {
             self.stack[2 + ply as usize].killers_moves = [None; 2];
         }
 
-        self.hasher.make_move(&self.position, mov);
-        self.eval.make_move(mov, &self.position);
-        self.position.make_move(mov);
+        if let Some(mov) = mov {
+            self.hasher.make_move(&self.position, mov);
+            self.eval.make_move(mov, &self.position);
+            self.position.make_move(mov);
+        } else {
+            self.hasher.make_nullmove(&self.position);
+            self.position.make_nullmove();
+        }
 
         if self.position.details.halfmove == 0 {
             self.repetitions.irreversible_move();
@@ -1196,37 +1202,22 @@ impl<'a> Search<'a> {
         let next_ply = &mut self.stack[1 + ply as usize];
         next_ply.hash = self.hasher.get_hash();
         next_ply.pawn_hash = self.hasher.get_pawn_hash();
+
     }
 
-    fn internal_make_nullmove(&mut self, ply: Ply) {
-        self.stack[ply as usize].irreversible_details = self.position.details;
-        self.stack[ply as usize].current_move = None;
-
-        self.hasher.make_nullmove(&self.position);
-        self.position.make_nullmove();
-
-        self.repetitions.push_position(self.hasher.get_hash());
-
-        let next_ply = &mut self.stack[1 + ply as usize];
-        next_ply.hash = self.hasher.get_hash();
-        next_ply.pawn_hash = self.hasher.get_pawn_hash();
-    }
-
-    fn internal_unmake_nullmove(&mut self, ply: Ply) {
-        let prev_ply = &self.stack[ply as usize];
-        let irreversible = prev_ply.irreversible_details;
-        self.repetitions.pop_position();
-        self.position.unmake_nullmove(irreversible);
-        self.hasher.set(prev_ply.hash, prev_ply.pawn_hash);
-    }
-
-    pub fn internal_unmake_move(&mut self, mov: Move, ply: Ply) {
+    fn unmake_move(&mut self, mov: Option<Move>, ply: Ply) {
         let prev_ply = &self.stack[ply as usize];
         let irreversible = self.stack[ply as usize].irreversible_details;
         self.repetitions.pop_position();
-        self.eval.unmake_move(mov, &self.position);
-        self.position.unmake_move(mov, irreversible);
-        self.hasher.set(prev_ply.hash, prev_ply.pawn_hash);
+
+        if let Some(mov) = mov {
+            self.eval.unmake_move(mov, &self.position);
+            self.position.unmake_move(mov, irreversible);
+            self.hasher.set(prev_ply.hash, prev_ply.pawn_hash);
+        } else {
+            self.position.unmake_nullmove(irreversible);
+            self.hasher.set(prev_ply.hash, prev_ply.pawn_hash);
+        }
     }
 
     pub fn set_time_control(&mut self, tc: TimeControl) {
