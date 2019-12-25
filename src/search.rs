@@ -401,13 +401,21 @@ impl<'a> Search<'a> {
             return self.qsearch(ply, alpha, beta, 0);
         }
 
-        if self.position.details.halfmove == 0 {
+        // Look up position from Syzygy tablebases
+        //
+        // Since those only contain positions which can be the result of a
+        // capture, the half move clock has to the zero and there cannot be an
+        // en passant square (since that results from a pawn push rather than a
+        // capture). Also, the TBs do not contain positions with castling
+        // rights, so exclude those as well.
+        if self.position.details.halfmove == 0
+            && self.position.details.en_passant == 255
+            && self.position.details.castling == 0
+        {
             let piece_count = self.position.all_pieces.popcount();
             let max_pieces = self.syzygy.get_max_pieces();
-            if (piece_count < max_pieces
-                || piece_count <= max_pieces && depth >= self.options.syzygy_probe_depth)
-                && self.position.details.en_passant == 255
-                && self.position.details.castling == 0
+            if piece_count < max_pieces
+                || piece_count <= max_pieces && depth >= self.options.syzygy_probe_depth
             {
                 if let Some(wdl) = self.syzygy.wdl(&self.position) {
                     self.tb_hits += 1;
