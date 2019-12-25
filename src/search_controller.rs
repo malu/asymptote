@@ -175,7 +175,7 @@ impl SearchController {
         println!("option name ShowPVBoard type check default false");
         println!("option name MoveOverhead type spin default 10 min 0 max 10000");
         println!("option name SyzygyPath type string default <empty>");
-        println!("option name SyzygyProbeDepth type int default 0 min 0 max 127");
+        println!("option name SyzygyProbeDepth type spin default 0 min 0 max 127");
         self.handle_ucinewgame();
         println!("uciok");
     }
