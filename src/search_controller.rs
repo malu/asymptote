@@ -170,12 +170,12 @@ impl SearchController {
     fn handle_uci(&mut self) {
         println!("id name Asymptote 0.7");
         println!("id author Maximilian Lupke");
-        println!("option name Hash type spin default 1 min 0");
-        println!("option name Threads type spin default 1 min 1");
+        println!("option name Hash type spin default 1 min 0 max 65536");
+        println!("option name Threads type spin default 1 min 1 max 256");
         println!("option name ShowPVBoard type check default false");
-        println!("option name MoveOverhead type spin default 10 min 0");
+        println!("option name MoveOverhead type spin default 10 min 0 max 10000");
         println!("option name SyzygyPath type string default <empty>");
-        println!("option name SyzygyProbeDepth type int default 0 min 0");
+        println!("option name SyzygyProbeDepth type int default 0 min 0 max 127");
         self.handle_ucinewgame();
         println!("uciok");
     }
