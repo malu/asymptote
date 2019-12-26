@@ -168,11 +168,9 @@ impl<'a> Search<'a> {
 
                 self.uci_info((MAX_PLY - 1) * INC_PLY, score, bound);
 
-                if self.id == 0 {
-                    self.time_manager
-                        .abort
-                        .store(true, std::sync::atomic::Ordering::SeqCst);
-                }
+                self.time_manager
+                    .abort
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
 
                 return mov.into();
             }
