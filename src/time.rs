@@ -121,7 +121,8 @@ impl TimeManager {
         }
     }
 
-    pub fn start_another_iteration(&self, ply: Ply) -> bool {
+    pub fn start_another_iteration(&mut self, ply: Ply) -> bool {
+        self.check_for_stop();
         if ply == MAX_PLY || self.force_stop {
             return false;
         }
