@@ -263,6 +263,9 @@ impl<'a> Search<'a> {
         let mut best_move_index = 0;
         let mut increased_alpha = false;
         for (i, &mut (mov, ref mut subtree_size)) in moves.iter_mut().enumerate() {
+            if self.time_manager.elapsed_millis() > 10000 {
+                self.uci_curmove_info(i, mov);
+            }
             self.internal_make_move(mov, 0);
 
             let mut new_depth = depth - INC_PLY;
@@ -1031,6 +1034,26 @@ impl<'a> Search<'a> {
         if self.options.show_pv_board {
             pos.print("info string ");
         }
+    }
+
+    fn uci_curmove_info(&self, i: usize, mov: Move) {
+        if self.id > 0 {
+            return;
+        }
+
+        let elapsed = self.time_manager.elapsed_millis();
+        let estimated_nodes = self.visited_nodes * self.options.threads as u64;
+        let estimated_tb_hits = self.tb_hits * self.options.threads as u64;
+        println!(
+            "info currmove {} currmovenumber {} nodes {} nps {} tbhits {} time {} hashfull {}",
+            mov.to_algebraic(),
+            i + 1, // currmovenumber should start at 1
+            estimated_nodes,
+            1000 * estimated_nodes / cmp::max(1, elapsed),
+            estimated_tb_hits,
+            elapsed,
+            self.tt.usage(),
+        );
     }
 
     fn update_quiet_stats(&mut self, mov: Move, ply: Ply, depth: Depth, num_failed_quiets: usize) {
