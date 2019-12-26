@@ -335,16 +335,8 @@ impl<'a> Search<'a> {
         let is_pv = alpha + 1 != beta;
 
         // Mate distance pruning
-        let mdp_alpha = if alpha > -MATE_SCORE + ply {
-            alpha
-        } else {
-            -MATE_SCORE + ply
-        };
-        let mdp_beta = if beta < MATE_SCORE - ply - 1 {
-            beta
-        } else {
-            MATE_SCORE - ply - 1
-        };
+        let mdp_alpha = cmp::max(alpha, -MATE_SCORE + ply);
+        let mdp_beta = cmp::min(beta, MATE_SCORE - ply - 1);
         if mdp_alpha >= mdp_beta {
             return Some(mdp_alpha);
         }
