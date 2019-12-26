@@ -1103,7 +1103,7 @@ impl<'a> Search<'a> {
 
     fn is_draw(&self, ply: Ply) -> bool {
         if let Some(last_move) = self.stack[ply as usize - 1].current_move {
-            if last_move.captured.is_some() {
+            if last_move.captured.is_some() || last_move.promoted.is_some() {
                 return self.eval.is_material_draw();
             } else if last_move.piece != Piece::Pawn {
                 return self.repetitions.has_repeated(ply);
