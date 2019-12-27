@@ -68,7 +68,7 @@ impl TT {
         hash: Hash,
         depth: Depth,
         score: TTScore,
-        best_move: Move,
+        best_move: Option<Move>,
         bound: Bound,
         eval: Option<Score>,
     ) {
@@ -115,6 +115,10 @@ impl TT {
             flags |= FLAG_HAS_SCORE;
         }
 
+        if best_move.is_some() {
+            flags |= FLAG_HAS_MOVE;
+        }
+
         unsafe {
             self.table
                 .get_unchecked_mut((hash & self.bitmask) as usize)
@@ -122,7 +126,7 @@ impl TT {
                 key: (hash >> 32) as u32,
                 depth,
                 score,
-                best_move: TTMove::from(best_move),
+                best_move: best_move.map_or(TTMove { from: 0, to: 0}, TTMove::from),
                 bound,
                 generation: self.generation,
                 eval: eval.unwrap_or(0),
@@ -171,7 +175,7 @@ impl<'a> SharedTT<'a> {
         hash: Hash,
         depth: Depth,
         score: TTScore,
-        best_move: Move,
+        best_move: Option<Move>,
         bound: Bound,
         eval: Option<Score>,
     ) {
@@ -190,6 +194,7 @@ pub struct Bucket([TTEntry; NUM_CLUSTERS]);
 const NUM_CLUSTERS: usize = 4;
 
 const FLAG_HAS_SCORE: u8 = 0x1;
+const FLAG_HAS_MOVE: u8 = 0x2;
 
 #[repr(align(16))]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -211,6 +216,10 @@ impl TTEntry {
         }
 
         return None;
+    }
+
+    pub fn has_move(&self) -> bool {
+        self.flags & FLAG_HAS_MOVE > 0
     }
 }
 

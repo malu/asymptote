@@ -440,6 +440,14 @@ impl<'a> Search<'a> {
                         || (bound == UPPER_BOUND && value <= alpha)
                         || (bound == LOWER_BOUND && value >= beta)
                     {
+                        self.tt.insert(
+                            hash,
+                            (MAX_PLY - 1) * INC_PLY,
+                            TTScore::from_score(value, ply),
+                            None,
+                            bound,
+                            None,
+                        );
                         return Some(value);
                     }
                 }
@@ -703,7 +711,7 @@ impl<'a> Search<'a> {
                             hash,
                             depth,
                             TTScore::from_score(alpha, ply),
-                            best_move.unwrap(),
+                            best_move,
                             LOWER_BOUND,
                             eval,
                         );
@@ -755,7 +763,7 @@ impl<'a> Search<'a> {
                 hash,
                 depth,
                 TTScore::from_score(best_score, ply),
-                best_move,
+                Some(best_move),
                 tt_bound,
                 eval,
             );
@@ -927,7 +935,7 @@ impl<'a> Search<'a> {
                 self.hasher.get_hash(),
                 0,
                 TTScore::from_score(score, ply),
-                best_move.unwrap(),
+                best_move,
                 bound,
                 eval,
             );
@@ -937,6 +945,10 @@ impl<'a> Search<'a> {
 
     fn get_tt_entry(&mut self, hash: Hash) -> (Option<TTEntry>, Option<Move>) {
         if let Some(ttentry) = self.tt.get(hash) {
+            if !ttentry.has_move() {
+                return (Some(ttentry), None);
+            }
+
             let mov = ttentry
                 .best_move
                 .expand(&self.position)
