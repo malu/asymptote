@@ -53,6 +53,17 @@ impl Piece {
         self as usize
     }
 
+    pub fn all() -> [Piece; 6] {
+        [
+            Piece::Pawn,
+            Piece::Knight,
+            Piece::Bishop,
+            Piece::Rook,
+            Piece::Queen,
+            Piece::King,
+        ]
+    }
+
     pub fn value(self) -> Score {
         match self {
             Piece::Pawn => eg(PAWN_SCORE),
@@ -502,11 +513,12 @@ impl Move {
     }
 
     pub fn is_kingside_castle(self) -> bool {
-        self.to == self.from.right(2)
+        self.piece == Piece::King && (self.from == SQUARE_E1 || self.from == SQUARE_E8) && self.to == self.from.right(2)
     }
 
+
     pub fn is_queenside_castle(self) -> bool {
-        self.to == self.from.left(2)
+        self.piece == Piece::King && (self.from == SQUARE_E1 || self.from == SQUARE_E8) && self.to == self.from.left(2)
     }
 
     pub fn mvv_lva_score(self) -> i64 {

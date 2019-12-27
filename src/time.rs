@@ -48,6 +48,8 @@ pub struct TimeManager {
     move_overhead: u64,
 
     dynamic: DynamicTimeManagement,
+
+    times_checked: u64,
 }
 
 #[derive(Copy, Clone, Default)]
@@ -72,6 +74,7 @@ impl TimeManager {
             force_stop: false,
             move_overhead,
             dynamic: DynamicTimeManagement::default(),
+            times_checked: 0,
         };
 
         tm.update(position, control);
@@ -83,6 +86,7 @@ impl TimeManager {
         self.started_at = time::Instant::now();
         self.control = control;
         self.searching_for_white = position.white_to_move;
+        self.times_checked = 0;
         self.abort.store(false, sync::atomic::Ordering::SeqCst);
 
         if let TimeControl::Variable {
@@ -147,8 +151,9 @@ impl TimeManager {
         start_another
     }
 
-    pub fn should_stop(&mut self, visited_nodes: u64) -> bool {
-        if visited_nodes & 0x7F == 0 {
+    pub fn should_stop(&mut self) -> bool {
+        self.times_checked += 1;
+        if self.times_checked & 0x7F == 0 {
             self.check_for_stop();
         }
 
@@ -159,7 +164,7 @@ impl TimeManager {
         let stop = match self.control {
             TimeControl::Infinite => false,
             TimeControl::FixedMillis(millis) => {
-                if visited_nodes & 0x7F == 0 {
+                if self.times_checked & 0x7F == 0 {
                     let elapsed = self.elapsed_millis();
                     elapsed + self.move_overhead > millis
                 } else {
@@ -167,9 +172,9 @@ impl TimeManager {
                 }
             }
             TimeControl::FixedDepth(_) => false, // handled by start_another_iteration
-            TimeControl::FixedNodes(nodes) => visited_nodes >= nodes,
+            TimeControl::FixedNodes(nodes) => self.times_checked >= nodes,
             TimeControl::Variable { .. } => {
-                if visited_nodes & 0x7F == 0 {
+                if self.times_checked & 0x7F == 0 {
                     let elapsed = self.elapsed_millis();
                     elapsed + self.move_overhead >= self.dynamic.maximum
                 } else {

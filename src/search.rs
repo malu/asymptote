@@ -52,23 +52,29 @@ const LMP_MOVES: [i16; (LMP_MAX_DEPTH / INC_PLY) as usize] = [0, 4, 8, 16, 32];
 #[derive(Clone)]
 pub struct Search<'a> {
     pub id: usize,
+    position: Position,
 
+    // Required for (efficient) search
     stack: [PlyDetails; MAX_PLY as usize],
     history: History,
-    position: Position,
     eval: Eval,
-    time_control: TimeControl,
-    time_manager: TimeManager,
     hasher: Hasher,
-    pub visited_nodes: u64,
-    tb_hits: u64,
     tt: &'a SharedTT<'a>,
-    pv: Vec<Vec<Option<Move>>>,
-    max_ply_searched: Ply,
     repetitions: Repetitions,
     syzygy: &'a Syzygy,
-    options: PersistentOptions,
 
+    // Time Management
+    time_control: TimeControl,
+    time_manager: TimeManager,
+
+    // Statistics and nice-to-haves
+    pub visited_nodes: u64,
+    tb_hits: u64,
+    max_ply_searched: Ply,
+    pv: Vec<Vec<Option<Move>>>,
+
+    // Misc
+    options: PersistentOptions,
     quiets: [[Option<Move>; 256]; MAX_PLY as usize],
 }
 
@@ -100,23 +106,25 @@ impl<'a> Search<'a> {
 
         Search {
             id: 0,
+            position: position.clone(),
 
-            history: History::default(),
             stack: [PlyDetails::default(); MAX_PLY as usize],
+            history: History::default(),
             eval: Eval::from(&position),
-            time_control,
-            time_manager: TimeManager::new(&position, time_control, options.move_overhead, abort),
-            position,
             hasher,
             tt,
-            visited_nodes: 0,
-            tb_hits: 0,
-            pv,
-            max_ply_searched: 0,
             repetitions,
             syzygy,
-            options,
 
+            time_control,
+            time_manager: TimeManager::new(&position, time_control, options.move_overhead, abort),
+
+            visited_nodes: 0,
+            tb_hits: 0,
+            max_ply_searched: 0,
+            pv,
+
+            options,
             quiets: [[None; 256]; MAX_PLY as usize],
         }
     }
@@ -277,6 +285,8 @@ impl<'a> Search<'a> {
                 self.uci_curmove_info(i, mov);
             }
 
+            // We already filtered all illegal moves. No need to check for move
+            // legality here.
             self.make_move(Some(mov), 0);
 
             let mut new_depth = depth - INC_PLY;
@@ -310,19 +320,20 @@ impl<'a> Search<'a> {
                     if value > best_score {
                         best_score = value;
                         best_move_index = i;
-                        if value > alpha {
-                            alpha = value;
-                            increased_alpha = true;
-                            self.add_pv_move(mov, 0);
+                    }
 
-                            if value >= beta {
-                                break;
-                            }
+                    if value > alpha {
+                        alpha = value;
+                        increased_alpha = true;
+                        self.add_pv_move(mov, 0);
+                    }
 
-                            if self.time_manager.elapsed_millis() > 1000 {
-                                self.uci_info(depth, alpha, EXACT_BOUND);
-                            }
-                        }
+                    if value >= beta {
+                        break;
+                    }
+
+                    if value > alpha && self.time_manager.elapsed_millis() > 1000 {
+                        self.uci_info(depth, alpha, EXACT_BOUND);
                     }
                 }
             }
@@ -332,7 +343,7 @@ impl<'a> Search<'a> {
     }
 
     pub fn search(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
-        if self.time_manager.should_stop(self.visited_nodes) {
+        if self.time_manager.should_stop() {
             return None;
         }
 
@@ -455,20 +466,21 @@ impl<'a> Search<'a> {
                             bound,
                             None,
                         );
+
                         return Some(value);
                     }
                 }
             }
         }
 
-        let previous_move = self.stack[ply as usize - 1].current_move;
-        let nullmove_reply = previous_move == None;
-        let in_check = !nullmove_reply && self.position.in_check();
-
-        let mut skip_quiets = false;
         if eval.is_none() && !is_pv {
             eval = Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
+
+        let previous_move = self.stack[ply as usize - 1].current_move;
+        let nullmove_reply = previous_move == None;
+        let in_check = !nullmove_reply && self.position.in_check();
+        let mut skip_quiets = false;
 
         if let Some(eval) = eval {
             skip_quiets = !in_check
@@ -551,8 +563,8 @@ impl<'a> Search<'a> {
         let mut increased_alpha = false;
         let mut best_score = -Score::max_value();
         let mut best_move = None;
-        let mut num_moves = 0;
-        let mut num_quiets = 0;
+        let mut num_moves_searched = 0;
+        let mut num_quiet_moves_searched = 0;
         while let Some((mtype, mov)) = moves.next(&self.position, &self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
@@ -583,11 +595,10 @@ impl<'a> Search<'a> {
                         && self.history.get_score(self.position.white_to_move, mov)
                             < HISTORY_PRUNING_THRESHOLD
                     {
-                        pruned = true;
-
                         // We can skip the remaining quiet moves because quiet moves
                         // are ordered by history score.
                         moves.skip_quiets(true);
+                        pruned = true;
                         continue;
                     }
 
@@ -598,17 +609,21 @@ impl<'a> Search<'a> {
                     // (MoveType::GoodCapture) because those are assumed to have a
                     // non-negative static exchange evaluation.
                     if depth < SEE_PRUNING_DEPTH && !check && !in_check {
-                        let see_prune = mtype == MoveType::BadCapture
+                        if mtype == MoveType::BadCapture
                             && !self.position.see(
                                 mov,
                                 SEE_PRUNING_MARGIN_CAPTURE * (depth / INC_PLY) * (depth / INC_PLY),
                             )
-                            || mtype == MoveType::Quiet
-                                && !self
-                                    .position
-                                    .see(mov, SEE_PRUNING_MARGIN_QUIET * (depth / INC_PLY));
+                        {
+                            pruned = true;
+                            continue;
+                        }
 
-                        if see_prune {
+                        if mtype == MoveType::Quiet
+                            && !self
+                                .position
+                                .see(mov, SEE_PRUNING_MARGIN_QUIET * (depth / INC_PLY))
+                        {
                             pruned = true;
                             continue;
                         }
@@ -657,7 +672,7 @@ impl<'a> Search<'a> {
                 && !check
                 && mtype == MoveType::Quiet
                 && best_score > -MATE_SCORE + MAX_PLY
-                && num_moves > LMP_MOVES[(depth / INC_PLY) as usize]
+                && num_moves_searched > LMP_MOVES[(depth / INC_PLY) as usize]
             {
                 moves.skip_quiets(true);
                 pruned = true;
@@ -671,13 +686,17 @@ impl<'a> Search<'a> {
 
             if depth >= LMR_DEPTH && mtype == MoveType::Quiet && best_score > -MATE_SCORE + MAX_PLY
             {
-                reduction += lmr_reduction(depth, num_moves, is_pv);
+                reduction += lmr_reduction(depth, num_moves_searched);
 
                 if check {
                     reduction -= INC_PLY;
                 }
 
                 if in_check {
+                    reduction -= INC_PLY;
+                }
+
+                if is_pv {
                     reduction -= INC_PLY;
                 }
             };
@@ -688,14 +707,8 @@ impl<'a> Search<'a> {
 
             self.make_move(Some(mov), ply);
 
-            num_moves += 1;
-            if mov.is_quiet() {
-                self.quiets[ply as usize][num_quiets] = Some(mov);
-                num_quiets += 1;
-            }
-
             let mut value = Some(Score::max_value());
-            if !(is_pv && num_moves == 1) {
+            if !(is_pv && num_moves_searched == 0) {
                 value = self
                     .search(ply + 1, -alpha - 1, -alpha, new_depth - reduction)
                     .map(|v| -v);
@@ -712,6 +725,13 @@ impl<'a> Search<'a> {
             }
 
             self.unmake_move(Some(mov), ply);
+
+            num_moves_searched += 1;
+            if mov.is_quiet() {
+                self.quiets[ply as usize][num_quiet_moves_searched] = Some(mov);
+                num_quiet_moves_searched += 1;
+            }
+
 
             match value {
                 None => {
@@ -746,7 +766,7 @@ impl<'a> Search<'a> {
 
                     if value >= beta {
                         if mov.is_quiet() {
-                            self.update_quiet_stats(mov, ply, depth, num_quiets - 1);
+                            self.update_quiet_stats(mov, ply, depth, num_quiet_moves_searched - 1);
                         }
 
                         if is_pv {
@@ -759,36 +779,36 @@ impl<'a> Search<'a> {
             }
         }
 
-        if let Some(best_move) = best_move {
-            let tt_bound = if best_score >= beta {
-                LOWER_BOUND
-            } else if increased_alpha {
-                EXACT_BOUND
-            } else {
-                UPPER_BOUND
-            };
-
-            self.tt.insert(
-                hash,
-                depth,
-                TTScore::from_score(best_score, ply),
-                Some(best_move),
-                tt_bound,
-                eval,
-            );
-
-            Some(best_score)
-        } else {
+        if best_move.is_none() {
             // No best move => no legal moves
             if pruned {
-                Some(alpha)
+                return Some(alpha);
             } else if self.position.in_check() {
-                Some(-MATE_SCORE + ply)
+                return Some(-MATE_SCORE + ply);
             } else {
                 // Stalemate
-                Some(0)
+                return Some(0);
             }
         }
+
+        let tt_bound = if best_score >= beta {
+            LOWER_BOUND
+        } else if increased_alpha {
+            EXACT_BOUND
+        } else {
+            UPPER_BOUND
+        };
+
+        self.tt.insert(
+            hash,
+            depth,
+            TTScore::from_score(best_score, ply),
+            best_move,
+            tt_bound,
+            eval,
+        );
+
+        Some(best_score)
     }
 
     fn is_singular(&mut self, ttentry: TTEntry, ttmove: Move, depth: Depth, ply: Ply) -> bool {
@@ -822,8 +842,8 @@ impl<'a> Search<'a> {
         }
     }
 
-    pub fn qsearch(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
-        if self.time_manager.should_stop(self.visited_nodes) {
+    fn qsearch(&mut self, ply: Ply, alpha: Score, beta: Score, depth: Depth) -> Option<Score> {
+        if self.time_manager.should_stop() {
             return None;
         }
 
@@ -879,7 +899,7 @@ impl<'a> Search<'a> {
         let mut best_move = None;
         let mut best_score = -MATE_SCORE;
 
-        let mut num_moves = 0;
+        let mut num_moves_searched = 0;
         while let Some((_mtype, mov)) = moves.next(&self.position, &self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
@@ -897,12 +917,13 @@ impl<'a> Search<'a> {
             }
 
             self.make_move(Some(mov), ply);
-            num_moves += 1;
 
             let value = self
                 .qsearch(ply + 1, -beta, -alpha, depth - INC_PLY)
                 .map(|v| -v);
             self.unmake_move(Some(mov), ply);
+
+            num_moves_searched += 1;
 
             match value {
                 None => return None,
@@ -910,18 +931,20 @@ impl<'a> Search<'a> {
                     if score > best_score {
                         best_score = score;
                         best_move = Some(mov);
-                        if score > alpha {
-                            alpha = score;
-                            if score >= beta {
-                                break;
-                            }
-                        }
+                    }
+
+                    if score > alpha {
+                        alpha = score;
+                    }
+
+                    if score >= beta {
+                        break;
                     }
                 }
             }
         }
 
-        if num_moves == 0 {
+        if num_moves_searched == 0 {
             if in_check {
                 return Some(-MATE_SCORE + ply);
             } else {
@@ -934,12 +957,14 @@ impl<'a> Search<'a> {
         } else {
             alpha
         };
+
         if depth == 0 {
             let bound = if best_score >= beta {
                 LOWER_BOUND
             } else {
                 UPPER_BOUND
             };
+
             self.tt.insert(
                 self.hasher.get_hash(),
                 0,
@@ -949,6 +974,7 @@ impl<'a> Search<'a> {
                 eval,
             );
         }
+
         Some(score)
     }
 
@@ -962,6 +988,7 @@ impl<'a> Search<'a> {
                 .best_move
                 .expand(&self.position)
                 .filter(|&mov| self.position.move_is_pseudo_legal(mov));
+
             (mov.map(|_| ttentry), mov)
         } else {
             (None, None)
@@ -1185,6 +1212,8 @@ impl<'a> Search<'a> {
     }
 
     fn make_move(&mut self, mov: Option<Move>, ply: Ply) {
+        let white_move = self.position.white_to_move;
+
         let current_ply = &mut self.stack[ply as usize];
         current_ply.irreversible_details = self.position.details;
         current_ply.current_move = mov;
@@ -1195,7 +1224,7 @@ impl<'a> Search<'a> {
 
         if let Some(mov) = mov {
             self.hasher.make_move(&self.position, mov);
-            self.eval.make_move(mov, &self.position);
+            self.eval.make_move(mov, white_move);
             self.position.make_move(mov);
         } else {
             self.hasher.make_nullmove(&self.position);
@@ -1213,18 +1242,21 @@ impl<'a> Search<'a> {
     }
 
     fn unmake_move(&mut self, mov: Option<Move>, ply: Ply) {
+        let white_move = !self.position.white_to_move;
+
         let prev_ply = &self.stack[ply as usize];
-        let irreversible = self.stack[ply as usize].irreversible_details;
-        self.repetitions.pop_position();
+        let irreversible = prev_ply.irreversible_details;
 
         if let Some(mov) = mov {
-            self.eval.unmake_move(mov, &self.position);
+            self.eval.unmake_move(mov, white_move);
             self.position.unmake_move(mov, irreversible);
             self.hasher.set(prev_ply.hash, prev_ply.pawn_hash);
         } else {
             self.position.unmake_nullmove(irreversible);
             self.hasher.set(prev_ply.hash, prev_ply.pawn_hash);
         }
+
+        self.repetitions.pop_position();
     }
 
     pub fn set_time_control(&mut self, tc: TimeControl) {
@@ -1233,7 +1265,7 @@ impl<'a> Search<'a> {
     }
 }
 
-fn lmr_reduction(depth: Depth, move_count: i16, pv: bool) -> Depth {
-    let r = (depth / INC_PLY + move_count) / 8 - pv as i16;
+fn lmr_reduction(depth: Depth, move_count: i16) -> Depth {
+    let r = (depth / INC_PLY + move_count) / 8;
     r * INC_PLY
 }

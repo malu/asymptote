@@ -312,7 +312,7 @@ impl Position {
         if mov.piece == Piece::King {
             king = mov.to;
 
-            if mov.from.to_bb().left(2) & mov.to {
+            if mov.is_queenside_castle() {
                 // Queenside castling
                 if self.is_attacked(mov.from) || self.is_attacked(mov.from.left(1)) {
                     return false;
@@ -324,7 +324,7 @@ impl Position {
                 // Rook movement
                 all_pieces ^= mov.to.left(2);
                 all_pieces ^= mov.to.right(1);
-            } else if mov.from.to_bb().right(2) & mov.to {
+            } else if mov.is_kingside_castle() {
                 // Kingside castling
                 if self.is_attacked(mov.from) || self.is_attacked(mov.from.right(1)) {
                     return false;
@@ -520,7 +520,7 @@ impl Position {
             }
             Piece::King => {
                 self.king_sq[self.white_to_move as usize] = mov.to;
-                if mov.from.right(2) == mov.to {
+                if mov.is_kingside_castle() {
                     // castle kingside
                     self.bb[Piece::Rook.index()] ^= mov.to.right(1);
                     self.bb[Piece::Rook.index()] ^= mov.to.left(1);
@@ -528,7 +528,7 @@ impl Position {
                         self.color ^= mov.to.right(1);
                         self.color ^= mov.to.left(1);
                     }
-                } else if mov.from.left(2) == mov.to {
+                } else if mov.is_queenside_castle() {
                     // castle queenside
                     self.bb[Piece::Rook.index()] ^= mov.to.left(2);
                     self.bb[Piece::Rook.index()] ^= mov.to.right(1);
@@ -620,16 +620,14 @@ impl Position {
 
         if mov.piece == Piece::King {
             self.king_sq[unmaking_white_move as usize] = mov.from;
-            if mov.from.right(2) == mov.to {
-                // castle kingside
+            if mov.is_kingside_castle() {
                 self.bb[Piece::Rook.index()] ^= mov.to.right(1);
                 self.bb[Piece::Rook.index()] ^= mov.to.left(1);
                 if unmaking_white_move {
                     self.color ^= mov.to.right(1);
                     self.color ^= mov.to.left(1);
                 }
-            } else if mov.from.left(2) == mov.to {
-                // castle queenside
+            } else if mov.is_queenside_castle() {
                 self.bb[Piece::Rook.index()] ^= mov.to.left(2);
                 self.bb[Piece::Rook.index()] ^= mov.to.right(1);
                 if unmaking_white_move {

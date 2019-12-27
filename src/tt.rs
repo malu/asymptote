@@ -212,10 +212,10 @@ pub struct TTEntry {
 impl TTEntry {
     pub fn get_eval(&self) -> Option<Score> {
         if self.flags & FLAG_HAS_SCORE > 0 {
-            return Some(self.eval);
+            Some(self.eval)
+        } else {
+            None
         }
-
-        return None;
     }
 
     pub fn has_move(&self) -> bool {

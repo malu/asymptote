@@ -53,11 +53,11 @@ const fn S(mg: i16, eg: i16) -> EScore {
     ((eg as u32) << 16) as EScore + mg as EScore
 }
 
-pub fn mg(s: EScore) -> i16 {
+pub const fn mg(s: EScore) -> i16 {
     (s & 0xFFFF) as i16
 }
 
-pub fn eg(s: EScore) -> i16 {
+pub const fn eg(s: EScore) -> i16 {
     ((s + 0x8000) as u32 >> 16) as i16
 }
 
@@ -283,12 +283,11 @@ impl Eval {
     }
 
     fn mobility_for_side(&mut self, pos: &Position, white: bool) -> EScore {
+        let s = white as usize;
         let us = pos.us(white);
         let them = pos.them(white);
-
         let rank3 = if white { RANK_3 } else { RANK_6 };
 
-        let s = white as usize;
         self.attacked_by[s] = [Bitboard::from(0); 6];
         self.attacked_by_1[s] = Bitboard::from(0);
         self.attacked_by_2[s] = Bitboard::from(0);
@@ -310,8 +309,7 @@ impl Eval {
 
         let mut score = S(0, 0);
         let their_pawns = pos.pawns() & !us;
-        let their_pawn_attacks =
-            their_pawns.forward(!white, 1).left(1) | their_pawns.forward(!white, 1).right(1);
+        let their_pawn_attacks = (their_pawns.left(1) | their_pawns.right(1)).forward(!white, 1);
         for knight in (pos.knights() & us).squares() {
             let b = KNIGHT_ATTACKS[knight];
             let mobility = b & !their_pawn_attacks;
@@ -412,13 +410,8 @@ impl Eval {
             self.trace.material[q][side] = self.material[side][q] as i8;
             self.trace.material[k][side] = 1;
 
-            if self.material[side][b] > 1 {
-                self.trace.bishops_pair[side] = 1;
-            }
-
-            if self.material[side][r] > 1 {
-                self.trace.rooks_pair[side] = 1;
-            }
+            self.trace.bishops_pair[side] = cmp::min(1, self.material[side][b] as i8);
+            self.trace.rooks_pair[side] = cmp::min(1, self.material[side][r] as i8);
         }
 
         score
@@ -451,7 +444,8 @@ impl Eval {
 
         for pawn in (pos.pawns() & us).squares() {
             let corridor_bb = PAWN_CORRIDOR[side][pawn];
-            let file_bb = FILES[pawn.file() as usize];
+            let file = pawn.file() as usize;
+            let file_bb = FILES[file];
             let file_forward_bb = corridor_bb & file_bb;
             let passed = (corridor_bb & them & pos.pawns()).is_empty();
             let doubled = (file_forward_bb & us & pos.pawns()).at_least_one();
@@ -471,12 +465,12 @@ impl Eval {
                 let relative_rank = pawn.relative_rank(white) as usize;
 
                 score += PASSED_PAWN_ON_RANK[relative_rank];
-                score += PASSED_PAWN_ON_FILE[pawn.file() as usize];
+                score += PASSED_PAWN_ON_FILE[file];
 
                 #[cfg(feature = "tune")]
                 {
                     self.trace.pawns_passed[relative_rank][side] += 1;
-                    self.trace.pawns_passed_file[pawn.file() as usize][side] += 1;
+                    self.trace.pawns_passed_file[file][side] += 1;
                 }
             }
 
@@ -507,6 +501,7 @@ impl Eval {
         let mut score = 0;
 
         for bishop in (pos.bishops() & us).squares() {
+            // Give bonus for attacked squares, ignoring everything but pawns
             let xray = get_bishop_attacks_from(bishop, pos.pawns());
             score += XRAYED_SQUARE * xray.popcount() as EScore;
             #[cfg(feature = "tune")]
@@ -552,8 +547,8 @@ impl Eval {
 
         let king = pos.kings() & us;
         let king_sq = pos.king_sq(white);
-        let file = king_sq.file();
-        let king_file = FILES[file as usize];
+        let file = king_sq.file() as usize;
+        let king_file = FILES[file];
         let adjacent_files = king.left(1) | king | king.right(1);
         let front = adjacent_files.forward(white, 1);
         let distant_front = adjacent_files.forward(white, 2);
@@ -588,12 +583,6 @@ impl Eval {
         const SAFE_SQUARES_PENALTY: [usize; 9] = [3, 2, 1, 0, 0, 0, 0, 0, 0];
         index += SAFE_SQUARES_PENALTY[safe_squares.popcount()];
 
-        let safe_knight_checks = !self.attacked_by_1[side] & KNIGHT_ATTACKS[king_sq];
-        let safe_bishop_checks =
-            !self.attacked_by_1[side] & get_bishop_attacks_from(king_sq, pos.all_pieces);
-        let safe_rook_checks =
-            !self.attacked_by_1[side] & get_rook_attacks_from(king_sq, pos.all_pieces);
-
         let queen_contact_checks = KING_ATTACKS[king_sq]
             & self.attacked_by[1 - side][Piece::Queen.index()]
             & self.attacked_by_2[1 - side]
@@ -608,14 +597,7 @@ impl Eval {
         let mut attack_count = 0;
         let king_area = KING_ATTACKS[king_sq];
 
-        for piece in &[
-            Piece::Pawn,
-            Piece::Knight,
-            Piece::Bishop,
-            Piece::Rook,
-            Piece::Queen,
-            Piece::King,
-        ] {
+        for piece in &Piece::all() {
             if (king_area & self.attacked_by[1 - side][piece.index()]).at_least_one() {
                 attack_value += S(KING_DANGER[piece.index()], 0);
                 attack_count += 1;
@@ -634,6 +616,12 @@ impl Eval {
         {
             self.trace.king_safety[index][side] += 1;
         }
+
+        let safe_knight_checks = !self.attacked_by_1[side] & KNIGHT_ATTACKS[king_sq];
+        let safe_bishop_checks =
+            !self.attacked_by_1[side] & get_bishop_attacks_from(king_sq, pos.all_pieces);
+        let safe_rook_checks =
+            !self.attacked_by_1[side] & get_rook_attacks_from(king_sq, pos.all_pieces);
 
         if (safe_knight_checks & self.attacked_by[1 - side][Piece::Knight.index()]).at_least_one() {
             score += KING_CHECK_KNIGHT;
@@ -702,16 +690,16 @@ impl Eval {
         sf
     }
 
-    pub fn make_move(&mut self, mov: Move, pos: &Position) {
-        let side = pos.white_to_move as usize;
-        self.pst[side] -= pst(&PST[mov.piece.index()], pos.white_to_move, mov.from);
+    pub fn make_move(&mut self, mov: Move, white: bool) {
+        let side = white as usize;
+        self.pst[side] -= pst(&PST[mov.piece.index()], white, mov.from);
 
         if let Some(promoted) = mov.promoted {
             self.material[side][Piece::Pawn.index()] -= 1;
             self.material[side][promoted.index()] += 1;
-            self.pst[side] += pst(&PST[promoted.index()], pos.white_to_move, mov.to);
+            self.pst[side] += pst(&PST[promoted.index()], white, mov.to);
         } else {
-            self.pst[side] += pst(&PST[mov.piece.index()], pos.white_to_move, mov.to);
+            self.pst[side] += pst(&PST[mov.piece.index()], white, mov.to);
         }
 
         if let Some(captured) = mov.captured {
@@ -719,37 +707,34 @@ impl Eval {
             if mov.en_passant {
                 self.pst[1 - side] -= pst(
                     &PST[Piece::Pawn.index()],
-                    !pos.white_to_move,
-                    mov.to.backward(pos.white_to_move, 1),
+                    !white,
+                    mov.to.backward(white, 1),
                 );
             } else {
-                self.pst[1 - side] -= pst(&PST[captured.index()], !pos.white_to_move, mov.to);
+                self.pst[1 - side] -= pst(&PST[captured.index()], !white, mov.to);
             }
         }
 
         if mov.piece == Piece::King {
-            if mov.from.right(2) == mov.to {
-                // castle kingside
+            if mov.is_kingside_castle() {
                 self.pst[side] -= pst(
                     &PST[Piece::Rook.index()],
-                    pos.white_to_move,
+                    white,
                     mov.to.right(1),
                 );
-                self.pst[side] += pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(1));
-            } else if mov.from.left(2) == mov.to {
-                // castle queenside
-                self.pst[side] -= pst(&PST[Piece::Rook.index()], pos.white_to_move, mov.to.left(2));
+                self.pst[side] += pst(&PST[Piece::Rook.index()], white, mov.to.left(1));
+            } else if mov.is_queenside_castle() {
+                self.pst[side] -= pst(&PST[Piece::Rook.index()], white, mov.to.left(2));
                 self.pst[side] += pst(
                     &PST[Piece::Rook.index()],
-                    pos.white_to_move,
+                    white,
                     mov.to.right(1),
                 );
             }
         }
     }
 
-    pub fn unmake_move(&mut self, mov: Move, pos: &Position) {
-        let unmaking_white_move = !pos.white_to_move;
+    pub fn unmake_move(&mut self, mov: Move, unmaking_white_move: bool) {
         let side = unmaking_white_move as usize;
 
         self.pst[side] += pst(&PST[mov.piece.index()], unmaking_white_move, mov.from);
@@ -759,11 +744,11 @@ impl Eval {
             if mov.en_passant {
                 self.pst[1 - side] += pst(
                     &PST[Piece::Pawn.index()],
-                    pos.white_to_move,
+                    !unmaking_white_move,
                     mov.to.backward(unmaking_white_move, 1),
                 );
             } else {
-                self.pst[1 - side] += pst(&PST[captured.index()], pos.white_to_move, mov.to);
+                self.pst[1 - side] += pst(&PST[captured.index()], !unmaking_white_move, mov.to);
             }
         }
 
@@ -776,8 +761,7 @@ impl Eval {
         }
 
         if mov.piece == Piece::King {
-            if mov.from.right(2) == mov.to {
-                // castle kingside
+            if mov.is_kingside_castle() {
                 self.pst[side] += pst(
                     &PST[Piece::Rook.index()],
                     unmaking_white_move,
@@ -788,8 +772,7 @@ impl Eval {
                     unmaking_white_move,
                     mov.to.left(1),
                 );
-            } else if mov.from.left(2) == mov.to {
-                // castle queenside
+            } else if mov.is_queenside_castle() {
                 self.pst[side] += pst(
                     &PST[Piece::Rook.index()],
                     unmaking_white_move,

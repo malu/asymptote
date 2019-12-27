@@ -240,7 +240,7 @@ impl Hasher {
         }
 
         if mov.piece == Piece::King {
-            if mov.from.right(2) == mov.to {
+            if mov.is_kingside_castle() {
                 // castle kingside
                 self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1)];
                 self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(1)];
@@ -248,7 +248,7 @@ impl Hasher {
                     self.hash ^= self.color[mov.to.right(1)];
                     self.hash ^= self.color[mov.to.left(1)];
                 }
-            } else if mov.from.left(2) == mov.to {
+            } else if mov.is_queenside_castle() {
                 // castle queenside
                 self.hash ^= self.hashes[Piece::Rook.index()][mov.to.left(2)];
                 self.hash ^= self.hashes[Piece::Rook.index()][mov.to.right(1)];

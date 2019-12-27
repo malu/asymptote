@@ -69,7 +69,7 @@ impl Bitboard {
     }
 
     pub fn more_than_one(self) -> bool {
-        self.0 & (self.0 - 1) != 0
+        self.0 & (self.0.wrapping_sub(1)) != 0
     }
 
     pub fn squares(self) -> SquareIterator {
@@ -196,14 +196,12 @@ impl Square {
     }
 
     pub fn right(self, files: u8) -> Self {
-        // TODO: Are these possible overflows dangerous?
-        // FIXME: Yes, they are...
+        debug_assert!(self.file() + files < 8);
         Square(self.0 + files)
     }
 
     pub fn left(self, files: u8) -> Self {
-        // TODO: Are these possible overflows dangerous?
-        // FIXME: Yes, they are...
+        debug_assert!(self.file() >= files);
         Square(self.0 - files)
     }
 
