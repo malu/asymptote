@@ -666,6 +666,10 @@ impl Position {
 
     /// Finds the piece type occupying `at`.
     pub fn find_piece(&self, at: Square) -> Option<Piece> {
+        if !(self.all_pieces & at) {
+            return None;
+        }
+
         if self.pawns() & at {
             Some(Piece::Pawn)
         } else if self.knights() & at {
