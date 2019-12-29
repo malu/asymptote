@@ -149,6 +149,11 @@ impl<'a> Search<'a> {
                 // have to add the current half move counter.
                 let score;
                 let bound;
+
+                // The given dtz is the dtz _after_ doing mov. We want to now
+                // the dtz _before_ making the move.
+                let dtz = -dtz;
+
                 match shakmaty_syzygy::Wdl::from_dtz_after_zeroing(
                     dtz.add_plies(self.position.details.halfmove as i32),
                 ) {
