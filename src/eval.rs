@@ -73,6 +73,8 @@ pub const MATE_SCORE: Score = 20000;
 pub const SF_NORMAL: i32 = 64;
 const SF_PAWNLESS: i32 = 32;
 
+pub const TEMPO_SCORE: EScore = S(26, 23);
+
 pub const PAWN_SCORE: EScore = S(100, 121);
 pub const KNIGHT_SCORE: EScore = S(330, 290);
 pub const BISHOP_SCORE: EScore = S(324, 318);
@@ -244,6 +246,12 @@ impl Eval {
         score += self.king_safety_for_side(pos, true) - self.king_safety_for_side(pos, false);
         score += self.pawns(pos, pawn_hash);
 
+        if pos.white_to_move {
+            score += TEMPO_SCORE;
+        } else {
+            score -= TEMPO_SCORE;
+        }
+
         let phase = self.phase();
         let mut score = interpolate(score, phase);
 
@@ -252,6 +260,11 @@ impl Eval {
         score /= SF_NORMAL;
 
         let score = score as Score;
+
+        #[cfg(feature = "tune")]
+        {
+            self.trace.tempo[pos.white_to_move as usize] = 1;
+        }
 
         if pos.white_to_move {
             score

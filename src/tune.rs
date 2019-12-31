@@ -47,6 +47,8 @@ use crate::types::SquareMap;
 //         = \sum_i 2 * (r_i - \sigma(q_i)) * - (x_j * \sigma(q) * (1-\sigma(q)))
 //         = -2 \sum_i x_j * (r_i - \sigma(q_i)) * \sigma(q) * (1-\sigma(q))
 
+const TUNE_TEMPO: bool = false;
+
 const TUNE_MATERIAL_PAWN: bool = false;
 const TUNE_MATERIAL_KNIGHT: bool = false;
 const TUNE_MATERIAL_BISHOP: bool = false;
@@ -88,6 +90,7 @@ const TUNE_PST_KING: bool = false;
 #[derive(Clone)]
 pub struct Trace {
     result: f32,
+    pub tempo: [i8; 2],
     pub material: [[i8; 2]; 6],
 
     pub mobility_pawn: [i8; 2],
@@ -131,6 +134,7 @@ pub struct Trace {
 #[derive(Clone)]
 pub struct CompactTrace {
     result: f32,
+    tempo: i8,
     material: [i8; 6],
 
     mobility_pawn: i8,
@@ -231,6 +235,7 @@ impl From<Trace> for CompactTrace {
 
         CompactTrace {
             result: t.result,
+            tempo: t.tempo[1] - t.tempo[0],
             material,
 
             mobility_pawn: t.mobility_pawn[1] - t.mobility_pawn[0],
@@ -276,6 +281,7 @@ impl From<Trace> for CompactTrace {
 #[derive(Clone)]
 pub struct Parameters {
     pub k: f32,
+    tempo: (f32, f32),
     material: [(f32, f32); 6],
 
     mobility_pawn: (f32, f32),
@@ -405,6 +411,7 @@ impl Default for Trace {
             result: -1.,
             phase: 0,
             sf: SF_NORMAL as i8,
+            tempo: [0; 2],
             material: [[0; 2]; 6],
 
             mobility_pawn: [0; 2],
@@ -461,6 +468,9 @@ impl CompactTrace {
         let phase = self.phase as f32;
         let sf = self.sf as f32 / SF_NORMAL as f32;
         let mut score = (0., 0.);
+
+        // Tempo
+        evaluate_single(&mut score, params.tempo, self.tempo);
 
         // Material
         evaluate_array(&mut score, &params.material, &self.material);
@@ -540,6 +550,10 @@ fn sigmoid(k: f32, q: f32) -> f32 {
 
 impl Parameters {
     pub fn print_weights(&self) {
+        if TUNE_TEMPO {
+            print_single(self.tempo, "TEMPO_SCORE");
+        }
+
         if TUNE_MATERIAL_PAWN {
             print_single(self.material[0], "PAWN_SCORE");
         }
@@ -717,6 +731,7 @@ impl Parameters {
     }
 
     pub fn gradient_descent_step(&mut self, traces: &[CompactTrace], f: f32) {
+        let mut g_tempo = (0., 0.);
         let mut g_material = [(0., 0.); 6];
 
         let mut g_mobility_pawn = (0., 0.);
@@ -763,6 +778,10 @@ impl Parameters {
             let s = sigmoid(self.k, trace.evaluate(&self));
             let sf = trace.sf as f32 / SF_NORMAL as f32;
             let grad = -(r - s) * s * (1. - s) * sf;
+
+            if TUNE_TEMPO {
+                update_gradient(&mut g_tempo, trace.tempo, grad, phase);
+            }
 
             if TUNE_MATERIAL_PAWN {
                 // For pawns we only tune endgame scores and leave the midgame scores fixed at 100.
@@ -954,6 +973,8 @@ impl Parameters {
 
         let mut norm = 0.;
 
+        norm += norm_single(g_tempo);
+
         norm += norm_array(&g_material);
 
         norm += norm_single(g_mobility_pawn);
@@ -1007,6 +1028,8 @@ impl Parameters {
 
         norm = norm.sqrt();
         let f = f / norm;
+
+        update_parameter(&mut self.tempo, g_tempo, f / n);
 
         update_parameter_array(&mut self.material, &g_material, f / n);
 
@@ -1127,6 +1150,7 @@ impl Default for Parameters {
 
         Parameters {
             k: 1.,
+            tempo: (mg(TEMPO_SCORE) as f32, eg(TEMPO_SCORE) as f32),
             material: [
                 (mg(PAWN_SCORE) as f32, eg(PAWN_SCORE) as f32),
                 (mg(KNIGHT_SCORE) as f32, eg(KNIGHT_SCORE) as f32),
@@ -1135,7 +1159,7 @@ impl Default for Parameters {
                 (mg(QUEEN_SCORE) as f32, eg(QUEEN_SCORE) as f32),
                 (10000., 10000.),
             ],
-            mobility_pawn: (6., 6.),
+            mobility_pawn: (mg(PAWN_MOBILITY) as f32, eg(PAWN_MOBILITY) as f32),
             mobility_knight,
             mobility_bishop,
             mobility_rook,

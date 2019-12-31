@@ -126,7 +126,7 @@ impl TT {
                 key: (hash >> 32) as u32,
                 depth,
                 score,
-                best_move: best_move.map_or(TTMove { from: 0, to: 0}, TTMove::from),
+                best_move: best_move.map_or(TTMove { from: 0, to: 0 }, TTMove::from),
                 bound,
                 generation: self.generation,
                 eval: eval.unwrap_or(0),

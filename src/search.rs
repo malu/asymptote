@@ -1207,7 +1207,6 @@ impl<'a> Search<'a> {
         let next_ply = &mut self.stack[1 + ply as usize];
         next_ply.hash = self.hasher.get_hash();
         next_ply.pawn_hash = self.hasher.get_pawn_hash();
-
     }
 
     fn unmake_move(&mut self, mov: Option<Move>, ply: Ply) {

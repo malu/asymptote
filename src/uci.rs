@@ -269,7 +269,7 @@ fn tune(path: &str) {
     let mut best = initial_error;
     println!("Error      : {:>8.6}", last_printed_error);
 
-    let mut f = 1.;
+    let mut f = 5.;
 
     for i in 1.. {
         shuffle_traces(&mut traces);
