@@ -493,7 +493,7 @@ impl<'a> Search<'a> {
             // Prune nodes that are so good that we could pass without the opponent
             // catching up.
             if !has_excluded_move && !in_check && self.eval.phase() > 0 && eval >= beta {
-                let r = INC_PLY + depth / 4 + cmp::min(2 * INC_PLY, eval - beta);
+                let r = INC_PLY + depth / 4 + cmp::min(2 * INC_PLY, (eval - beta) / 2);
                 self.make_move(None, ply);
                 let score = self
                     .search(ply + 1, -alpha - 1, -alpha, depth - INC_PLY - r)
