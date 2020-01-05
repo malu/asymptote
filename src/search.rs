@@ -417,6 +417,7 @@ impl<'a> Search<'a> {
         if self.position.details.halfmove == 0
             && self.position.details.en_passant == 255
             && self.position.details.castling == 0
+            && !has_excluded_move
         {
             let piece_count = self.position.all_pieces.popcount();
             let max_pieces = self.syzygy.get_max_pieces();
@@ -471,6 +472,7 @@ impl<'a> Search<'a> {
 
         if let Some(eval) = eval {
             skip_quiets = !in_check
+                && !has_excluded_move
                 && depth < 3 * INC_PLY
                 && eval + FUTILITY_MARGIN * (depth / INC_PLY) < alpha;
 
@@ -479,6 +481,7 @@ impl<'a> Search<'a> {
             // Prune nodes at shallow depth if current evaluation is above beta by
             // a large (depth-dependent) margin.
             if !in_check
+                && !has_excluded_move
                 && depth < STATIC_BETA_DEPTH
                 && eval - STATIC_BETA_MARGIN * (depth / INC_PLY) > beta
             {
