@@ -132,26 +132,39 @@ impl<'a> MovePicker<'a> {
     }
 
     fn get_move(&mut self) -> Option<Move> {
-        assert!(self.moves.len() == self.scores.len());
+        let mov = Self::get_move_from_lists(self.index, &mut self.moves, &mut self.scores);
+        self.index += 1;
+        mov
+    }
+
+    fn get_bad_move(&mut self) -> Option<Move> {
+        let mov = Self::get_move_from_lists(self.index, &mut self.bad_moves, &mut self.bad_scores);
+        self.index += 1;
+        mov
+    }
+
+    fn get_move_from_lists(
+        index: usize,
+        moves: &mut MoveList,
+        scores: &mut ScoreList,
+    ) -> Option<Move> {
+        assert!(moves.len() == scores.len());
 
         // Iterator::max_by_key chooses the last maximal element, but we want
         // the first (for no particular reason other than that's what was done
         // before). Hence we reverse the iterator first.
-        let (best_index, _) = self
-            .scores
+        let (best_index, _) = scores
             .iter()
             .enumerate()
-            .skip(self.index)
+            .skip(index)
             .rev()
             .max_by_key(|(_, &score)| score)?;
 
-        assert!(self.index < self.moves.len());
+        assert!(index < moves.len());
 
-        self.moves.swap(self.index, best_index);
-        self.scores.swap(self.index, best_index);
-        let mov = self.moves[self.index];
-        self.index += 1;
-        Some(mov)
+        moves.swap(index, best_index);
+        scores.swap(index, best_index);
+        Some(moves[index])
     }
 
     pub fn next(&mut self, position: &Position, history: &History) -> Option<(MoveType, Move)> {
@@ -280,14 +293,12 @@ impl<'a> MovePicker<'a> {
                 }
             }
             Stage::GenerateBadCaptures => {
-                std::mem::swap(&mut self.moves, &mut self.bad_moves);
-                std::mem::swap(&mut self.scores, &mut self.bad_scores);
                 self.index = 0;
                 self.stage += 1;
                 self.next(position, history)
             }
             Stage::BadCaptures => {
-                if let Some(mov) = self.get_move() {
+                if let Some(mov) = self.get_bad_move() {
                     if self.excluded.contains(&mov) {
                         self.next(position, history)
                     } else {
