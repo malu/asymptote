@@ -513,12 +513,15 @@ impl Move {
     }
 
     pub fn is_kingside_castle(self) -> bool {
-        self.piece == Piece::King && (self.from == SQUARE_E1 || self.from == SQUARE_E8) && self.to == self.from.right(2)
+        self.piece == Piece::King
+            && (self.from == SQUARE_E1 || self.from == SQUARE_E8)
+            && self.to == self.from.right(2)
     }
 
-
     pub fn is_queenside_castle(self) -> bool {
-        self.piece == Piece::King && (self.from == SQUARE_E1 || self.from == SQUARE_E8) && self.to == self.from.left(2)
+        self.piece == Piece::King
+            && (self.from == SQUARE_E1 || self.from == SQUARE_E8)
+            && self.to == self.from.left(2)
     }
 
     pub fn mvv_lva_score(self) -> i64 {

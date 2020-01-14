@@ -539,6 +539,41 @@ impl<'a> Search<'a> {
             }
         }
 
+        // ProbCut
+        // If a capture or promotion leads to a beta cutoff in a reduced-depth search with increased beta bound, we
+        // assume it will also lead to a cutoff in a full-depth search with the original beta bound.
+        if !in_check && !is_pv && !has_excluded_move && depth >= 6 * INC_PLY {
+            let mut moves = MovePicker::qsearch(&self.position);
+
+            let probcut_beta = beta + 150;
+
+            while let Some((_, mov)) = moves.next(&self.position, &self.history) {
+                if !self.position.move_is_legal(mov) {
+                    continue;
+                }
+
+                self.make_move(Some(mov), ply);
+                let value = self
+                    .search(
+                        ply + 1,
+                        -probcut_beta,
+                        -probcut_beta + 1,
+                        depth - 4 * INC_PLY,
+                    )
+                    .map(|v| -v);
+                self.unmake_move(Some(mov), ply);
+
+                match value {
+                    None => return None,
+                    Some(value) => {
+                        if value >= probcut_beta {
+                            return Some(value);
+                        }
+                    }
+                }
+            }
+        }
+
         let mut moves = MovePicker::new(
             ttmove,
             self.stack[ply as usize].killers_moves,
@@ -731,7 +766,6 @@ impl<'a> Search<'a> {
                 self.quiets[ply as usize][num_quiet_moves_searched] = Some(mov);
                 num_quiet_moves_searched += 1;
             }
-
 
             match value {
                 None => {

@@ -705,11 +705,8 @@ impl Eval {
         if let Some(captured) = mov.captured {
             self.material[1 - side][captured.index()] -= 1;
             if mov.en_passant {
-                self.pst[1 - side] -= pst(
-                    &PST[Piece::Pawn.index()],
-                    !white,
-                    mov.to.backward(white, 1),
-                );
+                self.pst[1 - side] -=
+                    pst(&PST[Piece::Pawn.index()], !white, mov.to.backward(white, 1));
             } else {
                 self.pst[1 - side] -= pst(&PST[captured.index()], !white, mov.to);
             }
@@ -717,19 +714,11 @@ impl Eval {
 
         if mov.piece == Piece::King {
             if mov.is_kingside_castle() {
-                self.pst[side] -= pst(
-                    &PST[Piece::Rook.index()],
-                    white,
-                    mov.to.right(1),
-                );
+                self.pst[side] -= pst(&PST[Piece::Rook.index()], white, mov.to.right(1));
                 self.pst[side] += pst(&PST[Piece::Rook.index()], white, mov.to.left(1));
             } else if mov.is_queenside_castle() {
                 self.pst[side] -= pst(&PST[Piece::Rook.index()], white, mov.to.left(2));
-                self.pst[side] += pst(
-                    &PST[Piece::Rook.index()],
-                    white,
-                    mov.to.right(1),
-                );
+                self.pst[side] += pst(&PST[Piece::Rook.index()], white, mov.to.right(1));
             }
         }
     }
