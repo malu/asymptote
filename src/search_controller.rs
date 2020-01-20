@@ -105,7 +105,11 @@ impl SearchController {
                 let mut thread = main_thread.clone();
                 thread.id = id;
                 thread.set_time_control(TimeControl::Infinite);
-                s.spawn(move |_| thread.iterative_deepening());
+                s.builder()
+                    .name(format!("Helper thread #{:>3}", id))
+                    .stack_size(8 * 1024 * 1024)
+                    .spawn(move |_| thread.iterative_deepening())
+                    .unwrap();
             }
 
             main_thread.iterative_deepening()

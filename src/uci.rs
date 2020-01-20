@@ -58,11 +58,14 @@ impl UCI {
     pub fn new() -> UCI {
         let (main_tx, main_rx) = sync::mpsc::channel();
         let abort = sync::Arc::new(sync::atomic::AtomicBool::new(false));
+        let builder = thread::Builder::new()
+            .name("Main thread".into())
+            .stack_size(8 * 1024 * 1024);
         UCI {
             abort: sync::Arc::clone(&abort),
-            _main_thread: thread::spawn(move || {
-                SearchController::new(STARTING_POSITION, abort).looping(main_rx)
-            }),
+            _main_thread: builder
+                .spawn(move || SearchController::new(STARTING_POSITION, abort).looping(main_rx))
+                .unwrap(),
             main_thread_tx: main_tx,
         }
     }
