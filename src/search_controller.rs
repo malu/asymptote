@@ -66,19 +66,20 @@ pub struct SearchController {
 
 impl SearchController {
     pub fn new(position: Position, abort: Arc<AtomicBool>) -> SearchController {
-        let mut hasher = Hasher::new();
-        hasher.from_position(&position);
-        SearchController {
+        let mut controller = SearchController {
             abort,
             node_count: 0,
-            hasher,
+            hasher: Hasher::new(),
             options: PersistentOptions::default(),
-            position,
+            position: position.clone(),
             time_control: TimeControl::Infinite,
             tt: TT::new(14),
             repetitions: Repetitions::new(100),
             syzygy: Syzygy::new(),
-        }
+        };
+
+        controller.handle_position(position, vec![]);
+        controller
     }
 
     pub fn get_best_move(&mut self) -> Move {

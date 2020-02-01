@@ -30,8 +30,6 @@ impl Repetitions {
             past_positions.push(Vec::with_capacity(100));
         }
 
-        past_positions[0].push(0);
-
         Repetitions {
             past_positions,
             index: 0,
@@ -40,7 +38,6 @@ impl Repetitions {
 
     pub fn clear(&mut self) {
         self.past_positions.iter_mut().for_each(Vec::clear);
-        self.past_positions[0].push(0);
         self.index = 0;
     }
 
