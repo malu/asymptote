@@ -21,7 +21,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
 
-use crate::bitboard::{Square, ALL_SQUARES};
+use crate::bitboard::ALL_SQUARES;
 use crate::eval::*;
 use crate::history::History;
 use crate::movegen::Piece;
@@ -62,12 +62,12 @@ const TUNE_MOBILITY_ROOK: bool = false;
 const TUNE_MOBILITY_QUEEN: bool = false;
 
 const TUNE_PAWNS_DOUBLED: bool = false;
-const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
 const TUNE_PAWNS_ISOLATED: bool = false;
+const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
 const TUNE_PAWNS_PASSED: bool = false;
 
-const TUNE_BISHOPS_XRAY: bool = false;
 const TUNE_BISHOPS_PAIR: bool = false;
+const TUNE_BISHOPS_XRAY: bool = false;
 
 const TUNE_ROOKS_OPEN_FILE: bool = false;
 const TUNE_ROOKS_HALFOPEN_FILE: bool = false;
@@ -90,6 +90,11 @@ const TUNE_PST_KING: bool = false;
 #[derive(Clone)]
 pub struct Trace {
     result: f32,
+    pub phase: i8,
+    pub sf: i8,
+
+    pub base_eval: EScore,
+
     pub tempo: [i8; 2],
     pub material: [[i8; 2]; 6],
 
@@ -126,35 +131,16 @@ pub struct Trace {
     pub pst_rook: SquareMap<[i8; 2]>,
     pub pst_queen: SquareMap<[i8; 2]>,
     pub pst_king: SquareMap<[i8; 2]>,
-
-    pub phase: i8,
-    pub sf: i8,
 }
 
 #[derive(Clone)]
 pub struct CompactTrace {
     result: f32,
-    tempo: i8,
-    material: [i8; 6],
+    phase: i8,
+    sf: i8,
 
-    mobility_pawn: i8,
-    mobility_knight: [i8; 9],
-    mobility_bishop: [i8; 14],
-    mobility_rook: [i8; 15],
-    mobility_queen: [i8; 29],
-
-    pawns_doubled: i8,
-    pawns_passed: [i8; 8],
-    pawns_passed_file: [i8; 8],
-    pawns_open_isolated: i8,
-    pawns_isolated: i8,
-
-    bishops_xray: i8,
-    bishops_pair: i8,
-
-    rooks_open_file: i8,
-    rooks_halfopen_file: i8,
-    rooks_pair: i8,
+    base_eval: (f32, f32),
+    linear: Vec<i8>,
 
     king_safety: [i8; 30],
     king_check_knight: i8,
@@ -164,98 +150,160 @@ pub struct CompactTrace {
     // Since the king danger computation is non linear, we have to keep the individual counts
     king_danger: [[i8; 2]; 6],
     king_danger_attacks: [i8; 2],
-
-    pst_pawn: SquareMap<i8>,
-    pst_knight: SquareMap<i8>,
-    pst_bishop: SquareMap<i8>,
-    pst_rook: SquareMap<i8>,
-    pst_queen: SquareMap<i8>,
-    pst_king: SquareMap<i8>,
-
-    phase: i8,
-    sf: i8,
 }
 
 impl From<Trace> for CompactTrace {
     fn from(t: Trace) -> Self {
-        let mut material = [0; 6];
-        for i in 0..6 {
-            material[i] = t.material[i][1] - t.material[i][0];
+        let mut linear = Vec::new();
+
+        if TUNE_MATERIAL_PAWN {
+            linear.push(t.material[Piece::Pawn.index()][1] - t.material[Piece::Pawn.index()][0]);
         }
 
-        let mut mobility_knight = [0; 9];
-        for i in 0..9 {
-            mobility_knight[i] = t.mobility_knight[i][1] - t.mobility_knight[i][0];
+        if TUNE_MATERIAL_KNIGHT {
+            linear.push(t.material[Piece::Knight.index()][1] - t.material[Piece::Knight.index()][0]);
         }
 
-        let mut mobility_bishop = [0; 14];
-        for i in 0..14 {
-            mobility_bishop[i] = t.mobility_bishop[i][1] - t.mobility_bishop[i][0];
+        if TUNE_MATERIAL_BISHOP {
+            linear.push(t.material[Piece::Bishop.index()][1] - t.material[Piece::Bishop.index()][0]);
         }
 
-        let mut mobility_rook = [0; 15];
-        for i in 0..15 {
-            mobility_rook[i] = t.mobility_rook[i][1] - t.mobility_rook[i][0];
+        if TUNE_MATERIAL_ROOK {
+            linear.push(t.material[Piece::Rook.index()][1] - t.material[Piece::Rook.index()][0]);
         }
 
-        let mut mobility_queen = [0; 29];
-        for i in 0..29 {
-            mobility_queen[i] = t.mobility_queen[i][1] - t.mobility_queen[i][0];
+        if TUNE_MATERIAL_QUEEN {
+            linear.push(t.material[Piece::Queen.index()][1] - t.material[Piece::Queen.index()][0]);
         }
 
-        let mut pawns_passed = [0; 8];
-        for i in 0..8 {
-            pawns_passed[i] = t.pawns_passed[i][1] - t.pawns_passed[i][0];
+        if TUNE_TEMPO {
+            linear.push(t.tempo[1] - t.tempo[0]);
         }
 
-        let mut pawns_passed_file = [0; 8];
-        for i in 0..8 {
-            pawns_passed_file[i] = t.pawns_passed_file[i][1] - t.pawns_passed_file[i][0];
+        if TUNE_MOBILITY_PAWN {
+            linear.push(t.mobility_pawn[1] - t.mobility_pawn[0]);
         }
+
+        if TUNE_MOBILITY_KNIGHT {
+            for i in 0..9 {
+                linear.push(t.mobility_knight[i][1] - t.mobility_knight[i][0]);
+            }
+        }
+
+        if TUNE_MOBILITY_BISHOP {
+            for i in 0..14 {
+                linear.push(t.mobility_bishop[i][1] - t.mobility_bishop[i][0]);
+            }
+        }
+
+        if TUNE_MOBILITY_ROOK {
+            for i in 0..15 {
+                linear.push(t.mobility_rook[i][1] - t.mobility_rook[i][0]);
+            }
+        }
+
+        if TUNE_MOBILITY_QUEEN {
+            for i in 0..29 {
+                linear.push(t.mobility_queen[i][1] - t.mobility_queen[i][0]);
+            }
+        }
+
+        if TUNE_PAWNS_DOUBLED {
+            linear.push(t.pawns_doubled[1] - t.pawns_doubled[0]);
+        }
+
+        if TUNE_PAWNS_ISOLATED {
+            linear.push(t.pawns_isolated[1] - t.pawns_isolated[0]);
+        }
+
+        if TUNE_PAWNS_OPEN_ISOLATED {
+            linear.push(t.pawns_open_isolated[1] - t.pawns_open_isolated[0]);
+        }
+
+        if TUNE_PAWNS_PASSED {
+            for i in 0..8 {
+                linear.push(t.pawns_passed[i][1] - t.pawns_passed[i][0]);
+            }
+
+            for i in 0..8 {
+                linear.push(t.pawns_passed_file[i][1] - t.pawns_passed_file[i][0]);
+            }
+        }
+
+        if TUNE_BISHOPS_PAIR {
+            linear.push(t.bishops_pair[1] - t.bishops_pair[0]);
+        }
+
+        if TUNE_BISHOPS_XRAY {
+            linear.push(t.bishops_xray[1] - t.bishops_xray[0]);
+        }
+
+        if TUNE_ROOKS_HALFOPEN_FILE {
+            linear.push(t.rooks_halfopen_file[1] - t.rooks_halfopen_file[0]);
+        }
+
+        if TUNE_ROOKS_OPEN_FILE {
+            linear.push(t.rooks_open_file[1] - t.rooks_open_file[0]);
+        }
+
+        if TUNE_ROOKS_PAIR {
+            linear.push(t.rooks_pair[1] - t.rooks_pair[0]);
+        }
+
+        if TUNE_PST_PAWN {
+            for i in ALL_SQUARES.squares() {
+                linear.push(t.pst_pawn[i][1] - t.pst_pawn[i][0]);
+            }
+        }
+
+        if TUNE_PST_KNIGHT {
+            for i in ALL_SQUARES.squares() {
+                linear.push(t.pst_knight[i][1] - t.pst_knight[i][0]);
+            }
+        }
+
+        if TUNE_PST_BISHOP {
+            for i in ALL_SQUARES.squares() {
+                linear.push(t.pst_bishop[i][1] - t.pst_bishop[i][0]);
+            }
+        }
+
+        if TUNE_PST_ROOK {
+            for i in ALL_SQUARES.squares() {
+                linear.push(t.pst_rook[i][1] - t.pst_rook[i][0]);
+            }
+        }
+
+        if TUNE_PST_QUEEN {
+            for i in ALL_SQUARES.squares() {
+                linear.push(t.pst_queen[i][1] - t.pst_queen[i][0]);
+            }
+        }
+
+        if TUNE_PST_KING {
+            for i in ALL_SQUARES.squares() {
+                linear.push(t.pst_king[i][1] - t.pst_king[i][0]);
+            }
+        }
+
+        let mut base_eval = (mg(t.base_eval) as f32, eg(t.base_eval) as f32);
+
+        let params = Parameters::default();
+        let mut linear_eval = (0., 0.);
+        evaluate_linear(&mut linear_eval, &params.linear, &linear);
+        base_eval.0 -= linear_eval.0;
+        base_eval.1 -= linear_eval.1;
 
         let mut king_safety = [0; 30];
         for i in 0..30 {
             king_safety[i] = t.king_safety[i][1] - t.king_safety[i][0];
         }
 
-        let mut pst_pawn = SquareMap::default();
-        let mut pst_knight = SquareMap::default();
-        let mut pst_bishop = SquareMap::default();
-        let mut pst_rook = SquareMap::default();
-        let mut pst_queen = SquareMap::default();
-        let mut pst_king = SquareMap::default();
-        for i in ALL_SQUARES.squares() {
-            pst_pawn[i] = t.pst_pawn[i][1] - t.pst_pawn[i][0];
-            pst_knight[i] = t.pst_knight[i][1] - t.pst_knight[i][0];
-            pst_bishop[i] = t.pst_bishop[i][1] - t.pst_bishop[i][0];
-            pst_rook[i] = t.pst_rook[i][1] - t.pst_rook[i][0];
-            pst_queen[i] = t.pst_queen[i][1] - t.pst_queen[i][0];
-            pst_king[i] = t.pst_king[i][1] - t.pst_king[i][0];
-        }
-
         CompactTrace {
             result: t.result,
-            tempo: t.tempo[1] - t.tempo[0],
-            material,
 
-            mobility_pawn: t.mobility_pawn[1] - t.mobility_pawn[0],
-            mobility_knight,
-            mobility_bishop,
-            mobility_rook,
-            mobility_queen,
-
-            pawns_doubled: t.pawns_doubled[1] - t.pawns_doubled[0],
-            pawns_passed,
-            pawns_passed_file,
-            pawns_open_isolated: t.pawns_open_isolated[1] - t.pawns_open_isolated[0],
-            pawns_isolated: t.pawns_isolated[1] - t.pawns_isolated[0],
-
-            bishops_xray: t.bishops_xray[1] - t.bishops_xray[0],
-            bishops_pair: t.bishops_pair[1] - t.bishops_pair[0],
-
-            rooks_open_file: t.rooks_open_file[1] - t.rooks_open_file[0],
-            rooks_halfopen_file: t.rooks_halfopen_file[1] - t.rooks_halfopen_file[0],
-            rooks_pair: t.rooks_pair[1] - t.rooks_pair[0],
+            base_eval,
+            linear,
 
             king_safety,
             king_check_knight: t.king_check_knight[1] - t.king_check_knight[0],
@@ -264,13 +312,6 @@ impl From<Trace> for CompactTrace {
             king_check_queen: t.king_check_queen[1] - t.king_check_queen[0],
             king_danger: t.king_danger,
             king_danger_attacks: t.king_danger_attacks,
-
-            pst_pawn,
-            pst_knight,
-            pst_bishop,
-            pst_rook,
-            pst_queen,
-            pst_king,
 
             phase: t.phase,
             sf: t.sf,
@@ -281,27 +322,7 @@ impl From<Trace> for CompactTrace {
 #[derive(Clone)]
 pub struct Parameters {
     pub k: f32,
-    tempo: (f32, f32),
-    material: [(f32, f32); 6],
-
-    mobility_pawn: (f32, f32),
-    mobility_knight: [(f32, f32); 9],
-    mobility_bishop: [(f32, f32); 14],
-    mobility_rook: [(f32, f32); 15],
-    mobility_queen: [(f32, f32); 29],
-
-    pawns_doubled: (f32, f32),
-    pawns_passed: [(f32, f32); 8],
-    pawns_passed_file: [(f32, f32); 8],
-    pawns_open_isolated: (f32, f32),
-    pawns_isolated: (f32, f32),
-
-    bishops_xray: (f32, f32),
-    bishops_pair: (f32, f32),
-
-    rooks_open_file: (f32, f32),
-    rooks_halfopen_file: (f32, f32),
-    rooks_pair: (f32, f32),
+    linear: Vec<(f32, f32)>,
 
     king_safety: [f32; 30],
     king_check_knight: f32,
@@ -310,13 +331,6 @@ pub struct Parameters {
     king_check_queen: f32,
     king_danger: [f32; 6],
     king_danger_attacks: [f32; 7],
-
-    pst_pawn: SquareMap<(f32, f32)>,
-    pst_knight: SquareMap<(f32, f32)>,
-    pst_bishop: SquareMap<(f32, f32)>,
-    pst_rook: SquareMap<(f32, f32)>,
-    pst_queen: SquareMap<(f32, f32)>,
-    pst_king: SquareMap<(f32, f32)>,
 }
 
 pub fn epd_to_positions<P: AsRef<Path>>(path: P) -> impl Iterator<Item = (f32, Position)> {
@@ -414,6 +428,8 @@ impl Default for Trace {
             tempo: [0; 2],
             material: [[0; 2]; 6],
 
+            base_eval: S(0, 0),
+
             mobility_pawn: [0; 2],
             mobility_knight: [[0; 2]; 9],
             mobility_bishop: [[0; 2]; 14],
@@ -467,47 +483,9 @@ impl CompactTrace {
     fn evaluate(&self, params: &Parameters) -> f32 {
         let phase = self.phase as f32;
         let sf = self.sf as f32 / SF_NORMAL as f32;
-        let mut score = (0., 0.);
+        let mut score = self.base_eval;
 
-        // Tempo
-        evaluate_single(&mut score, params.tempo, self.tempo);
-
-        // Material
-        evaluate_array(&mut score, &params.material, &self.material);
-
-        // Mobility
-        evaluate_single(&mut score, params.mobility_pawn, self.mobility_pawn);
-        evaluate_array(&mut score, &params.mobility_knight, &self.mobility_knight);
-        evaluate_array(&mut score, &params.mobility_bishop, &self.mobility_bishop);
-        evaluate_array(&mut score, &params.mobility_rook, &self.mobility_rook);
-        evaluate_array(&mut score, &params.mobility_queen, &self.mobility_queen);
-
-        // Pawns
-        evaluate_single(&mut score, params.pawns_doubled, self.pawns_doubled);
-        evaluate_single(
-            &mut score,
-            params.pawns_open_isolated,
-            self.pawns_open_isolated,
-        );
-        evaluate_single(&mut score, params.pawns_isolated, self.pawns_isolated);
-        evaluate_array(&mut score, &params.pawns_passed, &self.pawns_passed);
-
-        for (i, &coeff) in self.pawns_passed_file.iter().enumerate() {
-            evaluate_single(&mut score, params.pawns_passed_file[i], coeff);
-        }
-
-        // Bishops
-        evaluate_single(&mut score, params.bishops_xray, self.bishops_xray);
-        evaluate_single(&mut score, params.bishops_pair, self.bishops_pair);
-
-        // Rooks
-        evaluate_single(&mut score, params.rooks_open_file, self.rooks_open_file);
-        evaluate_single(
-            &mut score,
-            params.rooks_halfopen_file,
-            self.rooks_halfopen_file,
-        );
-        evaluate_single(&mut score, params.rooks_pair, self.rooks_pair);
+        evaluate_linear(&mut score, &params.linear, &self.linear);
 
         // King safety
         score.0 += params.king_check_knight * self.king_check_knight as f32;
@@ -530,16 +508,6 @@ impl CompactTrace {
         score.0 -=
             danger_black * params.king_danger_attacks[self.king_danger_attacks[0] as usize] / 128.;
 
-        // PST
-        for i in ALL_SQUARES.squares() {
-            evaluate_single(&mut score, params.pst_pawn[i], self.pst_pawn[i]);
-            evaluate_single(&mut score, params.pst_knight[i], self.pst_knight[i]);
-            evaluate_single(&mut score, params.pst_bishop[i], self.pst_bishop[i]);
-            evaluate_single(&mut score, params.pst_rook[i], self.pst_rook[i]);
-            evaluate_single(&mut score, params.pst_queen[i], self.pst_queen[i]);
-            evaluate_single(&mut score, params.pst_king[i], self.pst_king[i]);
-        }
-
         sf * (score.0 as f32 * phase + score.1 as f32 * (62. - phase)) / 62.
     }
 }
@@ -550,85 +518,138 @@ fn sigmoid(k: f32, q: f32) -> f32 {
 
 impl Parameters {
     pub fn print_weights(&self) {
-        if TUNE_TEMPO {
-            print_single(self.tempo, "TEMPO_SCORE");
-        }
+        let mut i = 0;
 
         if TUNE_MATERIAL_PAWN {
-            print_single(self.material[0], "PAWN_SCORE");
+            print_single(self.linear[i], "PAWN_SCORE");
+            i += 1;
         }
 
         if TUNE_MATERIAL_KNIGHT {
-            print_single(self.material[1], "KNIGHT_SCORE");
+            print_single(self.linear[i], "KNIGHT_SCORE");
+            i += 1;
         }
 
         if TUNE_MATERIAL_BISHOP {
-            print_single(self.material[2], "BISHOP_SCORE");
+            print_single(self.linear[i], "BISHOP_SCORE");
+            i += 1;
         }
 
         if TUNE_MATERIAL_ROOK {
-            print_single(self.material[3], "ROOK_SCORE");
+            print_single(self.linear[i], "ROOK_SCORE");
+            i += 1;
         }
 
         if TUNE_MATERIAL_QUEEN {
-            print_single(self.material[4], "QUEEN_SCORE");
+            print_single(self.linear[i], "QUEEN_SCORE");
+            i += 1;
+        }
+
+        if TUNE_TEMPO {
+            print_single(self.linear[i], "TEMPO_SCORE");
+            i += 1;
         }
 
         if TUNE_MOBILITY_PAWN {
-            print_single(self.mobility_pawn, "PAWN_MOBILITY");
+            print_single(self.linear[i], "PAWN_MOBILITY");
+            i += 1;
         }
 
         if TUNE_MOBILITY_KNIGHT {
-            print_array(&self.mobility_knight, "KNIGHT_MOBILITY");
+            print_array(&self.linear[i..i+9], "KNIGHT_MOBILITY");
+            i += 9;
         }
 
         if TUNE_MOBILITY_BISHOP {
-            print_array(&self.mobility_bishop, "BISHOP_MOBILITY");
+            print_array(&self.linear[i..i+14], "BISHOP_MOBILITY");
+            i += 14;
         }
 
         if TUNE_MOBILITY_ROOK {
-            print_array(&self.mobility_rook, "ROOK_MOBILITY");
+            print_array(&self.linear[i..i+15], "ROOK_MOBILITY");
+            i += 15;
         }
 
         if TUNE_MOBILITY_QUEEN {
-            print_array(&self.mobility_queen, "QUEEN_MOBILITY");
+            print_array(&self.linear[i..i+29], "QUEEN_MOBILITY");
+            i += 29;
         }
 
         if TUNE_PAWNS_DOUBLED {
-            print_single(self.pawns_doubled, "DOUBLED_PAWN");
-        }
-
-        if TUNE_PAWNS_PASSED {
-            print_array(&self.pawns_passed, "PASSED_PAWN_ON_RANK");
-            print_array(&self.pawns_passed_file, "PASSED_PAWN_ON_FILE");
-        }
-
-        if TUNE_PAWNS_OPEN_ISOLATED {
-            print_single(self.pawns_open_isolated, "OPEN_ISOLATED_PAWN");
+            print_single(self.linear[i], "DOUBLED_PAWN");
+            i += 1;
         }
 
         if TUNE_PAWNS_ISOLATED {
-            print_single(self.pawns_isolated, "ISOLATED_PAWN");
+            print_single(self.linear[i], "ISOLATED_PAWN");
+            i += 1;
         }
 
-        if TUNE_BISHOPS_XRAY {
-            print_single(self.bishops_xray, "XRAYED_SQUARE");
+        if TUNE_PAWNS_OPEN_ISOLATED {
+            print_single(self.linear[i], "OPEN_ISOLATED_PAWN");
+            i += 1;
+        }
+
+        if TUNE_PAWNS_PASSED {
+            print_array(&self.linear[i..i+8], "PASSED_PAWN_ON_RANK");
+            i += 8;
+            print_array(&self.linear[i..i+8], "PASSED_PAWN_ON_FILE");
+            i += 8;
         }
 
         if TUNE_BISHOPS_PAIR {
-            print_single(self.bishops_pair, "BISHOP_PAIR");
+            print_single(self.linear[i], "BISHOP_PAIR");
+            i += 1;
         }
 
-        if TUNE_ROOKS_OPEN_FILE {
-            print_single(self.rooks_open_file, "ROOK_OPEN_FILE");
+        if TUNE_BISHOPS_XRAY {
+            print_single(self.linear[i], "XRAYED_SQUARE");
+            i += 1;
         }
 
         if TUNE_ROOKS_HALFOPEN_FILE {
-            print_single(self.rooks_halfopen_file, "ROOK_HALFOPEN_FILE");
+            print_single(self.linear[i], "ROOK_HALFOPEN_FILE");
+            i += 1;
+        }
+
+        if TUNE_ROOKS_OPEN_FILE {
+            print_single(self.linear[i], "ROOK_OPEN_FILE");
+            i += 1;
         }
 
         if TUNE_ROOKS_PAIR {
-            print_single(self.rooks_pair, "ROOK_PAIR");
+            print_single(self.linear[i], "ROOK_PAIR");
+            i += 1;
+        }
+
+        if TUNE_PST_PAWN {
+            print_pst(&self.linear[i..i+64], "PAWN_PST");
+            i += 64;
+        }
+
+        if TUNE_PST_KNIGHT {
+            print_pst(&self.linear[i..i+64], "KNIGHT_PST");
+            i += 64;
+        }
+
+        if TUNE_PST_BISHOP {
+            print_pst(&self.linear[i..i+64], "BISHOP_PST");
+            i += 64;
+        }
+
+        if TUNE_PST_ROOK {
+            print_pst(&self.linear[i..i+64], "ROOK_PST");
+            i += 64;
+        }
+
+        if TUNE_PST_QUEEN {
+            print_pst(&self.linear[i..i+64], "QUEEN_PST");
+            i += 64;
+        }
+
+        if TUNE_PST_KING {
+            print_pst(&self.linear[i..i+64], "KING_PST");
+            i += 64;
         }
 
         if TUNE_KING_SAFETY {
@@ -654,30 +675,6 @@ impl Parameters {
         if TUNE_KING_DANGER {
             print_array_mg(&self.king_danger, "KING_DANGER");
             print_array_mg(&self.king_danger_attacks, "KING_DANGER_WEIGHT");
-        }
-
-        if TUNE_PST_PAWN {
-            print_pst(&self.pst_pawn, "PAWN_PST");
-        }
-
-        if TUNE_PST_KNIGHT {
-            print_pst(&self.pst_knight, "KNIGHT_PST");
-        }
-
-        if TUNE_PST_BISHOP {
-            print_pst(&self.pst_bishop, "BISHOP_PST");
-        }
-
-        if TUNE_PST_ROOK {
-            print_pst(&self.pst_rook, "ROOK_PST");
-        }
-
-        if TUNE_PST_QUEEN {
-            print_pst(&self.pst_queen, "QUEEN_PST");
-        }
-
-        if TUNE_PST_KING {
-            print_pst(&self.pst_king, "KING_PST");
         }
     }
 
@@ -731,27 +728,7 @@ impl Parameters {
     }
 
     pub fn gradient_descent_step(&mut self, traces: &[CompactTrace], f: f32) {
-        let mut g_tempo = (0., 0.);
-        let mut g_material = [(0., 0.); 6];
-
-        let mut g_mobility_pawn = (0., 0.);
-        let mut g_mobility_knight = [(0., 0.); 9];
-        let mut g_mobility_bishop = [(0., 0.); 14];
-        let mut g_mobility_rook = [(0., 0.); 15];
-        let mut g_mobility_queen = [(0., 0.); 29];
-
-        let mut g_pawns_doubled = (0., 0.);
-        let mut g_pawns_passed = [(0., 0.); 8];
-        let mut g_pawns_passed_file = [(0., 0.); 8];
-        let mut g_pawns_open_isolated = (0., 0.);
-        let mut g_pawns_isolated = (0., 0.);
-
-        let mut g_bishops_xray = (0., 0.);
-        let mut g_bishops_pair = (0., 0.);
-
-        let mut g_rooks_open_file = (0., 0.);
-        let mut g_rooks_halfopen_file = (0., 0.);
-        let mut g_rooks_pair = (0., 0.);
+        let mut g_linear = vec![(0., 0.); self.linear.len()];
 
         let mut g_king_safety = [0.; 30];
         let mut g_king_check_knight = 0.;
@@ -760,13 +737,6 @@ impl Parameters {
         let mut g_king_check_queen = 0.;
         let mut g_king_danger = [0.; 6];
         let mut g_king_danger_attacks = [0.; 7];
-
-        let mut g_pst_pawn = SquareMap::<(f32, f32)>::default();
-        let mut g_pst_knight = SquareMap::<(f32, f32)>::default();
-        let mut g_pst_bishop = SquareMap::<(f32, f32)>::default();
-        let mut g_pst_rook = SquareMap::<(f32, f32)>::default();
-        let mut g_pst_queen = SquareMap::<(f32, f32)>::default();
-        let mut g_pst_king = SquareMap::<(f32, f32)>::default();
 
         let n = traces.len() as f32;
         let _g = self.k * 10_f32.ln() / 400.;
@@ -779,107 +749,10 @@ impl Parameters {
             let sf = trace.sf as f32 / SF_NORMAL as f32;
             let grad = -(r - s) * s * (1. - s) * sf;
 
-            if TUNE_TEMPO {
-                update_gradient(&mut g_tempo, trace.tempo, grad, phase);
-            }
-
+            update_gradient_array(&mut g_linear, &trace.linear, grad, phase);
             if TUNE_MATERIAL_PAWN {
                 // For pawns we only tune endgame scores and leave the midgame scores fixed at 100.
-                let i = Piece::Pawn.index();
-                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
-                g_material[i].0 = 0.;
-            }
-
-            if TUNE_MATERIAL_KNIGHT {
-                let i = Piece::Knight.index();
-                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
-            }
-
-            if TUNE_MATERIAL_BISHOP {
-                let i = Piece::Bishop.index();
-                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
-            }
-
-            if TUNE_MATERIAL_ROOK {
-                let i = Piece::Rook.index();
-                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
-            }
-
-            if TUNE_MATERIAL_QUEEN {
-                let i = Piece::Queen.index();
-                update_gradient(&mut g_material[i], trace.material[i], grad, phase);
-            }
-
-            if TUNE_MOBILITY_PAWN {
-                update_gradient(&mut g_mobility_pawn, trace.mobility_pawn, grad, phase);
-            }
-
-            if TUNE_MOBILITY_KNIGHT {
-                update_gradient_array(&mut g_mobility_knight, &trace.mobility_knight, grad, phase);
-            }
-
-            if TUNE_MOBILITY_BISHOP {
-                update_gradient_array(&mut g_mobility_bishop, &trace.mobility_bishop, grad, phase);
-            }
-
-            if TUNE_MOBILITY_ROOK {
-                update_gradient_array(&mut g_mobility_rook, &trace.mobility_rook, grad, phase);
-            }
-
-            if TUNE_MOBILITY_QUEEN {
-                update_gradient_array(&mut g_mobility_queen, &trace.mobility_queen, grad, phase);
-            }
-
-            if TUNE_PAWNS_DOUBLED {
-                update_gradient(&mut g_pawns_doubled, trace.pawns_doubled, grad, phase);
-            }
-
-            if TUNE_PAWNS_OPEN_ISOLATED {
-                update_gradient(
-                    &mut g_pawns_open_isolated,
-                    trace.pawns_open_isolated,
-                    grad,
-                    phase,
-                );
-            }
-
-            if TUNE_PAWNS_ISOLATED {
-                update_gradient(&mut g_pawns_isolated, trace.pawns_isolated, grad, phase);
-            }
-
-            if TUNE_PAWNS_PASSED {
-                update_gradient_array(&mut g_pawns_passed, &trace.pawns_passed, grad, phase);
-                update_gradient_array(
-                    &mut g_pawns_passed_file,
-                    &trace.pawns_passed_file,
-                    grad,
-                    phase,
-                );
-            }
-
-            if TUNE_BISHOPS_XRAY {
-                update_gradient(&mut g_bishops_xray, trace.bishops_xray, grad, phase);
-            }
-
-            if TUNE_BISHOPS_PAIR {
-                update_gradient(&mut g_bishops_pair, trace.bishops_pair, grad, phase);
-            }
-
-            if TUNE_ROOKS_OPEN_FILE {
-                update_gradient(&mut g_rooks_open_file, trace.rooks_open_file, grad, phase);
-            }
-
-            if TUNE_ROOKS_HALFOPEN_FILE {
-                update_gradient(
-                    &mut g_rooks_halfopen_file,
-                    trace.rooks_halfopen_file,
-                    grad,
-                    phase,
-                );
-            }
-
-            if TUNE_ROOKS_PAIR {
-                update_gradient(&mut g_rooks_pair, trace.rooks_pair, grad, phase);
+                g_linear[0].0 = 0.;
             }
 
             if TUNE_KING_SAFETY {
@@ -933,68 +806,10 @@ impl Parameters {
                 g_king_danger_attacks[trace.king_danger_attacks[0] as usize] +=
                     x * grad * phase / 62.;
             }
-
-            if TUNE_PST_PAWN {
-                for i in ALL_SQUARES.squares() {
-                    update_gradient(&mut g_pst_pawn[i], trace.pst_pawn[i], grad, phase);
-                }
-            }
-
-            if TUNE_PST_KNIGHT {
-                for i in ALL_SQUARES.squares() {
-                    update_gradient(&mut g_pst_knight[i], trace.pst_knight[i], grad, phase);
-                }
-            }
-
-            if TUNE_PST_BISHOP {
-                for i in ALL_SQUARES.squares() {
-                    update_gradient(&mut g_pst_bishop[i], trace.pst_bishop[i], grad, phase);
-                }
-            }
-
-            if TUNE_PST_ROOK {
-                for i in ALL_SQUARES.squares() {
-                    update_gradient(&mut g_pst_rook[i], trace.pst_rook[i], grad, phase);
-                }
-            }
-
-            if TUNE_PST_QUEEN {
-                for i in ALL_SQUARES.squares() {
-                    update_gradient(&mut g_pst_queen[i], trace.pst_queen[i], grad, phase);
-                }
-            }
-
-            if TUNE_PST_KING {
-                for i in ALL_SQUARES.squares() {
-                    update_gradient(&mut g_pst_king[i], trace.pst_king[i], grad, phase);
-                }
-            }
         }
 
         let mut norm = 0.;
-
-        norm += norm_single(g_tempo);
-
-        norm += norm_array(&g_material);
-
-        norm += norm_single(g_mobility_pawn);
-        norm += norm_array(&g_mobility_knight);
-        norm += norm_array(&g_mobility_bishop);
-        norm += norm_array(&g_mobility_rook);
-        norm += norm_array(&g_mobility_queen);
-
-        norm += norm_single(g_pawns_doubled);
-        norm += norm_single(g_pawns_open_isolated);
-        norm += norm_single(g_pawns_isolated);
-        norm += norm_array(&g_pawns_passed);
-        norm += norm_array(&g_pawns_passed_file);
-
-        norm += norm_single(g_bishops_xray);
-        norm += norm_single(g_bishops_pair);
-
-        norm += norm_single(g_rooks_open_file);
-        norm += norm_single(g_rooks_halfopen_file);
-        norm += norm_single(g_rooks_pair);
+        norm += norm_array(&g_linear);
 
         for i in 0..30 {
             norm += g_king_safety[i].powf(2.);
@@ -1013,15 +828,6 @@ impl Parameters {
             norm += g_king_danger_attacks[i].powf(2.);
         }
 
-        for i in ALL_SQUARES.squares() {
-            norm += norm_single(g_pst_pawn[i]);
-            norm += norm_single(g_pst_knight[i]);
-            norm += norm_single(g_pst_bishop[i]);
-            norm += norm_single(g_pst_rook[i]);
-            norm += norm_single(g_pst_queen[i]);
-            norm += norm_single(g_pst_king[i]);
-        }
-
         if norm == 0.0 {
             return;
         }
@@ -1029,28 +835,7 @@ impl Parameters {
         norm = norm.sqrt();
         let f = f / norm;
 
-        update_parameter(&mut self.tempo, g_tempo, f / n);
-
-        update_parameter_array(&mut self.material, &g_material, f / n);
-
-        update_parameter(&mut self.mobility_pawn, g_mobility_pawn, f / n);
-        update_parameter_array(&mut self.mobility_knight, &g_mobility_knight, f / n);
-        update_parameter_array(&mut self.mobility_bishop, &g_mobility_bishop, f / n);
-        update_parameter_array(&mut self.mobility_rook, &g_mobility_rook, f / n);
-        update_parameter_array(&mut self.mobility_queen, &g_mobility_queen, f / n);
-
-        update_parameter(&mut self.pawns_doubled, g_pawns_doubled, f / n);
-        update_parameter(&mut self.pawns_isolated, g_pawns_isolated, f / n);
-        update_parameter(&mut self.pawns_open_isolated, g_pawns_open_isolated, f / n);
-        update_parameter_array(&mut self.pawns_passed, &g_pawns_passed, f / n);
-        update_parameter_array(&mut self.pawns_passed_file, &g_pawns_passed_file, f / n);
-
-        update_parameter(&mut self.bishops_pair, g_bishops_pair, f / n);
-        update_parameter(&mut self.bishops_xray, g_bishops_xray, f / n);
-
-        update_parameter(&mut self.rooks_open_file, g_rooks_open_file, f / n);
-        update_parameter(&mut self.rooks_halfopen_file, g_rooks_halfopen_file, f / n);
-        update_parameter(&mut self.rooks_pair, g_rooks_pair, f / n);
+        update_parameter_array(&mut self.linear, &g_linear, f / n);
 
         for i in 0..30 {
             self.king_safety[i] -= 2. / n * f * g_king_safety[i];
@@ -1068,54 +853,141 @@ impl Parameters {
         for i in 0..7 {
             self.king_danger_attacks[i] -= 2. / n * f * g_king_danger_attacks[i];
         }
-
-        for i in ALL_SQUARES.squares() {
-            update_parameter(&mut self.pst_pawn[i], g_pst_pawn[i], f / n);
-            update_parameter(&mut self.pst_knight[i], g_pst_knight[i], f / n);
-            update_parameter(&mut self.pst_bishop[i], g_pst_bishop[i], f / n);
-            update_parameter(&mut self.pst_rook[i], g_pst_rook[i], f / n);
-            update_parameter(&mut self.pst_queen[i], g_pst_queen[i], f / n);
-            update_parameter(&mut self.pst_king[i], g_pst_king[i], f / n);
-        }
     }
 }
 
 impl Default for Parameters {
     fn default() -> Parameters {
-        let mut mobility_knight = [(0., 0.); 9];
-        for i in 0..9 {
-            mobility_knight[i] = (mg(KNIGHT_MOBILITY[i]) as f32, eg(KNIGHT_MOBILITY[i]) as f32);
+        let mut linear = Vec::new();
+
+        if TUNE_MATERIAL_PAWN {
+            linear.push((mg(PAWN_SCORE) as f32, eg(PAWN_SCORE) as f32));
         }
 
-        let mut mobility_bishop = [(0., 0.); 14];
-        for i in 0..14 {
-            mobility_bishop[i] = (mg(BISHOP_MOBILITY[i]) as f32, eg(BISHOP_MOBILITY[i]) as f32);
+        if TUNE_MATERIAL_KNIGHT {
+            linear.push((mg(KNIGHT_SCORE) as f32, eg(KNIGHT_SCORE) as f32));
         }
 
-        let mut mobility_rook = [(0., 0.); 15];
-        for i in 0..15 {
-            mobility_rook[i] = (mg(ROOK_MOBILITY[i]) as f32, eg(ROOK_MOBILITY[i]) as f32);
+        if TUNE_MATERIAL_BISHOP {
+            linear.push((mg(BISHOP_SCORE) as f32, eg(BISHOP_SCORE) as f32));
         }
 
-        let mut mobility_queen = [(0., 0.); 29];
-        for i in 0..29 {
-            mobility_queen[i] = (mg(QUEEN_MOBILITY[i]) as f32, eg(QUEEN_MOBILITY[i]) as f32);
+        if TUNE_MATERIAL_ROOK {
+            linear.push((mg(ROOK_SCORE) as f32, eg(ROOK_SCORE) as f32));
         }
 
-        let pawns_doubled = (mg(DOUBLED_PAWN) as f32, eg(DOUBLED_PAWN) as f32);
-        let pawns_open_isolated = (mg(OPEN_ISOLATED_PAWN) as f32, eg(OPEN_ISOLATED_PAWN) as f32);
-        let pawns_isolated = (mg(ISOLATED_PAWN) as f32, eg(ISOLATED_PAWN) as f32);
-        let mut pawns_passed = [(0., 0.); 8];
-        for i in 0..8 {
-            pawns_passed[i] = (
-                mg(PASSED_PAWN_ON_RANK[i]) as f32,
-                eg(PASSED_PAWN_ON_RANK[i]) as f32,
-            );
+        if TUNE_MATERIAL_QUEEN {
+            linear.push((mg(QUEEN_SCORE) as f32, eg(QUEEN_SCORE) as f32));
         }
 
-        let mut pawns_passed_file = [(0., 0.); 8];
-        for (i, &weight) in PASSED_PAWN_ON_FILE.iter().enumerate() {
-            pawns_passed_file[i] = (mg(weight) as f32, eg(weight) as f32);
+        if TUNE_TEMPO {
+            linear.push((mg(TEMPO_SCORE) as f32, eg(TEMPO_SCORE) as f32));
+        }
+
+        if TUNE_MOBILITY_PAWN {
+            linear.push((mg(PAWN_MOBILITY) as f32, eg(PAWN_MOBILITY) as f32));
+        }
+
+        if TUNE_MOBILITY_KNIGHT {
+            for i in 0..9 {
+                linear.push((mg(KNIGHT_MOBILITY[i]) as f32, eg(KNIGHT_MOBILITY[i]) as f32));
+            }
+        }
+
+        if TUNE_MOBILITY_BISHOP {
+            for i in 0..14 {
+                linear.push((mg(BISHOP_MOBILITY[i]) as f32, eg(BISHOP_MOBILITY[i]) as f32));
+            }
+        }
+
+        if TUNE_MOBILITY_ROOK {
+            for i in 0..15 {
+                linear.push((mg(ROOK_MOBILITY[i]) as f32, eg(ROOK_MOBILITY[i]) as f32));
+            }
+        }
+
+        if TUNE_MOBILITY_QUEEN {
+            for i in 0..29 {
+                linear.push((mg(QUEEN_MOBILITY[i]) as f32, eg(QUEEN_MOBILITY[i]) as f32));
+            }
+        }
+
+        if TUNE_PAWNS_DOUBLED {
+            linear.push((mg(DOUBLED_PAWN) as f32, eg(DOUBLED_PAWN) as f32));
+        }
+
+        if TUNE_PAWNS_ISOLATED {
+            linear.push((mg(ISOLATED_PAWN) as f32, eg(ISOLATED_PAWN) as f32));
+        }
+
+        if TUNE_PAWNS_OPEN_ISOLATED {
+            linear.push((mg(OPEN_ISOLATED_PAWN) as f32, eg(OPEN_ISOLATED_PAWN) as f32));
+        }
+
+        if TUNE_PAWNS_PASSED {
+            for &weight in PASSED_PAWN_ON_RANK.iter() {
+                linear.push((mg(weight) as f32, eg(weight) as f32));
+            }
+
+            for &weight in PASSED_PAWN_ON_FILE.iter() {
+                linear.push((mg(weight) as f32, eg(weight) as f32));
+            }
+        }
+
+        if TUNE_BISHOPS_PAIR {
+            linear.push((mg(BISHOP_PAIR) as f32, eg(BISHOP_PAIR) as f32));
+        }
+
+        if TUNE_BISHOPS_XRAY {
+            linear.push((mg(XRAYED_SQUARE) as f32, eg(XRAYED_SQUARE) as f32));
+        }
+
+        if TUNE_ROOKS_HALFOPEN_FILE {
+            linear.push((mg(ROOK_HALFOPEN_FILE) as f32, eg(ROOK_HALFOPEN_FILE) as f32));
+        }
+
+        if TUNE_ROOKS_OPEN_FILE {
+            linear.push((mg(ROOK_OPEN_FILE) as f32, eg(ROOK_OPEN_FILE) as f32));
+        }
+
+        if TUNE_ROOKS_PAIR {
+            linear.push((mg(ROOK_PAIR) as f32, eg(ROOK_PAIR) as f32));
+        }
+
+        if TUNE_PST_PAWN {
+            for i in ALL_SQUARES.squares() {
+                linear.push((mg(PAWN_PST[i]) as f32, eg(PAWN_PST[i]) as f32));
+            }
+        }
+
+        if TUNE_PST_KNIGHT {
+            for i in ALL_SQUARES.squares() {
+                linear.push((mg(KNIGHT_PST[i]) as f32, eg(KNIGHT_PST[i]) as f32));
+            }
+        }
+
+        if TUNE_PST_BISHOP {
+            for i in ALL_SQUARES.squares() {
+                linear.push((mg(BISHOP_PST[i]) as f32, eg(BISHOP_PST[i]) as f32));
+            }
+        }
+
+        if TUNE_PST_ROOK {
+            for i in ALL_SQUARES.squares() {
+                linear.push((mg(ROOK_PST[i]) as f32, eg(ROOK_PST[i]) as f32));
+            }
+        }
+
+        if TUNE_PST_QUEEN {
+            for i in ALL_SQUARES.squares() {
+                linear.push((mg(QUEEN_PST[i]) as f32, eg(QUEEN_PST[i]) as f32));
+            }
+        }
+
+        if TUNE_PST_KING {
+            for i in ALL_SQUARES.squares() {
+                linear.push((mg(KING_PST[i]) as f32, eg(KING_PST[i]) as f32));
+            }
         }
 
         let mut king_safety = [0.; 30];
@@ -1132,51 +1004,9 @@ impl Default for Parameters {
             king_danger_attacks[i] = KING_DANGER_WEIGHT[i] as f32;
         }
 
-        let mut pst_pawn = SquareMap::default();
-        let mut pst_knight = SquareMap::default();
-        let mut pst_bishop = SquareMap::default();
-        let mut pst_rook = SquareMap::default();
-        let mut pst_queen = SquareMap::default();
-        let mut pst_king = SquareMap::default();
-
-        for i in ALL_SQUARES.squares() {
-            pst_pawn[i] = (mg(PAWN_PST[i]) as f32, eg(PAWN_PST[i]) as f32);
-            pst_knight[i] = (mg(KNIGHT_PST[i]) as f32, eg(KNIGHT_PST[i]) as f32);
-            pst_bishop[i] = (mg(BISHOP_PST[i]) as f32, eg(BISHOP_PST[i]) as f32);
-            pst_rook[i] = (mg(ROOK_PST[i]) as f32, eg(ROOK_PST[i]) as f32);
-            pst_queen[i] = (mg(QUEEN_PST[i]) as f32, eg(QUEEN_PST[i]) as f32);
-            pst_king[i] = (mg(KING_PST[i]) as f32, eg(KING_PST[i]) as f32);
-        }
-
         Parameters {
             k: 1.,
-            tempo: (mg(TEMPO_SCORE) as f32, eg(TEMPO_SCORE) as f32),
-            material: [
-                (mg(PAWN_SCORE) as f32, eg(PAWN_SCORE) as f32),
-                (mg(KNIGHT_SCORE) as f32, eg(KNIGHT_SCORE) as f32),
-                (mg(BISHOP_SCORE) as f32, eg(BISHOP_SCORE) as f32),
-                (mg(ROOK_SCORE) as f32, eg(ROOK_SCORE) as f32),
-                (mg(QUEEN_SCORE) as f32, eg(QUEEN_SCORE) as f32),
-                (10000., 10000.),
-            ],
-            mobility_pawn: (mg(PAWN_MOBILITY) as f32, eg(PAWN_MOBILITY) as f32),
-            mobility_knight,
-            mobility_bishop,
-            mobility_rook,
-            mobility_queen,
-
-            pawns_doubled,
-            pawns_passed,
-            pawns_passed_file,
-            pawns_open_isolated,
-            pawns_isolated,
-
-            bishops_xray: (mg(XRAYED_SQUARE) as f32, eg(XRAYED_SQUARE) as f32),
-            bishops_pair: (mg(BISHOP_PAIR) as f32, eg(BISHOP_PAIR) as f32),
-
-            rooks_open_file: (mg(ROOK_OPEN_FILE) as f32, eg(ROOK_OPEN_FILE) as f32),
-            rooks_halfopen_file: (mg(ROOK_HALFOPEN_FILE) as f32, eg(ROOK_HALFOPEN_FILE) as f32),
-            rooks_pair: (mg(ROOK_PAIR) as f32, eg(ROOK_PAIR) as f32),
+            linear,
 
             king_safety,
             king_check_knight: mg(KING_CHECK_KNIGHT) as f32,
@@ -1185,13 +1015,6 @@ impl Default for Parameters {
             king_check_queen: mg(KING_CHECK_QUEEN) as f32,
             king_danger,
             king_danger_attacks,
-
-            pst_pawn,
-            pst_knight,
-            pst_bishop,
-            pst_rook,
-            pst_queen,
-            pst_king,
         }
     }
 }
@@ -1297,7 +1120,7 @@ fn print_array_mg(array: &[f32], name: &str) {
     println!("];");
 }
 
-fn print_pst(pst: &SquareMap<(f32, f32)>, name: &str) {
+fn print_pst(pst: &[(f32, f32)], name: &str) {
     println!("#[rustfmt::skip]");
     println!(
         "pub static {}: SquareMap<EScore> = SquareMap::from_array([",
@@ -1307,11 +1130,11 @@ fn print_pst(pst: &SquareMap<(f32, f32)>, name: &str) {
         print!("    ");
 
         for file in 0..8 {
-            let sq = Square::file_rank(file, rank);
+            let sq = 8 * rank + file;
             print!(
                 "S({:>4}, {:>4}), ",
-                pst[sq].0.round() as isize,
-                pst[sq].1.round() as isize
+                pst[sq as usize].0.round() as isize,
+                pst[sq as usize].1.round() as isize
             );
         }
 
@@ -1325,8 +1148,8 @@ fn evaluate_single(score: &mut (f32, f32), param: (f32, f32), coeff: i8) {
     score.1 += param.1 * coeff as f32;
 }
 
-fn evaluate_array(score: &mut (f32, f32), params: &[(f32, f32)], coeffs: &[i8]) {
-    assert!(params.len() == coeffs.len());
+fn evaluate_linear(score: &mut (f32, f32), params: &[(f32, f32)], coeffs: &[i8]) {
+    assert_eq!(params.len(), coeffs.len());
 
     for (&param, &coeff) in params.iter().zip(coeffs) {
         evaluate_single(score, param, coeff);

@@ -47,9 +47,9 @@ struct PawnHashEntry {
 }
 
 pub type Score = i16;
-type EScore = i32;
+pub type EScore = i32;
 
-const fn S(mg: i16, eg: i16) -> EScore {
+pub const fn S(mg: i16, eg: i16) -> EScore {
     ((eg as u32) << 16) as EScore + mg as EScore
 }
 
@@ -252,6 +252,13 @@ impl Eval {
             score -= TEMPO_SCORE;
         }
 
+        #[cfg(feature = "tune")]
+        {
+            self.trace.tempo[pos.white_to_move as usize] = 1;
+            self.trace.base_eval = score;
+        }
+
+
         let phase = self.phase();
         let mut score = interpolate(score, phase);
 
@@ -260,11 +267,6 @@ impl Eval {
         score /= SF_NORMAL;
 
         let score = score as Score;
-
-        #[cfg(feature = "tune")]
-        {
-            self.trace.tempo[pos.white_to_move as usize] = 1;
-        }
 
         if pos.white_to_move {
             score
