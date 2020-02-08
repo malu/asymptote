@@ -545,7 +545,7 @@ impl<'a> Search<'a> {
         if !in_check && !is_pv && !has_excluded_move && depth >= 6 * INC_PLY {
             let mut moves = MovePicker::qsearch(&self.position);
 
-            let probcut_beta = beta + 150;
+            let probcut_beta = beta + 100;
 
             while let Some((_, mov)) = moves.next(&self.position, &self.history) {
                 if !self.position.move_is_legal(mov) {
