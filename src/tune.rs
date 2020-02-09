@@ -66,6 +66,8 @@ const TUNE_PAWNS_ISOLATED: bool = false;
 const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
 const TUNE_PAWNS_PASSED: bool = false;
 
+const TUNE_KNIGHT_OUTPOST: bool = true;
+
 const TUNE_BISHOPS_PAIR: bool = false;
 const TUNE_BISHOPS_XRAY: bool = false;
 
@@ -109,6 +111,8 @@ pub struct Trace {
     pub pawns_passed_file: [[i8; 2]; 8],
     pub pawns_open_isolated: [i8; 2],
     pub pawns_isolated: [i8; 2],
+
+    pub knight_outposts: [i8; 2],
 
     pub bishops_xray: [i8; 2],
     pub bishops_pair: [i8; 2],
@@ -228,6 +232,10 @@ impl From<Trace> for CompactTrace {
             for i in 0..8 {
                 linear.push(t.pawns_passed_file[i][1] - t.pawns_passed_file[i][0]);
             }
+        }
+
+        if TUNE_KNIGHT_OUTPOST {
+            linear.push(t.knight_outposts[1] - t.knight_outposts[0]);
         }
 
         if TUNE_BISHOPS_PAIR {
@@ -442,6 +450,8 @@ impl Default for Trace {
             pawns_open_isolated: [0; 2],
             pawns_isolated: [0; 2],
 
+            knight_outposts: [0; 2],
+
             bishops_xray: [0; 2],
             bishops_pair: [0; 2],
 
@@ -595,6 +605,11 @@ impl Parameters {
             i += 8;
             print_array(&self.linear[i..i+8], "PASSED_PAWN_ON_FILE");
             i += 8;
+        }
+
+        if TUNE_KNIGHT_OUTPOST {
+            print_single(self.linear[i], "KNIGHT_OUTPOST");
+            i += 1;
         }
 
         if TUNE_BISHOPS_PAIR {
@@ -932,6 +947,10 @@ impl Default for Parameters {
             for &weight in PASSED_PAWN_ON_FILE.iter() {
                 linear.push((mg(weight) as f32, eg(weight) as f32));
             }
+        }
+
+        if TUNE_KNIGHT_OUTPOST {
+            linear.push((mg(KNIGHT_OUTPOST) as f32, eg(KNIGHT_OUTPOST) as f32));
         }
 
         if TUNE_BISHOPS_PAIR {

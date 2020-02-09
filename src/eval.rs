@@ -131,6 +131,8 @@ pub const PASSED_PAWN_ON_FILE: [EScore; 8] = [
     S(  -3,  -12), S(   0,   -7), S(   1,    3), S(   1,    6),
 ];
 
+pub const KNIGHT_OUTPOST: EScore = S(29, -8);
+
 pub const XRAYED_SQUARE: EScore = S(5, 0);
 pub const BISHOP_PAIR: EScore = S(42, 48);
 
@@ -240,6 +242,7 @@ impl Eval {
 
         score += self.pst(pos, true) - self.pst(pos, false);
         score += self.mobility_for_side(pos, true) - self.mobility_for_side(pos, false);
+        score += self.knights_for_side(pos, true) - self.knights_for_side(pos, false);
         score += self.bishops_for_side(pos, true) - self.bishops_for_side(pos, false);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
         score += self.material(true) - self.material(false);
@@ -491,6 +494,32 @@ impl Eval {
                     {
                         self.trace.pawns_isolated[side] += 1;
                     }
+                }
+            }
+        }
+
+        score
+    }
+
+    pub fn knights_for_side(&mut self, pos: &Position, white: bool) -> EScore {
+        let us = pos.us(white);
+        let them = pos.them(white);
+        let s = white as usize;
+        let mut score = 0;
+
+        let attackable_by_pawn = |sq: Square| {
+            let file = FILES[sq.file() as usize];
+            let possible_attackers = PAWN_CORRIDOR[s][sq] & !file;
+            (possible_attackers & pos.pawns() & them).at_least_one()
+        };
+
+        for knight in (pos.knights() & us).squares() {
+            if KNIGHT_OUTPOSTS[s] & knight && !attackable_by_pawn(knight) {
+                score += KNIGHT_OUTPOST;
+
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.knight_outposts[s] += 1;
                 }
             }
         }

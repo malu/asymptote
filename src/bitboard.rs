@@ -660,3 +660,8 @@ pub const PAWN_CORRIDOR: [SquareMap<Bitboard>; 2] = [
         Bitboard(0),
     ]),
 ];
+
+pub const KNIGHT_OUTPOSTS: [Bitboard; 2] = [
+    Bitboard(0x00_00_00_3C_3C_3C_00_00),
+    Bitboard(0x00_00_3C_3C_3C_00_00_00),
+];
