@@ -115,6 +115,8 @@ pub const QUEEN_MOBILITY: [EScore; 29] = [
     S(   0,    0),
 ];
 
+pub const CENTER_CONTROL: EScore = S(5, 1);
+
 pub const DOUBLED_PAWN: EScore = S(-5, -23);
 pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
 pub const ISOLATED_PAWN: EScore = S(-27, 5);
@@ -242,6 +244,7 @@ impl Eval {
 
         score += self.pst(pos, true) - self.pst(pos, false);
         score += self.mobility_for_side(pos, true) - self.mobility_for_side(pos, false);
+        score += self.center_control(true) - self.center_control(false);
         score += self.knights_for_side(pos, true) - self.knights_for_side(pos, false);
         score += self.bishops_for_side(pos, true) - self.bishops_for_side(pos, false);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
@@ -260,7 +263,6 @@ impl Eval {
             self.trace.tempo[pos.white_to_move as usize] = 1;
             self.trace.base_eval = score;
         }
-
 
         let phase = self.phase();
         let mut score = interpolate(score, phase);
@@ -420,6 +422,19 @@ impl Eval {
         }
 
         score
+    }
+
+    fn center_control(&mut self, white: bool) -> EScore {
+        let side = white as usize;
+        let controlled = CENTER & self.attacked_by_1[side] & !self.attacked_by_1[1 - side];
+        let controlled_count = controlled.popcount();
+
+        #[cfg(feature = "tune")]
+        {
+            self.trace.center_control[side] = controlled_count as i8;
+        }
+
+        controlled_count as i32 * CENTER_CONTROL
     }
 
     fn pawns(&mut self, pos: &Position, pawn_hash: Hash) -> EScore {

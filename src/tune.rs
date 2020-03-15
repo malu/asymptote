@@ -61,12 +61,14 @@ const TUNE_MOBILITY_BISHOP: bool = false;
 const TUNE_MOBILITY_ROOK: bool = false;
 const TUNE_MOBILITY_QUEEN: bool = false;
 
+const TUNE_CENTER_CONTROL: bool = true;
+
 const TUNE_PAWNS_DOUBLED: bool = false;
 const TUNE_PAWNS_ISOLATED: bool = false;
 const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
 const TUNE_PAWNS_PASSED: bool = false;
 
-const TUNE_KNIGHT_OUTPOST: bool = true;
+const TUNE_KNIGHT_OUTPOST: bool = false;
 
 const TUNE_BISHOPS_PAIR: bool = false;
 const TUNE_BISHOPS_XRAY: bool = false;
@@ -105,6 +107,8 @@ pub struct Trace {
     pub mobility_bishop: [[i8; 2]; 14],
     pub mobility_rook: [[i8; 2]; 15],
     pub mobility_queen: [[i8; 2]; 29],
+
+    pub center_control: [i8; 2],
 
     pub pawns_doubled: [i8; 2],
     pub pawns_passed: [[i8; 2]; 8],
@@ -165,11 +169,13 @@ impl From<Trace> for CompactTrace {
         }
 
         if TUNE_MATERIAL_KNIGHT {
-            linear.push(t.material[Piece::Knight.index()][1] - t.material[Piece::Knight.index()][0]);
+            linear
+                .push(t.material[Piece::Knight.index()][1] - t.material[Piece::Knight.index()][0]);
         }
 
         if TUNE_MATERIAL_BISHOP {
-            linear.push(t.material[Piece::Bishop.index()][1] - t.material[Piece::Bishop.index()][0]);
+            linear
+                .push(t.material[Piece::Bishop.index()][1] - t.material[Piece::Bishop.index()][0]);
         }
 
         if TUNE_MATERIAL_ROOK {
@@ -182,6 +188,10 @@ impl From<Trace> for CompactTrace {
 
         if TUNE_TEMPO {
             linear.push(t.tempo[1] - t.tempo[0]);
+        }
+
+        if TUNE_CENTER_CONTROL {
+            linear.push(t.center_control[1] - t.center_control[0]);
         }
 
         if TUNE_MOBILITY_PAWN {
@@ -444,6 +454,8 @@ impl Default for Trace {
             mobility_rook: [[0; 2]; 15],
             mobility_queen: [[0; 2]; 29],
 
+            center_control: [0; 2],
+
             pawns_doubled: [0; 2],
             pawns_passed: [[0; 2]; 8],
             pawns_passed_file: [[0; 2]; 8],
@@ -560,28 +572,33 @@ impl Parameters {
             i += 1;
         }
 
+        if TUNE_CENTER_CONTROL {
+            print_single(self.linear[i], "CENTER_CONTROL");
+            i += 1;
+        }
+
         if TUNE_MOBILITY_PAWN {
             print_single(self.linear[i], "PAWN_MOBILITY");
             i += 1;
         }
 
         if TUNE_MOBILITY_KNIGHT {
-            print_array(&self.linear[i..i+9], "KNIGHT_MOBILITY");
+            print_array(&self.linear[i..i + 9], "KNIGHT_MOBILITY");
             i += 9;
         }
 
         if TUNE_MOBILITY_BISHOP {
-            print_array(&self.linear[i..i+14], "BISHOP_MOBILITY");
+            print_array(&self.linear[i..i + 14], "BISHOP_MOBILITY");
             i += 14;
         }
 
         if TUNE_MOBILITY_ROOK {
-            print_array(&self.linear[i..i+15], "ROOK_MOBILITY");
+            print_array(&self.linear[i..i + 15], "ROOK_MOBILITY");
             i += 15;
         }
 
         if TUNE_MOBILITY_QUEEN {
-            print_array(&self.linear[i..i+29], "QUEEN_MOBILITY");
+            print_array(&self.linear[i..i + 29], "QUEEN_MOBILITY");
             i += 29;
         }
 
@@ -601,9 +618,9 @@ impl Parameters {
         }
 
         if TUNE_PAWNS_PASSED {
-            print_array(&self.linear[i..i+8], "PASSED_PAWN_ON_RANK");
+            print_array(&self.linear[i..i + 8], "PASSED_PAWN_ON_RANK");
             i += 8;
-            print_array(&self.linear[i..i+8], "PASSED_PAWN_ON_FILE");
+            print_array(&self.linear[i..i + 8], "PASSED_PAWN_ON_FILE");
             i += 8;
         }
 
@@ -638,32 +655,32 @@ impl Parameters {
         }
 
         if TUNE_PST_PAWN {
-            print_pst(&self.linear[i..i+64], "PAWN_PST");
+            print_pst(&self.linear[i..i + 64], "PAWN_PST");
             i += 64;
         }
 
         if TUNE_PST_KNIGHT {
-            print_pst(&self.linear[i..i+64], "KNIGHT_PST");
+            print_pst(&self.linear[i..i + 64], "KNIGHT_PST");
             i += 64;
         }
 
         if TUNE_PST_BISHOP {
-            print_pst(&self.linear[i..i+64], "BISHOP_PST");
+            print_pst(&self.linear[i..i + 64], "BISHOP_PST");
             i += 64;
         }
 
         if TUNE_PST_ROOK {
-            print_pst(&self.linear[i..i+64], "ROOK_PST");
+            print_pst(&self.linear[i..i + 64], "ROOK_PST");
             i += 64;
         }
 
         if TUNE_PST_QUEEN {
-            print_pst(&self.linear[i..i+64], "QUEEN_PST");
+            print_pst(&self.linear[i..i + 64], "QUEEN_PST");
             i += 64;
         }
 
         if TUNE_PST_KING {
-            print_pst(&self.linear[i..i+64], "KING_PST");
+            print_pst(&self.linear[i..i + 64], "KING_PST");
             i += 64;
         }
 
@@ -897,6 +914,10 @@ impl Default for Parameters {
 
         if TUNE_TEMPO {
             linear.push((mg(TEMPO_SCORE) as f32, eg(TEMPO_SCORE) as f32));
+        }
+
+        if TUNE_CENTER_CONTROL {
+            linear.push((mg(CENTER_CONTROL) as f32, eg(CENTER_CONTROL) as f32));
         }
 
         if TUNE_MOBILITY_PAWN {
