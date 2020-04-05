@@ -237,7 +237,7 @@ impl<'a> Search<'a> {
     fn aspiration(
         &mut self,
         last_score: Score,
-        moves: &mut arrayvec::ArrayVec<[(Move, i64); 256]>,
+        moves: &mut [(Move, i64)],
         depth: Depth,
     ) -> Option<Score> {
         let mut delta = 30;
@@ -246,11 +246,7 @@ impl<'a> Search<'a> {
 
         loop {
             let (score, index) = self.search_root(moves, alpha, beta, depth)?;
-            if index > 0 {
-                let best_move = moves[index];
-                moves.insert(0, best_move);
-                moves.remove(index + 1);
-            }
+            (&mut moves[0..index + 1]).rotate_right(1);
 
             delta += delta / 2;
             if score >= beta {
