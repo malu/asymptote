@@ -123,14 +123,14 @@ pub const ISOLATED_PAWN: EScore = S(-27, 5);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
-    S(   0,    0), S(  15,   -3), S(  12,   -2), S(  12,   20),
-    S(  28,   43), S(  53,  108), S(  65,  171), S(   0,    0),
+    S(   0,    0), S(   7,  -11), S(   7,   -2), S(   8,   21), 
+    S(  30,   47), S(  49,  111), S(  66,  176), S(   0,    0), 
 ];
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_FILE: [EScore; 8] = [
-    S(   2,   15), S(   1,    8), S(  -1,    0), S(  -5,  -11),
-    S(  -3,  -12), S(   0,   -7), S(   1,    3), S(   1,    6),
+    S(   1,   19), S(   3,   10), S(  -2,    0), S(  -6,  -13), 
+    S(  -8,  -15), S(  -2,  -10), S(  -3,    7), S(  -6,    9), 
 ];
 
 pub const KNIGHT_OUTPOST: EScore = S(29, -8);
@@ -463,14 +463,16 @@ impl Eval {
         let mut score = S(0, 0);
 
         for pawn in (pos.pawns() & us).squares() {
+            let stop_sq = pawn.forward(white, 1);
             let corridor_bb = PAWN_CORRIDOR[side][pawn];
             let file = pawn.file() as usize;
             let file_bb = FILES[file];
             let file_forward_bb = corridor_bb & file_bb;
-            let passed = (corridor_bb & them & pos.pawns()).is_empty();
             let doubled = (file_forward_bb & us & pos.pawns()).at_least_one();
             let isolated = ((file_bb.left(1) | file_bb.right(1)) & pos.pawns() & us).is_empty();
             let halfopen_file = (file_forward_bb & pos.pawns() & them).is_empty();
+            let passed_after_push = !(pos.pawns() & stop_sq)
+                && (PAWN_CORRIDOR[side][stop_sq] & them & pos.pawns()).is_empty();
 
             if doubled {
                 score += DOUBLED_PAWN;
@@ -481,7 +483,7 @@ impl Eval {
                 }
             }
 
-            if passed && !doubled {
+            if passed_after_push && !doubled {
                 let relative_rank = pawn.relative_rank(white) as usize;
 
                 score += PASSED_PAWN_ON_RANK[relative_rank];

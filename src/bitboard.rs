@@ -667,3 +667,17 @@ pub const KNIGHT_OUTPOSTS: [Bitboard; 2] = [
 ];
 
 pub const CENTER: Bitboard = Bitboard(0x00_00_00_3C_3C_00_00_00);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pawn_corridor_does_not_contain_origin() {
+        for s in 0..2 {
+            for sq in ALL_SQUARES.squares() {
+                assert!(!(PAWN_CORRIDOR[s][sq] & sq));
+            }
+        }
+    }
+}
