@@ -76,6 +76,7 @@ pub struct Search<'a> {
     // Misc
     options: PersistentOptions,
     quiets: [[Option<Move>; 256]; MAX_PLY as usize],
+    lmr: [[Depth; 64]; 64],
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -103,6 +104,17 @@ impl<'a> Search<'a> {
             pv.push(vec![None; MAX_PLY as usize - i + 1]);
         }
 
+        let mut lmr = [[0; 64]; 64];
+        for d in 2..64 {
+            for m in 1..64 {
+                let dd = d as f32;
+                let mm = m as f32;
+                let rr = 0.25 + dd.ln() * mm.ln() / 2.;
+                let r = rr as Depth;
+                lmr[d][m] = r * INC_PLY;
+            }
+        }
+
         Search {
             id: 0,
             position: position.clone(),
@@ -124,6 +136,7 @@ impl<'a> Search<'a> {
 
             options,
             quiets: [[None; 256]; MAX_PLY as usize],
+            lmr,
         }
     }
 
@@ -735,7 +748,9 @@ impl<'a> Search<'a> {
 
             if depth >= LMR_DEPTH && mtype == MoveType::Quiet && best_score > -MATE_SCORE + MAX_PLY
             {
-                reduction += lmr_reduction(depth, num_moves_searched);
+                let d = (depth / INC_PLY) as usize;
+                let m = num_moves_searched as usize;
+                reduction += self.lmr[cmp::min(d, 63)][cmp::min(m, 63)];
 
                 if check {
                     reduction -= INC_PLY;
@@ -1311,9 +1326,4 @@ impl<'a> Search<'a> {
         self.time_control = tc;
         self.time_manager.update(&self.position, self.time_control);
     }
-}
-
-fn lmr_reduction(depth: Depth, move_count: i16) -> Depth {
-    let r = (depth / INC_PLY + move_count) / 8;
-    r * INC_PLY
 }
