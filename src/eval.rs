@@ -426,8 +426,10 @@ impl Eval {
 
     fn center_control(&mut self, white: bool) -> EScore {
         let side = white as usize;
-        let controlled = CENTER & self.attacked_by_1[side] & !self.attacked_by_1[1 - side];
-        let controlled_count = controlled.popcount();
+        let controlled = self.attacked_by_1[side] & !self.attacked_by_1[1 - side]
+            | self.attacked_by_2[side] & !self.attacked_by_2[1 - side];
+        let controlled_center = CENTER & controlled;
+        let controlled_count = controlled_center.popcount();
 
         #[cfg(feature = "tune")]
         {
