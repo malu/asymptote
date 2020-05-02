@@ -173,7 +173,7 @@ impl SearchController {
     }
 
     fn handle_uci(&mut self) {
-        println!("id name Asymptote 0.7");
+        println!("id name Asymptote 0.8");
         println!("id author Maximilian Lupke");
         println!("option name Hash type spin default 1 min 0 max 65536");
         println!("option name Threads type spin default 1 min 1 max 256");
