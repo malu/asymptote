@@ -527,11 +527,6 @@ impl<'a> Search<'a> {
                 let (ttentry_, ttmove_) = self.get_tt_entry(hash);
                 ttentry = ttentry_;
                 ttmove = ttmove_;
-            } else if !is_pv && depth >= 6 * INC_PLY {
-                self.search(ply, alpha, beta, depth / 2);
-                let (ttentry_, ttmove_) = self.get_tt_entry(hash);
-                ttentry = ttentry_;
-                ttmove = ttmove_;
             }
         }
 
