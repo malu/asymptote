@@ -25,7 +25,6 @@ use crate::movegen::{Move, MoveGenerator, MoveList};
 use crate::position::{Position, STARTING_POSITION};
 use crate::repetitions::Repetitions;
 use crate::search::{Depth, Search, INC_PLY};
-use crate::syzygy::Syzygy;
 use crate::time::TimeControl;
 use crate::tt::{self, TT};
 use crate::uci::{GoParams, UciCommand};
@@ -62,7 +61,6 @@ pub struct SearchController {
     time_control: TimeControl,
     tt: TT,
     repetitions: Repetitions,
-    syzygy: Syzygy,
 }
 
 impl SearchController {
@@ -76,7 +74,6 @@ impl SearchController {
             time_control: TimeControl::Infinite,
             tt: TT::new(14),
             repetitions: Repetitions::new(100),
-            syzygy: Syzygy::new(),
         };
 
         controller.handle_position(position, vec![]);
@@ -97,7 +94,6 @@ impl SearchController {
             self.time_control,
             &tt,
             self.repetitions.clone(),
-            &self.syzygy,
         );
 
         let mov = thread::scope(|s| {
@@ -240,19 +236,6 @@ impl SearchController {
                 }
             }
             "syzygypath" => {
-                #[cfg(target_os = "windows")]
-                const PATH_LIST_SEPARATOR: char = ';';
-                #[cfg(not(target_os = "windows"))]
-                const PATH_LIST_SEPARATOR: char = ':';
-
-                let mut syzygy = Syzygy::new();
-
-                for directory in value.split(PATH_LIST_SEPARATOR) {
-                    syzygy.add_directory(&directory);
-                }
-
-                self.syzygy = syzygy;
-
                 if unsafe { fathom::init(value) } {
                     println!("info string found {}-piece Syzygy Tablebases", unsafe {
                         fathom::max_pieces()
@@ -296,8 +279,11 @@ impl SearchController {
 
     fn handle_d(&self) {
         self.position.print("");
-        println!("info Syzygy WDL: {:?}", self.syzygy.wdl(&self.position));
-        println!("info Syzygy DTZ: {:?}", self.syzygy.dtz(&self.position));
+        let state = (&self.position).into();
+        if let Some(probe_result) = unsafe { fathom::probe_root(&state) } {
+            println!("info Syzygy WDL: {:?}", probe_result.wdl);
+            println!("info Syzygy DTZ: {:?}", probe_result.dtz);
+        }
     }
 
     fn handle_tt(&mut self) {
@@ -333,7 +319,6 @@ impl SearchController {
             self.time_control,
             &tt,
             self.repetitions.clone(),
-            &self.syzygy,
         );
         thread.perft(depth);
     }

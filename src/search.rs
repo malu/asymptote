@@ -26,7 +26,6 @@ use crate::movepick::*;
 use crate::position::*;
 use crate::repetitions::Repetitions;
 use crate::search_controller::PersistentOptions;
-use crate::syzygy::Syzygy;
 use crate::time::*;
 use crate::tt::*;
 
@@ -62,7 +61,6 @@ pub struct Search<'a> {
     hasher: Hasher,
     tt: &'a SharedTT<'a>,
     repetitions: Repetitions,
-    syzygy: &'a Syzygy,
 
     // Time Management
     time_control: TimeControl,
@@ -98,7 +96,6 @@ impl<'a> Search<'a> {
         time_control: TimeControl,
         tt: &'a SharedTT<'a>,
         repetitions: Repetitions,
-        syzygy: &'a Syzygy,
     ) -> Search<'a> {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         for i in 0..MAX_PLY as usize {
@@ -115,7 +112,6 @@ impl<'a> Search<'a> {
             hasher,
             tt,
             repetitions,
-            syzygy,
 
             time_control,
             time_manager: TimeManager::new(&position, time_control, options.move_overhead, abort),
