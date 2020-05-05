@@ -18,6 +18,7 @@ use std::cmp;
 use std::sync;
 
 use crate::eval::*;
+use crate::fathom;
 use crate::hash::*;
 use crate::history::*;
 use crate::movegen::*;
@@ -152,25 +153,20 @@ impl<'a> Search<'a> {
         }
 
         if self.id == 0 {
-            if let Some((mov, dtz)) = self.syzygy.best_move(&self.position) {
-                // Since the previous move might not have been zeroing, we
-                // have to add the current half move counter.
+            let state = (&self.position).into();
+            if let Some(probe_result) = unsafe { fathom::probe_root(&state) } {
+                let dtz = probe_result.dtz as Score;
+
                 let score;
                 let bound;
 
-                // The given dtz is the dtz _after_ doing mov. We want to now
-                // the dtz _before_ making the move.
-                let dtz = -dtz;
-
-                match shakmaty_syzygy::Wdl::from_dtz_after_zeroing(
-                    dtz.add_plies(self.position.details.halfmove as i32),
-                ) {
-                    shakmaty_syzygy::Wdl::Loss => {
-                        score = -MATE_SCORE + MAX_PLY - dtz.0 as Depth + 1;
+                match probe_result.wdl {
+                    fathom::Wdl::Loss => {
+                        score = -MATE_SCORE + MAX_PLY + dtz + 1;
                         bound = UPPER_BOUND;
                     }
-                    shakmaty_syzygy::Wdl::Win => {
-                        score = MATE_SCORE - MAX_PLY - dtz.0 as Depth - 1;
+                    fathom::Wdl::Win => {
+                        score = MATE_SCORE - MAX_PLY - dtz - 1;
                         bound = LOWER_BOUND;
                     }
                     _ => {
@@ -179,13 +175,21 @@ impl<'a> Search<'a> {
                     }
                 }
 
-                self.uci_info((MAX_PLY - 1) * INC_PLY, score, bound);
+                let best_move = probe_result.best_move;
+                for (mov, _) in &moves {
+                    let from: u8 = mov.from.into();
+                    let to: u8 = mov.to.into();
+                    if from as u32 == best_move.from && to as u32 == best_move.to {
+                        // TODO more extensive checking
+                        self.uci_info((MAX_PLY - 1) * INC_PLY, score, bound);
 
-                self.time_manager
-                    .abort
-                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                        self.time_manager
+                            .abort
+                            .store(true, std::sync::atomic::Ordering::SeqCst);
 
-                return mov.into();
+                        return mov.clone();
+                    }
+                }
             }
         }
 
@@ -427,20 +431,21 @@ impl<'a> Search<'a> {
             && !has_excluded_move
         {
             let piece_count = self.position.all_pieces.popcount();
-            let max_pieces = self.syzygy.get_max_pieces();
+            let max_pieces = unsafe { fathom::max_pieces() };
             if piece_count < max_pieces
                 || piece_count <= max_pieces && depth >= self.options.syzygy_probe_depth
             {
-                if let Some(wdl) = self.syzygy.wdl(&self.position) {
+                let state = (&self.position).into();
+                if let Some(wdl) = unsafe { fathom::probe_wdl(&state) } {
                     self.tb_hits += 1;
                     let value;
                     let bound;
                     match wdl {
-                        shakmaty_syzygy::Wdl::Loss => {
+                        fathom::Wdl::Loss => {
                             value = -MATE_SCORE + MAX_PLY + ply + 1;
                             bound = UPPER_BOUND;
                         }
-                        shakmaty_syzygy::Wdl::Win => {
+                        fathom::Wdl::Win => {
                             value = MATE_SCORE - MAX_PLY - ply - 1;
                             bound = UPPER_BOUND;
                         }

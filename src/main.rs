@@ -26,6 +26,7 @@
 mod bench;
 mod bitboard;
 mod eval;
+mod fathom;
 mod hash;
 mod history;
 mod magic;

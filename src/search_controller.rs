@@ -19,6 +19,7 @@ use std::sync::{self, Arc};
 
 use crossbeam::thread;
 
+use crate::fathom;
 use crate::hash::Hasher;
 use crate::movegen::{Move, MoveGenerator, MoveList};
 use crate::position::{Position, STARTING_POSITION};
@@ -251,6 +252,14 @@ impl SearchController {
                 }
 
                 self.syzygy = syzygy;
+
+                if unsafe { fathom::init(value) } {
+                    println!("info string found {}-piece Syzygy Tablebases", unsafe {
+                        fathom::max_pieces()
+                    });
+                } else {
+                    println!("info string Error while loading Syzygy Tablebases");
+                }
             }
             "syzygyprobedepth" => {
                 if let Ok(plies) = value.parse::<u64>() {
