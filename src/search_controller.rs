@@ -19,6 +19,7 @@ use std::sync::{self, Arc};
 
 use crossbeam::thread;
 
+#[cfg(feature = "fathom")]
 use crate::fathom;
 use crate::hash::Hasher;
 use crate::movegen::{Move, MoveGenerator, MoveList};
@@ -236,12 +237,20 @@ impl SearchController {
                 }
             }
             "syzygypath" => {
-                if unsafe { fathom::init(value) } {
-                    println!("info string found {}-piece Syzygy Tablebases", unsafe {
-                        fathom::max_pieces()
-                    });
-                } else {
-                    println!("info string Error while loading Syzygy Tablebases");
+                #[cfg(not(feature = "fathom"))]
+                {
+                    println!("info string Error: Not Implemented");
+                }
+
+                #[cfg(feature = "fathom")]
+                {
+                    if unsafe { fathom::init(value) } {
+                        println!("info string found {}-piece Syzygy Tablebases", unsafe {
+                            fathom::max_pieces()
+                        });
+                    } else {
+                        println!("info string Error while loading Syzygy Tablebases");
+                    }
                 }
             }
             "syzygyprobedepth" => {
@@ -279,10 +288,14 @@ impl SearchController {
 
     fn handle_d(&self) {
         self.position.print("");
-        let state = (&self.position).into();
-        if let Some(probe_result) = unsafe { fathom::probe_root(&state) } {
-            println!("info Syzygy WDL: {:?}", probe_result.wdl);
-            println!("info Syzygy DTZ: {:?}", probe_result.dtz);
+
+        #[cfg(feature = "fathom")]
+        {
+            let state = (&self.position).into();
+            if let Some(probe_result) = unsafe { fathom::probe_root(&state) } {
+                println!("info Syzygy WDL: {:?}", probe_result.wdl);
+                println!("info Syzygy DTZ: {:?}", probe_result.dtz);
+            }
         }
     }
 

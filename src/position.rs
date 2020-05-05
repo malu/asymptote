@@ -15,6 +15,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use crate::bitboard::*;
+#[cfg(feature = "fathom")]
 use crate::fathom::BoardState;
 use crate::movegen::*;
 
@@ -1108,6 +1109,7 @@ impl<'a> From<&'a str> for Position {
     }
 }
 
+#[cfg(feature = "fathom")]
 impl Into<BoardState> for &Position {
     fn into(self) -> BoardState {
         let en_passant = if self.details.en_passant == 255 {

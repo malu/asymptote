@@ -26,6 +26,7 @@
 mod bench;
 mod bitboard;
 mod eval;
+#[cfg(feature = "fathom")]
 mod fathom;
 mod hash;
 mod history;

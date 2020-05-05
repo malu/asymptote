@@ -18,6 +18,7 @@ use std::cmp;
 use std::sync;
 
 use crate::eval::*;
+#[cfg(feature = "fathom")]
 use crate::fathom;
 use crate::hash::*;
 use crate::history::*;
@@ -148,42 +149,45 @@ impl<'a> Search<'a> {
             return moves[0].0;
         }
 
-        if self.id == 0 {
-            let state = (&self.position).into();
-            if let Some(probe_result) = unsafe { fathom::probe_root(&state) } {
-                let dtz = probe_result.dtz as Score;
+        #[cfg(feature = "fathom")]
+        {
+            if self.id == 0 {
+                let state = (&self.position).into();
+                if let Some(probe_result) = unsafe { fathom::probe_root(&state) } {
+                    let dtz = probe_result.dtz as Score;
 
-                let score;
-                let bound;
+                    let score;
+                    let bound;
 
-                match probe_result.wdl {
-                    fathom::Wdl::Loss => {
-                        score = -MATE_SCORE + MAX_PLY + dtz + 1;
-                        bound = UPPER_BOUND;
+                    match probe_result.wdl {
+                        fathom::Wdl::Loss => {
+                            score = -MATE_SCORE + MAX_PLY + dtz + 1;
+                            bound = UPPER_BOUND;
+                        }
+                        fathom::Wdl::Win => {
+                            score = MATE_SCORE - MAX_PLY - dtz - 1;
+                            bound = LOWER_BOUND;
+                        }
+                        _ => {
+                            score = 0;
+                            bound = EXACT_BOUND;
+                        }
                     }
-                    fathom::Wdl::Win => {
-                        score = MATE_SCORE - MAX_PLY - dtz - 1;
-                        bound = LOWER_BOUND;
-                    }
-                    _ => {
-                        score = 0;
-                        bound = EXACT_BOUND;
-                    }
-                }
 
-                let best_move = probe_result.best_move;
-                for (mov, _) in &moves {
-                    let from: u8 = mov.from.into();
-                    let to: u8 = mov.to.into();
-                    if from as u32 == best_move.from && to as u32 == best_move.to {
-                        // TODO more extensive checking
-                        self.uci_info((MAX_PLY - 1) * INC_PLY, score, bound);
+                    let best_move = probe_result.best_move;
+                    for (mov, _) in &moves {
+                        let from: u8 = mov.from.into();
+                        let to: u8 = mov.to.into();
+                        if from as u32 == best_move.from && to as u32 == best_move.to {
+                            // TODO more extensive checking
+                            self.uci_info((MAX_PLY - 1) * INC_PLY, score, bound);
 
-                        self.time_manager
-                            .abort
-                            .store(true, std::sync::atomic::Ordering::SeqCst);
+                            self.time_manager
+                                .abort
+                                .store(true, std::sync::atomic::Ordering::SeqCst);
 
-                        return mov.clone();
+                            return mov.clone();
+                        }
                     }
                 }
             }
@@ -421,50 +425,53 @@ impl<'a> Search<'a> {
         // en passant square (since that results from a pawn push rather than a
         // capture). Also, the TBs do not contain positions with castling
         // rights, so exclude those as well.
-        if self.position.details.halfmove == 0
-            && self.position.details.en_passant == 255
-            && self.position.details.castling == 0
-            && !has_excluded_move
+        #[cfg(feature = "fathom")]
         {
-            let piece_count = self.position.all_pieces.popcount();
-            let max_pieces = unsafe { fathom::max_pieces() };
-            if piece_count < max_pieces
-                || piece_count <= max_pieces && depth >= self.options.syzygy_probe_depth
+            if self.position.details.halfmove == 0
+                && self.position.details.en_passant == 255
+                && self.position.details.castling == 0
+                && !has_excluded_move
             {
-                let state = (&self.position).into();
-                if let Some(wdl) = unsafe { fathom::probe_wdl(&state) } {
-                    self.tb_hits += 1;
-                    let value;
-                    let bound;
-                    match wdl {
-                        fathom::Wdl::Loss => {
-                            value = -MATE_SCORE + MAX_PLY + ply + 1;
-                            bound = UPPER_BOUND;
+                let piece_count = self.position.all_pieces.popcount();
+                let max_pieces = unsafe { fathom::max_pieces() };
+                if piece_count < max_pieces
+                    || piece_count <= max_pieces && depth >= self.options.syzygy_probe_depth
+                {
+                    let state = (&self.position).into();
+                    if let Some(wdl) = unsafe { fathom::probe_wdl(&state) } {
+                        self.tb_hits += 1;
+                        let value;
+                        let bound;
+                        match wdl {
+                            fathom::Wdl::Loss => {
+                                value = -MATE_SCORE + MAX_PLY + ply + 1;
+                                bound = UPPER_BOUND;
+                            }
+                            fathom::Wdl::Win => {
+                                value = MATE_SCORE - MAX_PLY - ply - 1;
+                                bound = UPPER_BOUND;
+                            }
+                            _ => {
+                                value = 0;
+                                bound = EXACT_BOUND;
+                            }
                         }
-                        fathom::Wdl::Win => {
-                            value = MATE_SCORE - MAX_PLY - ply - 1;
-                            bound = UPPER_BOUND;
-                        }
-                        _ => {
-                            value = 0;
-                            bound = EXACT_BOUND;
-                        }
-                    }
 
-                    if bound == EXACT_BOUND
-                        || (bound == UPPER_BOUND && value <= alpha)
-                        || (bound == LOWER_BOUND && value >= beta)
-                    {
-                        self.tt.insert(
-                            hash,
-                            (MAX_PLY - 1) * INC_PLY,
-                            TTScore::from_score(value, ply),
-                            None,
-                            bound,
-                            None,
-                        );
+                        if bound == EXACT_BOUND
+                            || (bound == UPPER_BOUND && value <= alpha)
+                            || (bound == LOWER_BOUND && value >= beta)
+                        {
+                            self.tt.insert(
+                                hash,
+                                (MAX_PLY - 1) * INC_PLY,
+                                TTScore::from_score(value, ply),
+                                None,
+                                bound,
+                                None,
+                            );
 
-                        return Some(value);
+                            return Some(value);
+                        }
                     }
                 }
             }
