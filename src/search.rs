@@ -178,8 +178,18 @@ impl<'a> Search<'a> {
                     for (mov, _) in &moves {
                         let from: u8 = mov.from.into();
                         let to: u8 = mov.to.into();
-                        if from as u32 == best_move.from && to as u32 == best_move.to {
-                            // TODO more extensive checking
+                        let promotion = match mov.promoted {
+                            Some(Piece::Bishop) => Some(fathom::PromotionPiece::Bishop),
+                            Some(Piece::Knight) => Some(fathom::PromotionPiece::Knight),
+                            Some(Piece::Rook) => Some(fathom::PromotionPiece::Rook),
+                            Some(Piece::Queen) => Some(fathom::PromotionPiece::Queen),
+                            _ => None,
+                        };
+                        if from as u32 == best_move.from
+                            && to as u32 == best_move.to
+                            && mov.en_passant == best_move.en_passant
+                            && promotion == best_move.promotes
+                        {
                             self.uci_info((MAX_PLY - 1) * INC_PLY, score, bound);
 
                             self.time_manager
