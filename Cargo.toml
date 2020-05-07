@@ -9,8 +9,10 @@ edition = "2018"
 arrayvec = "0.4.11"
 crossbeam = "0.7"
 rand = "0.5.0"
-shakmaty = "0.16.1"
-shakmaty-syzygy = "0.13"
+libc = { version = "0.2", optional = true }
+
+[build-dependencies]
+cc = { version = "1.0", optional  = true }
 
 [profile.release]
 lto = true
@@ -18,4 +20,7 @@ debug = true
 codegen-units = 1
 
 [features]
+default = ["fathom"]
+
 tune = []
+fathom = ["cc", "libc"]

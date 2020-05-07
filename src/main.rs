@@ -26,6 +26,8 @@
 mod bench;
 mod bitboard;
 mod eval;
+#[cfg(feature = "fathom")]
+mod fathom;
 mod hash;
 mod history;
 mod magic;
@@ -35,7 +37,6 @@ pub mod position;
 mod repetitions;
 mod search;
 mod search_controller;
-mod syzygy;
 mod time;
 mod tt;
 #[cfg(feature = "tune")]

@@ -15,6 +15,8 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use crate::bitboard::*;
+#[cfg(feature = "fathom")]
+use crate::fathom::BoardState;
 use crate::movegen::*;
 
 /// Bit indicating if white can castle kingside.
@@ -1104,6 +1106,35 @@ impl<'a> From<&'a str> for Position {
         pos.update_checkers();
 
         pos
+    }
+}
+
+#[cfg(feature = "fathom")]
+impl Into<BoardState> for &Position {
+    fn into(self) -> BoardState {
+        let en_passant = if self.details.en_passant == 255 {
+            0
+        } else if self.white_to_move {
+            5 * 8 + self.details.en_passant
+        } else {
+            // black to move
+            3 * 8 + self.details.en_passant
+        };
+
+        BoardState {
+            white: self.white_pieces().0,
+            black: self.black_pieces().0,
+            kings: self.kings().0,
+            queens: self.queens().0,
+            rooks: self.rooks().0,
+            bishops: self.bishops().0,
+            knights: self.knights().0,
+            pawns: self.pawns().0,
+            halfmove_clock: self.details.halfmove as u32,
+            castling: self.details.castling as u32, // castling bits coincide luckily
+            en_passant: en_passant as u32,
+            white_to_move: self.white_to_move,
+        }
     }
 }
 

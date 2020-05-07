@@ -18,6 +18,8 @@ use std::cmp;
 use std::sync;
 
 use crate::eval::*;
+#[cfg(feature = "fathom")]
+use crate::fathom;
 use crate::hash::*;
 use crate::history::*;
 use crate::movegen::*;
@@ -25,7 +27,6 @@ use crate::movepick::*;
 use crate::position::*;
 use crate::repetitions::Repetitions;
 use crate::search_controller::PersistentOptions;
-use crate::syzygy::Syzygy;
 use crate::time::*;
 use crate::tt::*;
 
@@ -61,7 +62,6 @@ pub struct Search<'a> {
     hasher: Hasher,
     tt: &'a SharedTT<'a>,
     repetitions: Repetitions,
-    syzygy: &'a Syzygy,
 
     // Time Management
     time_control: TimeControl,
@@ -97,7 +97,6 @@ impl<'a> Search<'a> {
         time_control: TimeControl,
         tt: &'a SharedTT<'a>,
         repetitions: Repetitions,
-        syzygy: &'a Syzygy,
     ) -> Search<'a> {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);
         for i in 0..MAX_PLY as usize {
@@ -114,7 +113,6 @@ impl<'a> Search<'a> {
             hasher,
             tt,
             repetitions,
-            syzygy,
 
             time_control,
             time_manager: TimeManager::new(&position, time_control, options.move_overhead, abort),
@@ -151,41 +149,57 @@ impl<'a> Search<'a> {
             return moves[0].0;
         }
 
-        if self.id == 0 {
-            if let Some((mov, dtz)) = self.syzygy.best_move(&self.position) {
-                // Since the previous move might not have been zeroing, we
-                // have to add the current half move counter.
-                let score;
-                let bound;
+        #[cfg(feature = "fathom")]
+        {
+            if self.id == 0 {
+                let state = (&self.position).into();
+                if let Some(probe_result) = unsafe { fathom::probe_root(&state) } {
+                    let dtz = probe_result.dtz as Score;
 
-                // The given dtz is the dtz _after_ doing mov. We want to now
-                // the dtz _before_ making the move.
-                let dtz = -dtz;
+                    let score;
+                    let bound;
 
-                match shakmaty_syzygy::Wdl::from_dtz_after_zeroing(
-                    dtz.add_plies(self.position.details.halfmove as i32),
-                ) {
-                    shakmaty_syzygy::Wdl::Loss => {
-                        score = -MATE_SCORE + MAX_PLY - dtz.0 as Depth + 1;
-                        bound = UPPER_BOUND;
+                    match probe_result.wdl {
+                        fathom::Wdl::Loss => {
+                            score = -MATE_SCORE + MAX_PLY + dtz + 1;
+                            bound = UPPER_BOUND;
+                        }
+                        fathom::Wdl::Win => {
+                            score = MATE_SCORE - MAX_PLY - dtz - 1;
+                            bound = LOWER_BOUND;
+                        }
+                        _ => {
+                            score = 0;
+                            bound = EXACT_BOUND;
+                        }
                     }
-                    shakmaty_syzygy::Wdl::Win => {
-                        score = MATE_SCORE - MAX_PLY - dtz.0 as Depth - 1;
-                        bound = LOWER_BOUND;
-                    }
-                    _ => {
-                        score = 0;
-                        bound = EXACT_BOUND;
+
+                    let best_move = probe_result.best_move;
+                    for (mov, _) in &moves {
+                        let from: u8 = mov.from.into();
+                        let to: u8 = mov.to.into();
+                        let promotion = match mov.promoted {
+                            Some(Piece::Bishop) => Some(fathom::PromotionPiece::Bishop),
+                            Some(Piece::Knight) => Some(fathom::PromotionPiece::Knight),
+                            Some(Piece::Rook) => Some(fathom::PromotionPiece::Rook),
+                            Some(Piece::Queen) => Some(fathom::PromotionPiece::Queen),
+                            _ => None,
+                        };
+                        if from as u32 == best_move.from
+                            && to as u32 == best_move.to
+                            && mov.en_passant == best_move.en_passant
+                            && promotion == best_move.promotes
+                        {
+                            self.uci_info((MAX_PLY - 1) * INC_PLY, score, bound);
+
+                            self.time_manager
+                                .abort
+                                .store(true, std::sync::atomic::Ordering::SeqCst);
+
+                            return mov.clone();
+                        }
                     }
                 }
-
-                self.uci_info((MAX_PLY - 1) * INC_PLY, score, bound);
-
-                self.time_manager
-                    .abort
-                    .store(true, std::sync::atomic::Ordering::SeqCst);
-
-                return mov.into();
             }
         }
 
@@ -421,49 +435,53 @@ impl<'a> Search<'a> {
         // en passant square (since that results from a pawn push rather than a
         // capture). Also, the TBs do not contain positions with castling
         // rights, so exclude those as well.
-        if self.position.details.halfmove == 0
-            && self.position.details.en_passant == 255
-            && self.position.details.castling == 0
-            && !has_excluded_move
+        #[cfg(feature = "fathom")]
         {
-            let piece_count = self.position.all_pieces.popcount();
-            let max_pieces = self.syzygy.get_max_pieces();
-            if piece_count < max_pieces
-                || piece_count <= max_pieces && depth >= self.options.syzygy_probe_depth
+            if self.position.details.halfmove == 0
+                && self.position.details.en_passant == 255
+                && self.position.details.castling == 0
+                && !has_excluded_move
             {
-                if let Some(wdl) = self.syzygy.wdl(&self.position) {
-                    self.tb_hits += 1;
-                    let value;
-                    let bound;
-                    match wdl {
-                        shakmaty_syzygy::Wdl::Loss => {
-                            value = -MATE_SCORE + MAX_PLY + ply + 1;
-                            bound = UPPER_BOUND;
+                let piece_count = self.position.all_pieces.popcount();
+                let max_pieces = unsafe { fathom::max_pieces() };
+                if piece_count < max_pieces
+                    || piece_count <= max_pieces && depth >= self.options.syzygy_probe_depth
+                {
+                    let state = (&self.position).into();
+                    if let Some(wdl) = unsafe { fathom::probe_wdl(&state) } {
+                        self.tb_hits += 1;
+                        let value;
+                        let bound;
+                        match wdl {
+                            fathom::Wdl::Loss => {
+                                value = -MATE_SCORE + MAX_PLY + ply + 1;
+                                bound = UPPER_BOUND;
+                            }
+                            fathom::Wdl::Win => {
+                                value = MATE_SCORE - MAX_PLY - ply - 1;
+                                bound = UPPER_BOUND;
+                            }
+                            _ => {
+                                value = 0;
+                                bound = EXACT_BOUND;
+                            }
                         }
-                        shakmaty_syzygy::Wdl::Win => {
-                            value = MATE_SCORE - MAX_PLY - ply - 1;
-                            bound = UPPER_BOUND;
-                        }
-                        _ => {
-                            value = 0;
-                            bound = EXACT_BOUND;
-                        }
-                    }
 
-                    if bound == EXACT_BOUND
-                        || (bound == UPPER_BOUND && value <= alpha)
-                        || (bound == LOWER_BOUND && value >= beta)
-                    {
-                        self.tt.insert(
-                            hash,
-                            (MAX_PLY - 1) * INC_PLY,
-                            TTScore::from_score(value, ply),
-                            None,
-                            bound,
-                            None,
-                        );
+                        if bound == EXACT_BOUND
+                            || (bound == UPPER_BOUND && value <= alpha)
+                            || (bound == LOWER_BOUND && value >= beta)
+                        {
+                            self.tt.insert(
+                                hash,
+                                (MAX_PLY - 1) * INC_PLY,
+                                TTScore::from_score(value, ply),
+                                None,
+                                bound,
+                                None,
+                            );
 
-                        return Some(value);
+                            return Some(value);
+                        }
                     }
                 }
             }
