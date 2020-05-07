@@ -109,7 +109,7 @@ impl<'a> Search<'a> {
             for m in 1..64 {
                 let dd = d as f32;
                 let mm = m as f32;
-                let rr = dd.ln() * mm.ln() / 2.;
+                let rr = 0.25 + dd.ln() * mm.ln() / 2.;
                 let r = rr as Depth;
                 lmr[d][m] = r * INC_PLY;
             }
