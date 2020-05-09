@@ -116,6 +116,7 @@ pub const QUEEN_MOBILITY: [EScore; 29] = [
 ];
 
 pub const CENTER_CONTROL: EScore = S(5, 1);
+pub const SPACE: EScore = S(3, -1);
 
 pub const DOUBLED_PAWN: EScore = S(-5, -23);
 pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
@@ -245,6 +246,7 @@ impl Eval {
         score += self.pst(pos, true) - self.pst(pos, false);
         score += self.mobility_for_side(pos, true) - self.mobility_for_side(pos, false);
         score += self.center_control(true) - self.center_control(false);
+        score += self.space(pos, true) - self.space(pos, false);
         score += self.knights_for_side(pos, true) - self.knights_for_side(pos, false);
         score += self.bishops_for_side(pos, true) - self.bishops_for_side(pos, false);
         score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
@@ -437,6 +439,29 @@ impl Eval {
         }
 
         controlled_count as i32 * CENTER_CONTROL
+    }
+
+    fn space(&mut self, pos: &Position, white: bool) -> EScore {
+        let s = white as usize;
+        let us = pos.us(white);
+        let our_pawns = us & pos.pawns();
+
+        let rank1 = if white { RANK_1 } else { RANK_8 };
+
+        let mut space = our_pawns.backward(white, 1);
+        space |= space.backward(white, 1);
+        space |= space.backward(white, 2);
+        space |= space.backward(white, 4);
+
+        space &= !self.attacked_by[1 - s][Piece::Pawn.index()];
+        space &= !rank1;
+
+        #[cfg(feature = "tune")]
+        {
+            self.trace.space[s] = space.popcount() as i8;
+        }
+
+        space.popcount() as i32 * SPACE
     }
 
     fn pawns(&mut self, pos: &Position, pawn_hash: Hash) -> EScore {

@@ -62,6 +62,7 @@ const TUNE_MOBILITY_ROOK: bool = false;
 const TUNE_MOBILITY_QUEEN: bool = false;
 
 const TUNE_CENTER_CONTROL: bool = false;
+const TUNE_SPACE: bool = true;
 
 const TUNE_PAWNS_DOUBLED: bool = false;
 const TUNE_PAWNS_ISOLATED: bool = false;
@@ -109,6 +110,7 @@ pub struct Trace {
     pub mobility_queen: [[i8; 2]; 29],
 
     pub center_control: [i8; 2],
+    pub space: [i8; 2],
 
     pub pawns_doubled: [i8; 2],
     pub pawns_passed: [[i8; 2]; 8],
@@ -192,6 +194,10 @@ impl From<Trace> for CompactTrace {
 
         if TUNE_CENTER_CONTROL {
             linear.push(t.center_control[1] - t.center_control[0]);
+        }
+
+        if TUNE_SPACE {
+            linear.push(t.space[1] - t.space[0]);
         }
 
         if TUNE_MOBILITY_PAWN {
@@ -455,6 +461,7 @@ impl Default for Trace {
             mobility_queen: [[0; 2]; 29],
 
             center_control: [0; 2],
+            space: [0; 2],
 
             pawns_doubled: [0; 2],
             pawns_passed: [[0; 2]; 8],
@@ -574,6 +581,11 @@ impl Parameters {
 
         if TUNE_CENTER_CONTROL {
             print_single(self.linear[i], "CENTER_CONTROL");
+            i += 1;
+        }
+
+        if TUNE_SPACE {
+            print_single(self.linear[i], "SPACE");
             i += 1;
         }
 
@@ -918,6 +930,10 @@ impl Default for Parameters {
 
         if TUNE_CENTER_CONTROL {
             linear.push((mg(CENTER_CONTROL) as f32, eg(CENTER_CONTROL) as f32));
+        }
+
+        if TUNE_SPACE {
+            linear.push((mg(SPACE) as f32, eg(SPACE) as f32));
         }
 
         if TUNE_MOBILITY_PAWN {
