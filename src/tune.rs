@@ -1075,7 +1075,7 @@ fn qsearch(position: &mut Position, alpha: Score, beta: Score) -> (Score, Positi
         }
     }
 
-    let mut moves = MovePicker::qsearch(&position);
+    let mut moves = MovePicker::qsearch();
 
     let mut best_score = -MATE_SCORE;
     let mut best_pos = position.clone();
