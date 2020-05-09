@@ -1008,11 +1008,7 @@ impl<'a> Search<'a> {
         }
 
         if num_moves_searched == 0 {
-            if in_check {
-                return Some(-MATE_SCORE + ply);
-            } else {
-                return Some(alpha);
-            }
+            return Some(alpha);
         }
 
         let score = if best_score >= beta {
