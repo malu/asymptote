@@ -648,7 +648,9 @@ impl Eval {
         let king_area = KING_ATTACKS[king_sq];
 
         for piece in &Piece::all() {
-            if (king_area & self.attacked_by[1 - side][piece.index()]).at_least_one() {
+            if (king_area & self.attacked_by[1 - side][piece.index()] & !self.attacked_by_2[side])
+                .at_least_one()
+            {
                 attack_value += S(KING_DANGER[piece.index()], 0);
                 attack_count += 1;
 
