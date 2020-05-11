@@ -58,7 +58,7 @@ pub const fn mg(s: EScore) -> i16 {
 }
 
 pub const fn eg(s: EScore) -> i16 {
-    ((s + 0x8000) as u32 >> 16) as i16
+    (s as u32 >> 16) as i16
 }
 
 fn interpolate(score: EScore, phase: i16) -> i32 {
