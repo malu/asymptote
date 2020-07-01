@@ -633,13 +633,20 @@ impl Eval {
         const SAFE_SQUARES_PENALTY: [usize; 9] = [3, 2, 1, 0, 0, 0, 0, 0, 0];
         index += SAFE_SQUARES_PENALTY[safe_squares.popcount()];
 
-        let queen_contact_checks = KING_ATTACKS[king_sq]
+        let safe_queen_contact_checks = KING_ATTACKS[king_sq]
             & self.attacked_by[1 - side][Piece::Queen.index()]
             & self.attacked_by_2[1 - side]
             & !self.attacked_by_2[side];
-        if queen_contact_checks.at_least_one() {
-            index += 5;
+        if safe_queen_contact_checks.at_least_one() {
+            index += 4;
         }
+
+        let queen_contact_checks = KING_ATTACKS[king_sq]
+            & self.attacked_by[1 - side][Piece::Queen.index()];
+        if queen_contact_checks.at_least_one() {
+            index += 1;
+        }
+
 
         let mut score = S(KING_SAFETY[index], 0);
 
