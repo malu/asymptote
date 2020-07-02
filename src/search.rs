@@ -632,7 +632,8 @@ impl<'a> Search<'a> {
                 continue;
             }
 
-            let check = self.position.move_will_check(mov);
+            let checkers = self.position.checkers_after_move(mov);
+            let check = checkers.at_least_one();
 
             // Prunings
             if let Some(eval) = eval {
