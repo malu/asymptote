@@ -36,7 +36,7 @@ pub type Depth = i16;
 pub const INC_PLY: Depth = 64;
 pub const MAX_PLY: Ply = 128;
 
-const CHECK_EXTENSION_DEPTH: Depth = 3 * INC_PLY;
+const CHECK_EXTENSION_DEPTH: Depth = 4 * INC_PLY;
 const FUTILITY_MARGIN: Score = 200;
 const HISTORY_PRUNING_DEPTH: Depth = 2 * INC_PLY;
 const HISTORY_PRUNING_THRESHOLD: i64 = 0;
