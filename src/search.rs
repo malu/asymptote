@@ -634,6 +634,7 @@ impl<'a> Search<'a> {
 
             let checkers = self.position.checkers_after_move(mov);
             let check = checkers.at_least_one();
+            let discovered_check = (checkers & !mov.to.to_bb()).at_least_one();
 
             // Prunings
             if let Some(eval) = eval {
@@ -703,6 +704,7 @@ impl<'a> Search<'a> {
                 // * move is the hash move from a previous search
                 // * move does not lose material
                 if depth < CHECK_EXTENSION_DEPTH
+                    || discovered_check
                     || mtype == MoveType::GoodCapture
                     || mtype == MoveType::TTMove
                     // Filter tactically bad moves. They wouldn't pass the SEE
