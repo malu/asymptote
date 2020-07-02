@@ -144,31 +144,31 @@ pub const ROOK_PAIR: EScore = S(17, -58);
 
 #[rustfmt::skip]
 pub const KING_SAFETY: [Score; 30] = [
-       0,   -1,   -3,  -15,
-     -23,  -31,  -38,  -49,
-     -55,  -63,  -80, -105,
-    -134, -174, -200, -233,
-    -258, -291, -327, -361,
+       0,   -1,   -3,  -25,
+     -65,  -67,  -67,  -65,
+     -62,  -62,  -60,  -57,
+     -91, -143, -193, -230,
+    -250, -286, -326, -360,
     -400, -441, -484, -529,
     -576, -625, -676, -729,
     -784, -841,
 ];
 
-pub const KING_CHECK_KNIGHT: EScore = S(-85, 0);
-pub const KING_CHECK_BISHOP: EScore = S(-15, 0);
-pub const KING_CHECK_ROOK: EScore = S(-52, 0);
-pub const KING_CHECK_QUEEN: EScore = S(-49, 0);
+pub const KING_CHECK_KNIGHT: EScore = S(-48, 0);
+pub const KING_CHECK_BISHOP: EScore = S(-3, 0);
+pub const KING_CHECK_ROOK: EScore = S(-14, 0);
+pub const KING_CHECK_QUEEN: EScore = S(2, 0);
 
 #[rustfmt::skip]
 pub const KING_DANGER: [Score; 6] = [
-      -1,  -28,  -13,  -32,
-     -65,    1,
+     25,  -15,    1,  -10,
+    -40,    5,
 ];
 
 #[rustfmt::skip]
 pub const KING_DANGER_WEIGHT: [i32; 7] = [
-       0,    5,   58,  106,
-     113,  121,  124,
+      0,    2,   24,  102,
+    113,  121,  124,
 ];
 
 #[rustfmt::skip]
