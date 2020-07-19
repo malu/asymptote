@@ -603,12 +603,6 @@ impl Eval {
         let front = adjacent_files.forward(white, 1);
         let distant_front = adjacent_files.forward(white, 2);
 
-        let skip_king_safety = self.material[1 - side][Piece::Queen.index()] == 0
-            && self.material[1 - side][Piece::Rook.index()] <= 1;
-        if skip_king_safety {
-            return S(0, 0);
-        }
-
         index += (3 - (front & pos.pawns() & us).popcount()) * 2;
         index += 3 - (distant_front & pos.pawns() & us).popcount();
         index += (front & pos.pawns() & them).popcount();
