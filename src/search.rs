@@ -768,11 +768,14 @@ impl<'a> Search<'a> {
             extension = cmp::min(extension, INC_PLY);
             let new_depth = depth - INC_PLY + extension;
             reduction = cmp::max(0, cmp::min(reduction, new_depth - INC_PLY));
+            if num_moves_searched == 0 {
+                reduction = 0;
+            }
 
             self.make_move(Some(mov), ply);
 
             let mut value = Some(Score::max_value());
-            if !(is_pv && num_moves_searched == 0) {
+            if !is_pv || num_moves_searched > 0 {
                 value = self
                     .search(ply + 1, -alpha - 1, -alpha, new_depth - reduction)
                     .map(|v| -v);
