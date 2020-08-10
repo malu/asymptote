@@ -60,6 +60,15 @@ const ALPHA_BETA_STAGES: &[Stage] = &[
 
 const QUIESCENCE_STAGES: &[Stage] = &[Stage::GenerateGoodCaptures, Stage::GoodCaptures];
 
+const QUIESCENCE_CHECK_STAGES: &[Stage] = &[
+    Stage::GenerateGoodCaptures,
+    Stage::GoodCaptures,
+    Stage::GenerateBadCaptures,
+    Stage::BadCaptures,
+    Stage::GenerateQuietMoves,
+    Stage::QuietMoves,
+];
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum MoveType {
     TTMove,
@@ -91,12 +100,18 @@ impl<'a> MovePicker<'a> {
         }
     }
 
-    pub fn qsearch() -> Self {
+    pub fn qsearch(position: &Position) -> Self {
+        let stages = if position.in_check() {
+            QUIESCENCE_CHECK_STAGES
+        } else {
+            QUIESCENCE_STAGES
+        };
+
         MovePicker {
             ttmove: None,
             excluded: ShortMoveList::new(),
             stage: 0,
-            stages: QUIESCENCE_STAGES,
+            stages,
             moves: MoveList::new(),
             scores: ScoreList::new(),
             bad_moves: MoveList::new(),

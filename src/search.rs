@@ -570,7 +570,7 @@ impl<'a> Search<'a> {
         // If a capture or promotion leads to a beta cutoff in a reduced-depth search with increased beta bound, we
         // assume it will also lead to a cutoff in a full-depth search with the original beta bound.
         if !in_check && !is_pv && !has_excluded_move && depth >= 6 * INC_PLY {
-            let mut moves = MovePicker::qsearch();
+            let mut moves = MovePicker::qsearch(&self.position);
 
             let probcut_beta = beta + 100;
 
@@ -957,7 +957,7 @@ impl<'a> Search<'a> {
             }
         }
 
-        let mut moves = MovePicker::qsearch();
+        let mut moves = MovePicker::qsearch(&self.position);
 
         let mut best_move = None;
         let mut best_score = -MATE_SCORE;
@@ -1008,7 +1008,11 @@ impl<'a> Search<'a> {
         }
 
         if num_moves_searched == 0 {
-            return Some(alpha);
+            if in_check {
+                return Some(-MATE_SCORE + ply);
+            } else {
+                return Some(alpha);
+            }
         }
 
         let score = if best_score >= beta {
