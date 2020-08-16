@@ -641,12 +641,11 @@ impl Eval {
             index += 4;
         }
 
-        let queen_contact_checks = KING_ATTACKS[king_sq]
-            & self.attacked_by[1 - side][Piece::Queen.index()];
+        let queen_contact_checks =
+            KING_ATTACKS[king_sq] & self.attacked_by[1 - side][Piece::Queen.index()];
         if queen_contact_checks.at_least_one() {
             index += 1;
         }
-
 
         let mut score = S(KING_SAFETY[index], 0);
 
