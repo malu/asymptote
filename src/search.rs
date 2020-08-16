@@ -637,17 +637,6 @@ impl<'a> Search<'a> {
             // Prunings
             if let Some(eval) = eval {
                 if best_score > -MATE_SCORE + MAX_PLY {
-                    // Futility pruning
-                    if !in_check
-                        && !check
-                        && depth < 9 * INC_PLY
-                        && mtype == MoveType::Quiet
-                        && eval + 64 + 64 * (depth / INC_PLY) < alpha
-                    {
-                        pruned = true;
-                        continue;
-                    }
-
                     // History leaf pruning
                     //
                     // Do not play moves with negative history score if at very low
