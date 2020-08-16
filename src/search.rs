@@ -941,14 +941,12 @@ impl<'a> Search<'a> {
             if let Some(ttentry) = ttentry {
                 let score = ttentry.score.to_score(ply);
 
-                if alpha + 1 < beta {
-                    if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
-                        return Some(score);
-                    }
+                if score >= beta && ttentry.bound & LOWER_BOUND > 0 {
+                    return Some(score);
+                }
 
-                    if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
-                        return Some(score);
-                    }
+                if score <= alpha && ttentry.bound & UPPER_BOUND > 0 {
+                    return Some(score);
                 }
 
                 if ttentry.bound & EXACT_BOUND == EXACT_BOUND {
