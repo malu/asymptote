@@ -60,7 +60,7 @@ pub struct Search<'a> {
     history: History,
     eval: Eval,
     hasher: Hasher,
-    tt: &'a SharedTT<'a>,
+    tt: &'a TT,
     repetitions: Repetitions,
 
     // Time Management
@@ -96,7 +96,7 @@ impl<'a> Search<'a> {
         options: PersistentOptions,
         position: Position,
         time_control: TimeControl,
-        tt: &'a SharedTT<'a>,
+        tt: &'a TT,
         repetitions: Repetitions,
     ) -> Search<'a> {
         let mut pv = Vec::with_capacity(MAX_PLY as usize);

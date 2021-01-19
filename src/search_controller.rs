@@ -85,15 +85,13 @@ impl SearchController {
         self.tt.next_generation();
 
         let threads = self.options.threads;
-        let tt = self.tt.share();
-
         let mut main_thread = Search::new(
             Arc::clone(&self.abort),
             self.hasher.clone(),
             self.options.clone(),
             self.position.clone(),
             self.time_control,
-            &tt,
+            &self.tt,
             self.repetitions.clone(),
         );
 
@@ -323,14 +321,13 @@ impl SearchController {
     }
 
     fn handle_perft(&mut self, depth: usize) {
-        let tt = self.tt.share();
         let mut thread = Search::new(
             Arc::clone(&self.abort),
             self.hasher.clone(),
             self.options.clone(),
             self.position.clone(),
             self.time_control,
-            &tt,
+            &self.tt,
             self.repetitions.clone(),
         );
         thread.perft(depth);

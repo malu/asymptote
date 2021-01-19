@@ -21,7 +21,7 @@ use crate::movegen::*;
 use crate::position::*;
 use crate::search::*;
 
-use std::cell;
+use std::sync::atomic::{Ordering, AtomicU64};
 use std::cmp;
 
 pub struct TT {
@@ -35,7 +35,7 @@ impl TT {
         let bitmask = (1 << bits) - 1;
         let mut table = Vec::with_capacity(1 << bits);
         for _ in 0..(1 << bits) {
-            table.push(Bucket([TTEntry::default(); NUM_CLUSTERS]));
+            table.push(Bucket::default());
         }
 
         TT {
@@ -50,7 +50,8 @@ impl TT {
         let total = n * NUM_CLUSTERS;
         let mut usage = 0;
         for bucket in self.table.iter().take(n) {
-            for &entry in &bucket.0 {
+            for atomic_entry in &bucket.0 {
+                let entry = atomic_entry.read();
                 if entry.generation == self.generation {
                     usage += 1;
                 }
@@ -64,7 +65,7 @@ impl TT {
     }
 
     pub fn insert(
-        &mut self,
+        &self,
         hash: Hash,
         depth: Depth,
         score: TTScore,
@@ -79,8 +80,9 @@ impl TT {
         let mut replace = 0;
 
         {
-            let entries = unsafe { self.table.get_unchecked((hash & self.bitmask) as usize).0 };
-            for (i, entry) in entries.iter().enumerate() {
+            let entries = unsafe { &self.table.get_unchecked((hash & self.bitmask) as usize).0 };
+            for (i, atomic_entry) in entries.iter().enumerate() {
+                let entry = atomic_entry.read();
                 if entry.key == (hash >> 32) as u32 {
                     if bound != EXACT_BOUND && depth < entry.depth - 3 * INC_PLY {
                         return;
@@ -121,8 +123,8 @@ impl TT {
 
         unsafe {
             self.table
-                .get_unchecked_mut((hash & self.bitmask) as usize)
-                .0[replace] = TTEntry {
+                .get_unchecked((hash & self.bitmask) as usize)
+                .0[replace].write(&TTEntry {
                 key: (hash >> 32) as u32,
                 depth,
                 score,
@@ -131,70 +133,67 @@ impl TT {
                 generation: self.generation,
                 eval: eval.unwrap_or(0),
                 flags,
-            }
+                _pad: 0,
+            })
         };
     }
 
-    pub fn get(&mut self, hash: Hash) -> Option<TTEntry> {
-        for entry in unsafe {
-            &mut self
+    pub fn get(&self, hash: Hash) -> Option<TTEntry> {
+        for atomic_entry in unsafe {
+            &self
                 .table
-                .get_unchecked_mut((hash & self.bitmask) as usize)
+                .get_unchecked((hash & self.bitmask) as usize)
                 .0
         } {
+            let mut entry = atomic_entry.read();
             if entry.key == (hash >> 32) as u32 {
                 entry.generation = self.generation;
-                return Some(*entry);
+                atomic_entry.write(&entry);
+                return Some(entry);
             }
         }
 
         None
     }
-
-    pub fn share(&mut self) -> SharedTT {
-        SharedTT {
-            tt: cell::UnsafeCell::new(self),
-        }
-    }
-}
-
-pub struct SharedTT<'a> {
-    tt: cell::UnsafeCell<&'a mut TT>,
-}
-
-unsafe impl Sync for SharedTT<'_> {}
-
-impl<'a> SharedTT<'a> {
-    pub fn usage(&self) -> u64 {
-        let tt = unsafe { &mut *self.tt.get() };
-        tt.usage()
-    }
-
-    pub fn insert(
-        &self,
-        hash: Hash,
-        depth: Depth,
-        score: TTScore,
-        best_move: Option<Move>,
-        bound: Bound,
-        eval: Option<Score>,
-    ) {
-        let tt = unsafe { &mut *self.tt.get() };
-        tt.insert(hash, depth, score, best_move, bound, eval);
-    }
-
-    pub fn get(&self, hash: Hash) -> Option<TTEntry> {
-        let tt = unsafe { &mut *self.tt.get() };
-        tt.get(hash)
-    }
 }
 
 #[repr(align(64))]
-pub struct Bucket([TTEntry; NUM_CLUSTERS]);
+pub struct Bucket([AtomicU128; NUM_CLUSTERS]);
 const NUM_CLUSTERS: usize = 4;
+
+impl Default for Bucket {
+    fn default() -> Self {
+        Bucket([
+            AtomicU128::default(),
+            AtomicU128::default(),
+            AtomicU128::default(),
+            AtomicU128::default(),
+        ])
+    }
+}
 
 const FLAG_HAS_SCORE: u8 = 0x1;
 const FLAG_HAS_MOVE: u8 = 0x2;
+
+struct AtomicU128(AtomicU64, AtomicU64);
+
+impl AtomicU128 {
+    fn read(&self) -> TTEntry {
+        (self.0.load(Ordering::Relaxed), self.1.load(Ordering::Relaxed)).into()
+    }
+
+    fn write(&self, entry: &TTEntry) {
+        let (a, b): (u64, u64) = entry.into();
+        self.0.store(a, Ordering::Relaxed);
+        self.1.store(b, Ordering::Relaxed);
+    }
+}
+
+impl Default for AtomicU128 {
+    fn default() -> Self {
+        AtomicU128(AtomicU64::default(), AtomicU64::default())
+    }
+}
 
 #[repr(align(16))]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -207,6 +206,7 @@ pub struct TTEntry {
     pub bound: Bound,      // 1 byte
     generation: u8,        // 1 byte
     flags: u8,             // 1 byte
+    _pad: u8,              // 1 byte
 }
 
 impl TTEntry {
@@ -223,6 +223,18 @@ impl TTEntry {
     }
 }
 
+impl From<(u64, u64)> for TTEntry {
+    fn from(v: (u64, u64)) -> Self {
+        unsafe { std::mem::transmute(v) }
+    }
+}
+
+impl From<&TTEntry> for (u64, u64) {
+    fn from(v: &TTEntry) -> Self {
+        unsafe { std::mem::transmute(*v) }
+    }
+}
+
 impl Default for TTEntry {
     fn default() -> Self {
         TTEntry {
@@ -234,6 +246,7 @@ impl Default for TTEntry {
             bound: 0,
             generation: 0,
             flags: 0,
+            _pad: 0,
         }
     }
 }
