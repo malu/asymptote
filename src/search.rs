@@ -640,6 +640,7 @@ impl<'a> Search<'a> {
                     // Futility pruning
                     if !in_check
                         && !check
+                        && !has_excluded_move
                         && depth < 9 * INC_PLY
                         && mtype == MoveType::Quiet
                         && eval + 64 + 64 * (depth / INC_PLY) < alpha
@@ -653,6 +654,7 @@ impl<'a> Search<'a> {
                     // Do not play moves with negative history score if at very low
                     // depth.
                     if depth < HISTORY_PRUNING_DEPTH
+                        && !has_excluded_move
                         && mtype == MoveType::Quiet
                         && self.history.get_score(self.position.white_to_move, mov)
                             < HISTORY_PRUNING_THRESHOLD
@@ -670,7 +672,7 @@ impl<'a> Search<'a> {
                     // Does not trigger for winning or equal tactical moves
                     // (MoveType::GoodCapture) because those are assumed to have a
                     // non-negative static exchange evaluation.
-                    if depth < SEE_PRUNING_DEPTH && !check && !in_check {
+                    if depth < SEE_PRUNING_DEPTH && !check && !in_check && !has_excluded_move {
                         if mtype == MoveType::BadCapture
                             && !self.position.see(
                                 mov,
@@ -732,6 +734,7 @@ impl<'a> Search<'a> {
                 && !is_pv
                 && !in_check
                 && !check
+                && !has_excluded_move
                 && mtype == MoveType::Quiet
                 && best_score > -MATE_SCORE + MAX_PLY
                 && num_moves_searched > LMP_MOVES[(depth / INC_PLY) as usize]
