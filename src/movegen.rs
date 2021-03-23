@@ -105,16 +105,17 @@ pub struct MoveGenerator<'p> {
 impl<'p> MoveGenerator<'p> {
     pub fn good_captures(
         &mut self,
-        moves: &mut MoveList,
-        scores: &mut ScoreList,
+        good_moves: &mut MoveList,
+        good_scores: &mut ScoreList,
         bad_moves: &mut MoveList,
         bad_scores: &mut ScoreList,
     ) {
+        let mut moves = MoveList::new();
         let all_pieces = self.position.all_pieces;
         let them = self.position.them(self.position.white_to_move);
 
         if self.position.details.checkers.more_than_one() {
-            self.king(them & all_pieces, moves);
+            self.king(them & all_pieces, &mut moves);
         } else if self.position.details.checkers.at_least_one() {
             let checkers = self.position.details.checkers;
             let ep = if self.position.details.en_passant != 255 {
@@ -132,12 +133,12 @@ impl<'p> MoveGenerator<'p> {
                 RANK_1
             };
 
-            self.pawn(checkers | promotion_rank | ep, moves);
-            self.knight(checkers, moves);
-            self.bishop(checkers, moves);
-            self.rook(checkers, moves);
-            self.queen(checkers, moves);
-            self.king(them & all_pieces, moves);
+            self.pawn(checkers | promotion_rank | ep, &mut moves);
+            self.knight(checkers, &mut moves);
+            self.bishop(checkers, &mut moves);
+            self.rook(checkers, &mut moves);
+            self.queen(checkers, &mut moves);
+            self.king(them & all_pieces, &mut moves);
         } else {
             let ep = if self.position.details.en_passant != 255 {
                 if self.position.white_to_move {
@@ -154,24 +155,21 @@ impl<'p> MoveGenerator<'p> {
                 RANK_1
             };
 
-            self.pawn(them & all_pieces | promotion_rank | ep, moves);
-            self.knight(them & all_pieces, moves);
-            self.bishop(them & all_pieces, moves);
-            self.rook(them & all_pieces, moves);
-            self.queen(them & all_pieces, moves);
-            self.king(them & all_pieces, moves);
+            self.pawn(them & all_pieces | promotion_rank | ep, &mut moves);
+            self.knight(them & all_pieces, &mut moves);
+            self.bishop(them & all_pieces, &mut moves);
+            self.rook(them & all_pieces, &mut moves);
+            self.queen(them & all_pieces, &mut moves);
+            self.king(them & all_pieces, &mut moves);
         }
 
-        let mut i = 0;
-        while i < moves.len() {
-            let mov = moves[i];
+        for &mov in &moves {
             if self.position.see(mov, 0) {
-                scores.push(mov.mvv_lva_score());
-                i += 1;
+                good_scores.push(mov.mvv_lva_score());
+                good_moves.push(mov);
             } else {
                 bad_scores.push(mov.mvv_lva_score());
                 bad_moves.push(mov);
-                moves.swap_remove(i);
             }
         }
     }
