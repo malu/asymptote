@@ -49,14 +49,14 @@ pub struct Magic {
 }
 
 impl Magic {
-    #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "bmi2", feature = "pext"))]
     pub fn index(&self, occupied: Bitboard) -> usize {
         use std::arch::x86_64::_pext_u64;
 
         self.offset as usize + unsafe { _pext_u64(occupied.0, self.mask.0) as usize }
     }
 
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2")))]
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2", feature = "pext")))]
     pub fn index(&self, occupied: Bitboard) -> usize {
         let shift = self.magic.wrapping_shr(56) as u32;
         self.offset as usize
