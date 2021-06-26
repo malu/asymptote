@@ -183,34 +183,34 @@ impl Position {
 
         while (attackers & self.us(white)).at_least_one() {
             let us = self.us(white) & attackers;
-            if !promotion && (us & self.pawns()).at_least_one() {
+            if !promotion && (us & self.pawns()).at_least_one() && -score - 1 + next_victim_value >= 0 {
                 score = -score - 1 + next_victim_value;
                 next_victim_value = Piece::Pawn.see_value();
 
                 let lsb_bb = (us & self.pawns()).lsb_bb();
                 occupancy ^= lsb_bb;
                 attackers |= get_bishop_attacks_from(mov.to, occupancy) & bq;
-            } else if (us & self.knights()).at_least_one() {
+            } else if (us & self.knights()).at_least_one() && -score - 1 + next_victim_value >= 0 {
                 score = -score - 1 + next_victim_value;
                 next_victim_value = Piece::Knight.see_value();
 
                 let lsb_bb = (us & self.knights()).lsb_bb();
                 occupancy ^= lsb_bb;
-            } else if (us & self.bishops()).at_least_one() {
+            } else if (us & self.bishops()).at_least_one() && -score - 1 + next_victim_value >= 0 {
                 score = -score - 1 + next_victim_value;
                 next_victim_value = Piece::Bishop.see_value();
 
                 let lsb_bb = (us & self.bishops()).lsb_bb();
                 occupancy ^= lsb_bb;
                 attackers |= get_bishop_attacks_from(mov.to, occupancy) & bq;
-            } else if (us & self.rooks()).at_least_one() {
+            } else if (us & self.rooks()).at_least_one() && -score - 1 + next_victim_value >= 0 {
                 score = -score - 1 + next_victim_value;
                 next_victim_value = Piece::Rook.see_value();
 
                 let lsb_bb = (us & self.rooks()).lsb_bb();
                 occupancy ^= lsb_bb;
                 attackers |= get_rook_attacks_from(mov.to, occupancy) & rq;
-            } else if promotion && (us & self.pawns()).at_least_one() {
+            } else if promotion && (us & self.pawns()).at_least_one() && -score - 1 + next_victim_value + Piece::Queen.see_value() - Piece::Pawn.see_value() >= 0 {
                 score = -score - 1 + next_victim_value + Piece::Queen.see_value()
                     - Piece::Pawn.see_value();
                 next_victim_value = Piece::Queen.see_value();
@@ -218,7 +218,7 @@ impl Position {
                 let lsb_bb = (us & self.pawns()).lsb_bb();
                 occupancy ^= lsb_bb;
                 attackers |= get_bishop_attacks_from(mov.to, occupancy) & bq;
-            } else if (us & self.queens()).at_least_one() {
+            } else if (us & self.queens()).at_least_one() && -score - 1 + next_victim_value >= 0 {
                 score = -score - 1 + next_victim_value;
                 next_victim_value = Piece::Queen.see_value();
 
@@ -241,8 +241,8 @@ impl Position {
                 // side-to-move won exchange
                 return self.white_to_move == white;
             } else {
-                // no more captures
-                unreachable!();
+                // no more good captures
+                break;
             }
 
             if score < 0 {
