@@ -763,6 +763,15 @@ impl<'a> Search<'a> {
                 if is_pv {
                     reduction -= INC_PLY;
                 }
+
+                // Last two moves are reversible
+                if self.position.details.halfmove > 2 && ply >= 2 {
+                    if let Some(last_move) = self.stack[ply as usize - 2].current_move {
+                        if last_move.from == mov.to && last_move.to == mov.from {
+                            reduction += INC_PLY;
+                        }
+                    }
+                }
             };
 
             extension = cmp::min(extension, INC_PLY);
