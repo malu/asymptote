@@ -138,7 +138,7 @@ impl<'a> MovePicker<'a> {
     }
 
     fn get_bad_move(&mut self) -> Option<Move> {
-        let mov = Self::get_move_from_lists(self.index, &mut self.bad_moves, &mut self.bad_scores);
+        let mov = self.bad_moves.get(self.index).copied();
         self.index += 1;
         mov
     }
