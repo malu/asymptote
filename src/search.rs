@@ -277,6 +277,7 @@ impl<'a> Search<'a> {
 
             delta += delta / 2;
             if score >= beta {
+                alpha = (beta + alpha) / 2;
                 beta = cmp::min(MATE_SCORE, score + delta);
                 if self.time_manager.elapsed_millis() > 5000 {
                     self.uci_info(depth, score, LOWER_BOUND);
