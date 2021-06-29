@@ -627,6 +627,7 @@ impl<'a> Search<'a> {
         let mut best_move = None;
         let mut num_moves_searched = 0;
         let mut num_quiet_moves_searched = 0;
+        let mut singular_node = false;
         while let Some((mtype, mov)) = moves.next(&self.position, &self.history) {
             if !self.position.move_is_legal(mov) {
                 continue;
@@ -725,6 +726,7 @@ impl<'a> Search<'a> {
                     && self.is_singular(ttentry, ttmove, depth, ply)
                 {
                     extension += INC_PLY;
+                    singular_node = true;
                 }
             }
 
@@ -762,6 +764,10 @@ impl<'a> Search<'a> {
 
                 if is_pv {
                     reduction -= INC_PLY;
+                }
+
+                if singular_node {
+                    reduction += INC_PLY;
                 }
 
                 // Last two moves are reversible
