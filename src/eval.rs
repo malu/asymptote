@@ -44,6 +44,20 @@ const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
 struct PawnHashEntry {
     hash: Hash,
     score: EScore,
+    details: PawnHashEntryDetails,
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+struct PawnHashEntryDetails {
+    passed_pawns: Bitboard,
+}
+
+impl PawnHashEntryDetails {
+    fn combine(&self, rhs: &Self) -> Self {
+        PawnHashEntryDetails {
+            passed_pawns: self.passed_pawns | rhs.passed_pawns,
+        }
+    }
 }
 
 pub type Score = i16;
@@ -120,17 +134,17 @@ pub const CENTER_CONTROL: EScore = S(5, 1);
 pub const DOUBLED_PAWN: EScore = S(-5, -23);
 pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
 pub const ISOLATED_PAWN: EScore = S(-27, 5);
+pub const BLOCKED_PASSED_PAWN: EScore = S(-3, -53);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
-    S(   0,    0), S(   7,  -11), S(   7,   -2), S(   8,   21), 
-    S(  30,   47), S(  49,  111), S(  66,  176), S(   0,    0), 
+    S(   0,    0), S(   3,   -6), S(   3,   -2), S(   3,   22),
+    S(  34,   50), S(  47,  117), S(  68,  182), S(   0,    0),
 ];
-
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_FILE: [EScore; 8] = [
-    S(   1,   19), S(   3,   10), S(  -2,    0), S(  -6,  -13), 
-    S(  -8,  -15), S(  -2,  -10), S(  -3,    7), S(  -6,    9), 
+    S(   5,   20), S(   7,   12), S(  -3,    3), S(  -2,   -9),
+    S( -10,  -12), S(  -3,   -7), S( -10,    7), S( -16,   14),
 ];
 
 pub const KNIGHT_OUTPOST: EScore = S(29, -8);
@@ -445,24 +459,33 @@ impl Eval {
         {
             let pawn_hash_entry = &self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
             if pawn_hash_entry.hash == pawn_hash {
-                return pawn_hash_entry.score;
+                let mut score = pawn_hash_entry.score;
+                score += self.dynamic_pawns_for_side(pos, true, pawn_hash)
+                    - self.dynamic_pawns_for_side(pos, false, pawn_hash);
+                return score;
             }
         }
 
-        let score = self.pawns_for_side(pos, true) - self.pawns_for_side(pos, false);
+        let white = self.pawns_for_side(pos, true);
+        let black = self.pawns_for_side(pos, false);
+        let mut score = white.0 - black.0;
 
         let pawn_hash_entry = &mut self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
         pawn_hash_entry.hash = pawn_hash;
         pawn_hash_entry.score = score;
+        pawn_hash_entry.details = white.1.combine(&black.1);
+        score += self.dynamic_pawns_for_side(pos, true, pawn_hash)
+            - self.dynamic_pawns_for_side(pos, false, pawn_hash);
         score
     }
 
-    fn pawns_for_side(&mut self, pos: &Position, white: bool) -> EScore {
+    fn pawns_for_side(&mut self, pos: &Position, white: bool) -> (EScore, PawnHashEntryDetails) {
         let us = pos.us(white);
         let them = pos.them(white);
         let side = white as usize;
 
         let mut score = S(0, 0);
+        let mut details = PawnHashEntryDetails::default();
 
         for pawn in (pos.pawns() & us).squares() {
             let stop_sq = pawn.forward(white, 1);
@@ -486,6 +509,7 @@ impl Eval {
             }
 
             if passed_after_push && !doubled {
+                details.passed_pawns |= pawn;
                 let relative_rank = pawn.relative_rank(white) as usize;
 
                 score += PASSED_PAWN_ON_RANK[relative_rank];
@@ -515,6 +539,31 @@ impl Eval {
                     }
                 }
             }
+        }
+
+        (score, details)
+    }
+
+    pub fn dynamic_pawns_for_side(
+        &mut self,
+        pos: &Position,
+        white: bool,
+        pawn_hash: Hash,
+    ) -> EScore {
+        let us = pos.us(white);
+        let them = pos.them(white);
+
+        let mut score = S(0, 0);
+
+        let pawn_hash_entry = &self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
+        let details = pawn_hash_entry.details;
+
+        let blocked_passed_pawns = (details.passed_pawns & us).forward(white, 1) & them;
+        score += BLOCKED_PASSED_PAWN * blocked_passed_pawns.popcount() as EScore;
+        #[cfg(feature = "tune")]
+        {
+            self.trace.pawns_passed_blocked[white as usize] +=
+                blocked_passed_pawns.popcount() as i8;
         }
 
         score
