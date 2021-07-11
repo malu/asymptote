@@ -66,7 +66,8 @@ const TUNE_CENTER_CONTROL: bool = false;
 const TUNE_PAWNS_DOUBLED: bool = false;
 const TUNE_PAWNS_ISOLATED: bool = false;
 const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
-const TUNE_PAWNS_PASSED: bool = false;
+const TUNE_PAWNS_PASSED: bool = true;
+const TUNE_PAWNS_PASSED_BLOCKED: bool = true;
 
 const TUNE_KNIGHT_OUTPOST: bool = false;
 
@@ -112,6 +113,7 @@ pub struct Trace {
 
     pub pawns_doubled: [i8; 2],
     pub pawns_passed: [[i8; 2]; 8],
+    pub pawns_passed_blocked: [i8; 2],
     pub pawns_passed_file: [[i8; 2]; 8],
     pub pawns_open_isolated: [i8; 2],
     pub pawns_isolated: [i8; 2],
@@ -242,6 +244,10 @@ impl From<Trace> for CompactTrace {
             for i in 0..8 {
                 linear.push(t.pawns_passed_file[i][1] - t.pawns_passed_file[i][0]);
             }
+        }
+
+        if TUNE_PAWNS_PASSED_BLOCKED {
+            linear.push(t.pawns_passed_blocked[1] - t.pawns_passed_blocked[0]);
         }
 
         if TUNE_KNIGHT_OUTPOST {
@@ -458,6 +464,7 @@ impl Default for Trace {
 
             pawns_doubled: [0; 2],
             pawns_passed: [[0; 2]; 8],
+            pawns_passed_blocked: [0; 2],
             pawns_passed_file: [[0; 2]; 8],
             pawns_open_isolated: [0; 2],
             pawns_isolated: [0; 2],
@@ -622,6 +629,11 @@ impl Parameters {
             i += 8;
             print_array(&self.linear[i..i + 8], "PASSED_PAWN_ON_FILE");
             i += 8;
+        }
+
+        if TUNE_PAWNS_PASSED_BLOCKED {
+            print_single(self.linear[i], "BLOCKED_PASSED_PAWN");
+            i += 1;
         }
 
         if TUNE_KNIGHT_OUTPOST {
@@ -968,6 +980,13 @@ impl Default for Parameters {
             for &weight in PASSED_PAWN_ON_FILE.iter() {
                 linear.push((mg(weight) as f32, eg(weight) as f32));
             }
+        }
+
+        if TUNE_PAWNS_PASSED_BLOCKED {
+            linear.push((
+                mg(BLOCKED_PASSED_PAWN) as f32,
+                eg(BLOCKED_PASSED_PAWN) as f32,
+            ));
         }
 
         if TUNE_KNIGHT_OUTPOST {
