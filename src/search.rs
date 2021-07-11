@@ -382,8 +382,8 @@ impl<'a> Search<'a> {
         }
 
         // Check if there is a draw by insufficient mating material or threefold repetition.
-        if self.is_draw(ply) {
-            return Some(0);
+        if let Some(score) = self.draw_score(is_pv, ply) {
+            return Some(score);
         }
 
         // Check if the fifty moves rule applies and if so, return the apropriate score.
@@ -1216,16 +1216,21 @@ impl<'a> Search<'a> {
         }
     }
 
-    fn is_draw(&self, ply: Ply) -> bool {
-        if let Some(last_move) = self.stack[ply as usize - 1].current_move {
-            if last_move.captured.is_some() || last_move.promoted.is_some() {
-                return self.eval.is_material_draw();
-            } else if last_move.piece != Piece::Pawn {
-                return self.repetitions.has_repeated(ply);
-            }
+    fn draw_score(&self, is_pv: bool, ply: Ply) -> Option<Score> {
+        let last_move = self.stack[ply as usize - 1].current_move?;
+        if (last_move.captured.is_some() || last_move.promoted.is_some())
+            && self.eval.is_material_draw()
+        {
+            return Some(0);
+        } else if last_move.piece != Piece::Pawn && self.repetitions.has_repeated(ply) {
+            return if is_pv {
+                Some(0)
+            } else {
+                Some((self.visited_nodes % 2) as Score * 2 - 1)
+            };
         }
 
-        false
+        None
     }
 
     pub fn perft(&mut self, depth: usize) {
