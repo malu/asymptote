@@ -503,6 +503,7 @@ impl<'a> Search<'a> {
         if eval.is_none() && !is_pv {
             eval = Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
+        let pawn_hash_entry = self.eval.get_pawn_hash_entry(self.hasher.get_pawn_hash());
 
         let previous_move = self.stack[ply as usize - 1].current_move;
         let nullmove_reply = previous_move == None;
@@ -717,6 +718,13 @@ impl<'a> Search<'a> {
                 if previous_move.to == mov.to {
                     extension += if is_pv { INC_PLY } else { INC_PLY / 2 };
                 }
+            }
+
+            // Passed pawn push
+            if pawn_hash_entry.details.passed_pawns & mov.from
+                && mov.from.relative_rank(self.position.white_to_move) > 4
+            {
+                extension += INC_PLY;
             }
 
             if let (Some(ttentry), Some(ttmove)) = (ttentry, ttmove) {

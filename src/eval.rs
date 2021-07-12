@@ -41,15 +41,15 @@ pub struct Eval {
 const PAWN_TABLE_NUM_ENTRIES: usize = 2 * 1024;
 
 #[derive(Copy, Clone, Debug, Default)]
-struct PawnHashEntry {
+pub struct PawnHashEntry {
     hash: Hash,
     score: EScore,
-    details: PawnHashEntryDetails,
+    pub details: PawnHashEntryDetails,
 }
 
 #[derive(Copy, Clone, Debug, Default)]
-struct PawnHashEntryDetails {
-    passed_pawns: Bitboard,
+pub struct PawnHashEntryDetails {
+    pub passed_pawns: Bitboard,
 }
 
 impl PawnHashEntryDetails {
@@ -292,6 +292,10 @@ impl Eval {
         } else {
             -score
         }
+    }
+
+    pub fn get_pawn_hash_entry(&self, pawn_hash: Hash) -> PawnHashEntry {
+        self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES]
     }
 
     fn pst(&mut self, pos: &Position, white: bool) -> EScore {
