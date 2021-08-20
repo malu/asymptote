@@ -148,23 +148,21 @@ impl<'a> MovePicker<'a> {
         moves: &mut MoveList,
         scores: &mut ScoreList,
     ) -> Option<Move> {
-        assert!(moves.len() == scores.len());
-
         // Iterator::max_by_key chooses the last maximal element, but we want
         // the first (for no particular reason other than that's what was done
         // before). Hence we reverse the iterator first.
-        let (best_index, _) = scores
+        let (best_index, (_, best_move)) = scores
             .iter()
+            .zip(moves.iter())
             .enumerate()
             .skip(index)
             .rev()
-            .max_by_key(|(_, &score)| score)?;
+            .max_by_key(|(_, (&score, _))| score)?;
 
-        assert!(index < moves.len());
-
+        let best_move = *best_move;
         moves.swap(index, best_index);
         scores.swap(index, best_index);
-        Some(moves[index])
+        Some(best_move)
     }
 
     pub fn next(&mut self, position: &Position, history: &History) -> Option<(MoveType, Move)> {
