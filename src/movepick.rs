@@ -28,7 +28,7 @@ pub struct MovePicker<'a> {
     bad_moves: MoveList,
     bad_scores: ScoreList,
     index: usize,
-    killers: [Option<Move>; 2],
+    killers: [Option<Move>; 4],
     skip_quiets: bool,
     previous_move: Option<Move>,
 }
@@ -82,8 +82,21 @@ impl<'a> MovePicker<'a> {
     pub fn new(
         ttmove: Option<Move>,
         killers: [Option<Move>; 2],
+        gradparent_killers: [Option<Move>; 2],
         previous_move: Option<Move>,
     ) -> Self {
+        let mut killers = [killers[0], killers[1], None, None];
+        if killers[0].is_none() {
+            killers[0] = gradparent_killers[0];
+            killers[1] = gradparent_killers[1];
+        } else if killers[1].is_none() {
+            killers[1] = gradparent_killers[0];
+            killers[2] = gradparent_killers[1];
+        } else {
+            killers[2] = gradparent_killers[0];
+            killers[3] = gradparent_killers[1];
+        }
+
         MovePicker {
             ttmove,
             excluded: ShortMoveList::new(),
@@ -117,7 +130,7 @@ impl<'a> MovePicker<'a> {
             bad_moves: MoveList::new(),
             bad_scores: ScoreList::new(),
             index: 0,
-            killers: [None; 2],
+            killers: [None; 4],
             skip_quiets: false,
             previous_move: None,
         }

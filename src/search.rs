@@ -604,6 +604,9 @@ impl<'a> Search<'a> {
         let mut moves = MovePicker::new(
             ttmove,
             self.stack[ply as usize].killers_moves,
+            (ply >= 2)
+                .then(|| self.stack[ply as usize - 2].killers_moves)
+                .unwrap_or_default(),
             previous_move,
         );
 
@@ -1086,7 +1089,7 @@ impl<'a> Search<'a> {
             return false;
         }
 
-        let mut moves = MovePicker::new(None, [None; 2], None);
+        let mut moves = MovePicker::new(None, [None; 2], [None; 2], None);
 
         while let Some((_, mov)) = moves.next(&self.position, &self.history) {
             if self.position.move_is_legal(mov) {
