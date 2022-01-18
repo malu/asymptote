@@ -155,6 +155,7 @@ pub const BISHOP_PAIR: EScore = S(42, 48);
 pub const ROOK_OPEN_FILE: EScore = S(30, 8);
 pub const ROOK_HALFOPEN_FILE: EScore = S(10, 18);
 pub const ROOK_PAIR: EScore = S(17, -58);
+pub const ROOK_BEHIND_PASSED_PAWN: EScore = S(7, 21);
 
 #[rustfmt::skip]
 pub const KING_SAFETY: [Score; 30] = [
@@ -564,6 +565,25 @@ impl Eval {
         {
             self.trace.pawns_passed_blocked[white as usize] +=
                 blocked_passed_pawns.popcount() as i8;
+        }
+
+        {
+            let mut generators = details.passed_pawns & us;
+            let mut propagators = !pos.all_pieces;
+            generators |= generators.backward(white, 1) & propagators;
+            propagators &= propagators.backward(white, 1);
+            generators |= generators.backward(white, 2) & propagators;
+            propagators &= propagators.backward(white, 2);
+            generators |= generators.backward(white, 4) & propagators;
+
+            let behind_passers = generators.backward(white, 1);
+            let rooks_behind_passers = behind_passers & pos.rooks() & us;
+            score += ROOK_BEHIND_PASSED_PAWN * rooks_behind_passers.popcount() as EScore;
+            #[cfg(feature = "tune")]
+            {
+                self.trace.pawns_rook_behind_passer[white as usize] +=
+                    rooks_behind_passers.popcount() as i8;
+            }
         }
 
         score
