@@ -176,7 +176,8 @@ impl TimeManager {
             TimeControl::Variable { .. } => {
                 if self.times_checked & 0x7F == 0 {
                     let elapsed = self.elapsed_millis();
-                    elapsed + self.move_overhead >= self.dynamic.maximum
+                    elapsed + self.move_overhead
+                        >= cmp::min(self.dynamic.maximum, self.dynamic.target * 3)
                 } else {
                     false
                 }
