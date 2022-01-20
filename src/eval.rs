@@ -135,6 +135,7 @@ pub const DOUBLED_PAWN: EScore = S(-5, -23);
 pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
 pub const ISOLATED_PAWN: EScore = S(-27, 5);
 pub const BLOCKED_PASSED_PAWN: EScore = S(-3, -53);
+pub const PROTECTED_PASSED_PAWN: EScore = S(0, 5);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
@@ -519,6 +520,15 @@ impl Eval {
                 {
                     self.trace.pawns_passed[relative_rank][side] += 1;
                     self.trace.pawns_passed_file[file][side] += 1;
+                }
+
+                if (pos.pawns() & us & PROTECTED_PASSED_PAWN_CANDIDATES[side][pawn]).at_least_one()
+                {
+                    score += PROTECTED_PASSED_PAWN;
+                    #[cfg(feature = "tune")]
+                    {
+                        self.trace.pawns_protected_passer[side] += 1;
+                    }
                 }
             }
 
