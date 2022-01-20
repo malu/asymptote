@@ -135,6 +135,7 @@ pub const DOUBLED_PAWN: EScore = S(-5, -23);
 pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
 pub const ISOLATED_PAWN: EScore = S(-27, 5);
 pub const BLOCKED_PASSED_PAWN: EScore = S(-3, -53);
+pub const PASSED_PAIR: EScore = S(0, 4);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
@@ -537,6 +538,16 @@ impl Eval {
                     {
                         self.trace.pawns_isolated[side] += 1;
                     }
+                }
+            }
+        }
+
+        for passer in (details.passed_pawns & us).squares() {
+            if (details.passed_pawns & us & PASSED_PAIR_CANDIDATES[passer]).at_least_one() {
+                score += PASSED_PAIR;
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.pawns_passed_pair[side] += 1;
                 }
             }
         }
