@@ -267,7 +267,7 @@ impl<'a> Search<'a> {
         moves: &mut [(Move, i64)],
         depth: Depth,
     ) -> Option<Score> {
-        let mut delta = 30;
+        let mut delta = cmp::max(30, 100 - depth / INC_PLY * 8);
         let mut alpha = cmp::max(last_score - delta, -MATE_SCORE);
         let mut beta = cmp::min(last_score + delta, MATE_SCORE);
 
