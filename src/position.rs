@@ -389,6 +389,10 @@ impl Position {
     }
 
     pub fn move_will_check(&self, mov: Move) -> bool {
+        self.checkers_after_move(mov).at_least_one()
+    }
+
+    pub fn checkers_after_move(&self, mov: Move) -> Bitboard {
         let us = self.us(self.white_to_move);
         let mut all_pieces = self.all_pieces;
         let mut pawns = self.pawns() & us;
@@ -456,23 +460,15 @@ impl Position {
         }
 
         let their_king = self.king_sq(!self.white_to_move);
-        if (KNIGHT_ATTACKS[their_king] & knights).at_least_one() {
-            return true;
-        }
+        let mut checkers = Bitboard::default();
+        checkers |= KNIGHT_ATTACKS[their_king] & knights;
+        checkers |= get_bishop_attacks_from(their_king, all_pieces) & bishops;
+        checkers |= get_rook_attacks_from(their_king, all_pieces) & rooks;
+        checkers |= (their_king.to_bb().left(1) | their_king.to_bb().right(1))
+            .backward(self.white_to_move, 1)
+            & pawns;
 
-        if (get_bishop_attacks_from(their_king, all_pieces) & bishops).at_least_one() {
-            return true;
-        }
-
-        if (get_rook_attacks_from(their_king, all_pieces) & rooks).at_least_one() {
-            return true;
-        }
-
-        if (pawns.left(1) | pawns.right(1)).forward(self.white_to_move, 1) & their_king {
-            return true;
-        }
-
-        false
+        checkers
     }
 
     /// Applies `mov` to the current board position.

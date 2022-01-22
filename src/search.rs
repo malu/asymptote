@@ -391,7 +391,8 @@ impl<'a> Search<'a> {
             return Some(score);
         }
 
-        if ply == MAX_PLY {
+        if ply == MAX_PLY - 1 {
+            self.position.print("search");
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
@@ -632,7 +633,8 @@ impl<'a> Search<'a> {
                 continue;
             }
 
-            let check = self.position.move_will_check(mov);
+            let checkers = self.position.checkers_after_move(mov);
+            let check = checkers.at_least_one();
 
             // Prunings
             if let Some(eval) = eval {
@@ -695,15 +697,24 @@ impl<'a> Search<'a> {
 
             let mut extension = 0;
 
+            // Check extension
             if check {
+                let discovered_check = (checkers & !mov.to.to_bb()).at_least_one();
+
+                //if discovered_check {
+                //self.position.print("discovered");
+                //println!("Last move: {}", mov.to_algebraic());
+                //}
                 // We only extend checks which satify at least one of the
                 // following conditions:
                 // * node is near horizon
                 // * move is the hash move from a previous search
+                // * move is a discovered check
                 // * move does not lose material
                 if depth < CHECK_EXTENSION_DEPTH
                     || mtype == MoveType::GoodCapture
                     || mtype == MoveType::TTMove
+                    || discovered_check
                     // Filter tactically bad moves. They wouldn't pass the SEE
                     // test anyway.
                     || mtype != MoveType::BadCapture && self.position.see(mov, 0)
@@ -919,7 +930,8 @@ impl<'a> Search<'a> {
             return None;
         }
 
-        if ply == MAX_PLY {
+        if ply == MAX_PLY - 1 {
+            self.position.print("qsearch");
             return Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
         }
 
