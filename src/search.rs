@@ -715,7 +715,7 @@ impl<'a> Search<'a> {
             // Recapture extension
             if let Some(previous_move) = previous_move {
                 if previous_move.to == mov.to {
-                    extension += if is_pv { INC_PLY } else { INC_PLY / 2 };
+                    extension += INC_PLY;
                 }
             }
 
