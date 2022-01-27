@@ -131,10 +131,11 @@ pub const QUEEN_MOBILITY: [EScore; 29] = [
 
 pub const CENTER_CONTROL: EScore = S(5, 1);
 
-pub const DOUBLED_PAWN: EScore = S(-5, -23);
-pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
-pub const ISOLATED_PAWN: EScore = S(-27, 5);
+pub const DOUBLED_PAWN: EScore = S(2, -21);
+pub const ISOLATED_PAWN: EScore = S(-20, 1);
+pub const OPEN_ISOLATED_PAWN: EScore = S(-27, -11);
 pub const BLOCKED_PASSED_PAWN: EScore = S(-3, -53);
+pub const WEAK_PAWN: EScore = S(-3, -9);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
@@ -492,6 +493,7 @@ impl Eval {
         let us = pos.us(WHITE);
         let them = pos.them(WHITE);
         let side = WHITE as usize;
+        let our_pawns = pos.pawns() & us;
 
         let mut score = S(0, 0);
         let mut details = PawnHashEntryDetails::default();
@@ -507,6 +509,32 @@ impl Eval {
             let halfopen_file = (file_forward_bb & pos.pawns() & them).is_empty();
             let passed_after_push = !(pos.pawns() & stop_sq)
                 && (PAWN_CORRIDOR[side][stop_sq] & them & pos.pawns()).is_empty();
+
+            let defended = self.attacked_by[side][Piece::Pawn.index()] & pawn;
+            let not_attacked_unoccupied_stopsquare =
+                (!self.attacked_by[1 - side][Piece::Pawn.index()] & !pos.pawns())
+                    .backward(WHITE, 1)
+                    & pawn;
+            let possible_defenders = PAWN_CORRIDOR[1 - side][pawn] & !file_bb & our_pawns;
+            let possible_defenders_frontspan = {
+                let mut propagators = !pos.pawns();
+                let mut generators = possible_defenders;
+
+                generators |= generators.forward(WHITE, 1) & propagators;
+                propagators &= propagators.forward(WHITE, 1);
+                generators |= generators.forward(WHITE, 2) & propagators;
+                propagators &= propagators.forward(WHITE, 2);
+                generators |= generators.forward(WHITE, 4) & propagators;
+
+                generators
+            };
+
+            let defendable = !(possible_defenders_frontspan.left(1)
+                | possible_defenders_frontspan.right(1))
+            .forward(WHITE, 1)
+                & pawn;
+
+            let weak = !defended && !not_attacked_unoccupied_stopsquare && !defendable;
 
             if doubled {
                 score += DOUBLED_PAWN;
@@ -546,6 +574,15 @@ impl Eval {
                     {
                         self.trace.pawns_isolated[side] += 1;
                     }
+                }
+            }
+
+            if weak {
+                score += WEAK_PAWN;
+
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.pawns_weak[side] += 1;
                 }
             }
         }
