@@ -3,7 +3,7 @@ name = "asymptote"
 version = "0.8.0"
 authors = ["Maximilian Lupke <maxlupke@gmail.com>"]
 license = "GPL-3.0-only"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 arrayvec = "0.4.11"

@@ -135,6 +135,7 @@ pub const DOUBLED_PAWN: EScore = S(-5, -23);
 pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
 pub const ISOLATED_PAWN: EScore = S(-27, 5);
 pub const BLOCKED_PASSED_PAWN: EScore = S(-3, -53);
+pub const PAWN_ISLAND: EScore = S(0, -2);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
@@ -539,6 +540,29 @@ impl Eval {
                     }
                 }
             }
+        }
+
+        let files = FILES
+            .into_iter()
+            .map(|file| (pos.pawns() & us & file).at_least_one());
+        let mut islands = 0;
+        let mut is_island = false;
+        for file in files {
+            match (file, is_island) {
+                (true, false) => {
+                    is_island = true;
+                    islands += 1;
+                }
+                (false, true) => is_island = false,
+                (false, false) => {}
+                (true, true) => {}
+            }
+        }
+
+        score += islands as EScore * PAWN_ISLAND;
+        #[cfg(feature = "tune")]
+        {
+            self.trace.pawns_islands[side] = islands;
         }
 
         (score, details)
