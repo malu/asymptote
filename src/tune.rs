@@ -68,6 +68,7 @@ const TUNE_PAWNS_ISOLATED: bool = false;
 const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
 const TUNE_PAWNS_PASSED: bool = true;
 const TUNE_PAWNS_PASSED_BLOCKED: bool = true;
+const TUNE_PAWNS_RUNNER: bool = true;
 
 const TUNE_KNIGHT_OUTPOST: bool = false;
 
@@ -117,6 +118,7 @@ pub struct Trace {
     pub pawns_passed_file: [[i8; 2]; 8],
     pub pawns_open_isolated: [i8; 2],
     pub pawns_isolated: [i8; 2],
+    pub pawns_runner: [i8; 2],
 
     pub knight_outposts: [i8; 2],
 
@@ -248,6 +250,10 @@ impl From<Trace> for CompactTrace {
 
         if TUNE_PAWNS_PASSED_BLOCKED {
             linear.push(t.pawns_passed_blocked[1] - t.pawns_passed_blocked[0]);
+        }
+
+        if TUNE_PAWNS_RUNNER {
+            linear.push(t.pawns_runner[1] - t.pawns_runner[0]);
         }
 
         if TUNE_KNIGHT_OUTPOST {
@@ -468,6 +474,7 @@ impl Default for Trace {
             pawns_passed_file: [[0; 2]; 8],
             pawns_open_isolated: [0; 2],
             pawns_isolated: [0; 2],
+            pawns_runner: [0; 2],
 
             knight_outposts: [0; 2],
 
@@ -633,6 +640,11 @@ impl Parameters {
 
         if TUNE_PAWNS_PASSED_BLOCKED {
             print_single(self.linear[i], "BLOCKED_PASSED_PAWN");
+            i += 1;
+        }
+
+        if TUNE_PAWNS_RUNNER {
+            print_single(self.linear[i], "PAWN_RUNNER");
             i += 1;
         }
 
@@ -987,6 +999,10 @@ impl Default for Parameters {
                 mg(BLOCKED_PASSED_PAWN) as f32,
                 eg(BLOCKED_PASSED_PAWN) as f32,
             ));
+        }
+
+        if TUNE_PAWNS_RUNNER {
+            linear.push((mg(PAWN_RUNNER) as f32, eg(PAWN_RUNNER) as f32));
         }
 
         if TUNE_KNIGHT_OUTPOST {

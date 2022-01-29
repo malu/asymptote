@@ -134,17 +134,19 @@ pub const CENTER_CONTROL: EScore = S(5, 1);
 pub const DOUBLED_PAWN: EScore = S(-5, -23);
 pub const OPEN_ISOLATED_PAWN: EScore = S(-26, -11);
 pub const ISOLATED_PAWN: EScore = S(-27, 5);
-pub const BLOCKED_PASSED_PAWN: EScore = S(-3, -53);
+pub const BLOCKED_PASSED_PAWN: EScore = S(3, -59);
+pub const PAWN_RUNNER: EScore = S(-36, 65);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
-    S(   0,    0), S(   3,   -6), S(   3,   -2), S(   3,   22),
-    S(  34,   50), S(  47,  117), S(  68,  182), S(   0,    0),
+    S(   0,    0), S(   4,   -1), S(   1,    0), S(   4,   18),
+    S(  35,   41), S(  46,   99), S(  66,  169), S(   0,    0),
 ];
+
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_FILE: [EScore; 8] = [
-    S(   5,   20), S(   7,   12), S(  -3,    3), S(  -2,   -9),
-    S( -10,  -12), S(  -3,   -7), S( -10,    7), S( -16,   14),
+    S(   8,    1), S(   7,    1), S(  -4,    0), S(  -2,   -8),
+    S(  -9,   -7), S(  -3,   -8), S( -13,    6), S( -18,    8),
 ];
 
 pub const KNIGHT_OUTPOST: EScore = S(29, -8);
@@ -550,6 +552,7 @@ impl Eval {
         white: bool,
         pawn_hash: Hash,
     ) -> EScore {
+        let side = white as usize;
         let us = pos.us(white);
         let them = pos.them(white);
 
@@ -564,6 +567,41 @@ impl Eval {
         {
             self.trace.pawns_passed_blocked[white as usize] +=
                 blocked_passed_pawns.popcount() as i8;
+        }
+
+        let their_king = pos.king_sq[1 - side];
+        for pawn in (details.passed_pawns & us).squares() {
+            let (normalized_pawn_rank, normalized_king_rank) = if white {
+                (pawn.rank(), their_king.rank())
+            } else {
+                (pawn.flip_rank().rank(), their_king.flip_rank().rank())
+            };
+
+            let to_move_bonus = if pos.white_to_move == white { 1 } else { 0 };
+
+            let file_diff = if pawn.file() > their_king.file() {
+                pawn.file() - their_king.file() - 1
+            } else if pawn.file() < their_king.file() {
+                their_king.file() - pawn.file() - 1
+            } else {
+                0
+            };
+
+            let runner = if normalized_king_rank + 1 < normalized_pawn_rank + to_move_bonus {
+                true
+            } else if normalized_pawn_rank + to_move_bonus + file_diff > 7 {
+                true
+            } else {
+                false
+            };
+
+            if runner {
+                score += PAWN_RUNNER;
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.pawns_runner[white as usize] += 1;
+                }
+            }
         }
 
         score
