@@ -69,6 +69,7 @@ const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
 const TUNE_PAWNS_PASSED: bool = false;
 const TUNE_PAWNS_PASSED_BLOCKED: bool = false;
 const TUNE_PAWNS_WEAK: bool = false;
+const TUNE_PAWNS_RUNNER: bool = false;
 
 const TUNE_KNIGHT_OUTPOST: bool = false;
 
@@ -120,6 +121,7 @@ pub struct Trace {
     pub pawns_open_isolated: [i8; 2],
     pub pawns_isolated: [i8; 2],
     pub pawns_weak: [i8; 2],
+    pub pawns_runner: [i8; 2],
 
     pub knight_outposts: [i8; 2],
 
@@ -256,6 +258,10 @@ impl From<Trace> for CompactTrace {
 
         if TUNE_PAWNS_WEAK {
             linear.push(t.pawns_weak[1] - t.pawns_weak[0]);
+        }
+
+        if TUNE_PAWNS_RUNNER {
+            linear.push(t.pawns_runner[1] - t.pawns_runner[0]);
         }
 
         if TUNE_KNIGHT_OUTPOST {
@@ -483,6 +489,7 @@ impl Default for Trace {
             pawns_open_isolated: [0; 2],
             pawns_isolated: [0; 2],
             pawns_weak: [0; 2],
+            pawns_runner: [0; 2],
 
             knight_outposts: [0; 2],
 
@@ -654,6 +661,11 @@ impl Parameters {
 
         if TUNE_PAWNS_WEAK {
             print_single(self.linear[i], "WEAK_PAWN");
+            i += 1;
+        }
+
+        if TUNE_PAWNS_RUNNER {
+            print_single(self.linear[i], "PAWN_RUNNER");
             i += 1;
         }
 
@@ -1017,6 +1029,10 @@ impl Default for Parameters {
 
         if TUNE_PAWNS_WEAK {
             linear.push((mg(WEAK_PAWN) as f32, eg(WEAK_PAWN) as f32));
+        }
+
+        if TUNE_PAWNS_RUNNER {
+            linear.push((mg(PAWN_RUNNER) as f32, eg(PAWN_RUNNER) as f32));
         }
 
         if TUNE_KNIGHT_OUTPOST {

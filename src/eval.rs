@@ -134,18 +134,20 @@ pub const CENTER_CONTROL: EScore = S(5, 1);
 pub const DOUBLED_PAWN: EScore = S(2, -21);
 pub const ISOLATED_PAWN: EScore = S(-20, 1);
 pub const OPEN_ISOLATED_PAWN: EScore = S(-27, -11);
-pub const BLOCKED_PASSED_PAWN: EScore = S(-3, -53);
+pub const BLOCKED_PASSED_PAWN: EScore = S(5, -56);
 pub const WEAK_PAWN: EScore = S(-3, -9);
+pub const PAWN_RUNNER: EScore = S(-16, 56);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
-    S(   0,    0), S(   3,   -6), S(   3,   -2), S(   3,   22),
-    S(  34,   50), S(  47,  117), S(  68,  182), S(   0,    0),
+    S(   0,    0), S(   3,   -1), S(   3,    3), S(   1,   21),
+    S(  33,   42), S(  43,  102), S(  67,  171), S(   0,    0),
 ];
+
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_FILE: [EScore; 8] = [
-    S(   5,   20), S(   7,   12), S(  -3,    3), S(  -2,   -9),
-    S( -10,  -12), S(  -3,   -7), S( -10,    7), S( -16,   14),
+    S(   3,    1), S(   8,    4), S(  -4,    1), S(  -3,   -7),
+    S( -11,   -7), S(  -3,   -7), S( -11,    7), S( -19,   10),
 ];
 
 pub const KNIGHT_OUTPOST: EScore = S(29, -8);
@@ -597,6 +599,7 @@ impl Eval {
     ) -> EScore {
         let us = pos.us(WHITE);
         let them = pos.them(WHITE);
+        let side = WHITE as usize;
 
         let mut score = S(0, 0);
 
@@ -609,6 +612,43 @@ impl Eval {
         {
             self.trace.pawns_passed_blocked[WHITE as usize] +=
                 blocked_passed_pawns.popcount() as i8;
+        }
+
+        let their_king = pos.king_sq[1 - side];
+        for pawn in (details.passed_pawns & us).squares() {
+            let (mut normalized_pawn_rank, normalized_king_rank) = if WHITE {
+                (pawn.rank(), their_king.rank())
+            } else {
+                (pawn.flip_rank().rank(), their_king.flip_rank().rank())
+            };
+
+            if normalized_pawn_rank == 1 {
+                // Advance pawns on starting rank once to handle double step.
+                normalized_pawn_rank += 1;
+            }
+
+            let to_move_bonus = if pos.white_to_move == WHITE { 1 } else { 0 };
+
+            let file_diff = if pawn.file() > their_king.file() {
+                pawn.file() - their_king.file() - 1
+            } else if pawn.file() < their_king.file() {
+                their_king.file() - pawn.file() - 1
+            } else {
+                0
+            };
+
+            let remaining_pawn_moves = 7 - normalized_pawn_rank - to_move_bonus;
+            let remaining_king_moves = cmp::max(6 - cmp::min(normalized_king_rank, 6), file_diff);
+
+            let runner = remaining_pawn_moves < remaining_king_moves;
+
+            if runner {
+                score += PAWN_RUNNER;
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.pawns_runner[side] += 1;
+                }
+            }
         }
 
         score
