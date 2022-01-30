@@ -87,6 +87,7 @@ pub struct PlyDetails {
     exclude_move: Option<Move>,
     hash: Hash,
     pawn_hash: Hash,
+    eval: Option<Score>,
 }
 
 impl<'a> Search<'a> {
@@ -109,7 +110,7 @@ impl<'a> Search<'a> {
             for m in 1..64 {
                 let dd = d as f32;
                 let mm = m as f32;
-                let rr = 0.25 + dd.ln() * mm.ln() / 2.;
+                let rr = dd.ln() * mm.ln() / 2.;
                 let r = rr as Depth;
                 lmr[d][m] = r * INC_PLY;
             }
@@ -232,6 +233,12 @@ impl<'a> Search<'a> {
 
             moves.swap(0, swap_with);
         }
+
+        self.stack[0].eval = if self.position.in_check() {
+            None
+        } else {
+            Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()))
+        };
 
         for d in 1_i16.. {
             if d >= MAX_PLY || !self.time_manager.start_another_iteration(d) {
@@ -431,9 +438,7 @@ impl<'a> Search<'a> {
                 }
             }
 
-            if !is_pv {
-                eval = ttentry.get_eval();
-            }
+            eval = ttentry.get_eval();
         }
 
         if depth < INC_PLY {
@@ -500,17 +505,33 @@ impl<'a> Search<'a> {
             }
         }
 
-        if eval.is_none() && !is_pv {
-            eval = Some(self.eval.score(&self.position, self.hasher.get_pawn_hash()));
-        }
-
         let previous_move = self.stack[ply as usize - 1].current_move;
         let nullmove_reply = previous_move == None;
         let in_check = !nullmove_reply && self.position.in_check();
+
+        // Evaluation score while in check has no meaning. Choose an arbitrarily high value so our
+        // next move will never be considered improving the evaluation.
+        let eval = if in_check {
+            None
+        } else {
+            eval.or_else(|| Some(self.eval.score(&self.position, self.hasher.get_pawn_hash())))
+        };
+
+        self.stack[ply as usize].eval = eval;
         let mut skip_quiets = false;
+        let improving = if ply >= 2 {
+            self.stack[ply as usize - 2]
+                .eval
+                .zip(eval)
+                .map(|(prev, now)| prev < now)
+                .unwrap_or(false)
+        } else {
+            false
+        };
 
         if let Some(eval) = eval {
-            skip_quiets = !in_check
+            skip_quiets = !is_pv
+                && !in_check
                 && !has_excluded_move
                 && depth < 3 * INC_PLY
                 && eval + FUTILITY_MARGIN * (depth / INC_PLY) < alpha;
@@ -519,7 +540,8 @@ impl<'a> Search<'a> {
             //
             // Prune nodes at shallow depth if current evaluation is above beta by
             // a large (depth-dependent) margin.
-            if !in_check
+            if !is_pv
+                && !in_check
                 && !has_excluded_move
                 && depth < STATIC_BETA_DEPTH
                 && eval - STATIC_BETA_MARGIN * (depth / INC_PLY) > beta
@@ -531,7 +553,7 @@ impl<'a> Search<'a> {
             //
             // Prune nodes that are so good that we could pass without the opponent
             // catching up.
-            if !has_excluded_move && !in_check && self.eval.phase() > 0 && eval >= beta {
+            if !is_pv && !has_excluded_move && !in_check && self.eval.phase() > 0 && eval >= beta {
                 let r = INC_PLY + depth / 4 + cmp::min(2 * INC_PLY, (eval - beta) / 2);
                 self.make_move(None, ply);
                 let score = self
@@ -638,7 +660,8 @@ impl<'a> Search<'a> {
             if let Some(eval) = eval {
                 if best_score > -MATE_SCORE + MAX_PLY {
                     // Futility pruning
-                    if !in_check
+                    if !is_pv
+                        && !in_check
                         && !check
                         && depth < 9 * INC_PLY
                         && mtype == MoveType::Quiet
@@ -652,7 +675,8 @@ impl<'a> Search<'a> {
                     //
                     // Do not play moves with negative history score if at very low
                     // depth.
-                    if depth < HISTORY_PRUNING_DEPTH
+                    if !is_pv
+                        && depth < HISTORY_PRUNING_DEPTH
                         && mtype == MoveType::Quiet
                         && self.history.get_score(self.position.white_to_move, mov)
                             < HISTORY_PRUNING_THRESHOLD
@@ -670,7 +694,7 @@ impl<'a> Search<'a> {
                     // Does not trigger for winning or equal tactical moves
                     // (MoveType::GoodCapture) because those are assumed to have a
                     // non-negative static exchange evaluation.
-                    if depth < SEE_PRUNING_DEPTH && !check && !in_check {
+                    if !is_pv && depth < SEE_PRUNING_DEPTH && !check && !in_check {
                         if mtype == MoveType::BadCapture
                             && !self.position.see(
                                 mov,
@@ -762,6 +786,10 @@ impl<'a> Search<'a> {
 
                 if is_pv {
                     reduction -= INC_PLY;
+                }
+
+                if !improving {
+                    reduction += INC_PLY;
                 }
 
                 // Last two moves are reversible
