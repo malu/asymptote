@@ -14,7 +14,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use rand::{prelude::*, prng::ChaChaRng};
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaChaRng;
 
 use crate::bitboard::*;
 use crate::movegen::*;

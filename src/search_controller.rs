@@ -17,7 +17,7 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::{self, Arc};
 
-use crossbeam::thread;
+use crossbeam_utils::thread;
 
 #[cfg(feature = "fathom")]
 use crate::fathom;

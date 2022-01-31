@@ -38,16 +38,12 @@ impl<T: Clone> Clone for SquareMap<T> {
     }
 }
 
-impl<T> rand::AsByteSliceMut for SquareMap<T>
+impl<T> rand::Fill for SquareMap<T>
 where
-    [T]: rand::AsByteSliceMut,
+    [T]: rand::Fill,
 {
-    fn as_byte_slice_mut(&mut self) -> &mut [u8] {
-        self.data.as_byte_slice_mut()
-    }
-
-    fn to_le(&mut self) {
-        self.data.to_le()
+    fn try_fill<R: rand::Rng + ?Sized>(&mut self, rng: &mut R) -> Result<(), rand::Error> {
+        self.data.try_fill(rng)
     }
 }
 

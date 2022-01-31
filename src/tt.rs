@@ -21,8 +21,8 @@ use crate::movegen::*;
 use crate::position::*;
 use crate::search::*;
 
-use std::sync::atomic::{Ordering, AtomicU64};
 use std::cmp;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct TT {
     table: Vec<Bucket>,
@@ -122,9 +122,7 @@ impl TT {
         }
 
         unsafe {
-            self.table
-                .get_unchecked((hash & self.bitmask) as usize)
-                .0[replace].write(&TTEntry {
+            self.table.get_unchecked((hash & self.bitmask) as usize).0[replace].write(&TTEntry {
                 key: (hash >> 32) as u32,
                 depth,
                 score,
@@ -139,12 +137,7 @@ impl TT {
     }
 
     pub fn get(&self, hash: Hash) -> Option<TTEntry> {
-        for atomic_entry in unsafe {
-            &self
-                .table
-                .get_unchecked((hash & self.bitmask) as usize)
-                .0
-        } {
+        for atomic_entry in unsafe { &self.table.get_unchecked((hash & self.bitmask) as usize).0 } {
             let mut entry = atomic_entry.read();
             if entry.key == (hash >> 32) as u32 {
                 entry.generation = self.generation;
@@ -179,7 +172,11 @@ struct AtomicU128(AtomicU64, AtomicU64);
 
 impl AtomicU128 {
     fn read(&self) -> TTEntry {
-        (self.0.load(Ordering::Relaxed), self.1.load(Ordering::Relaxed)).into()
+        (
+            self.0.load(Ordering::Relaxed),
+            self.1.load(Ordering::Relaxed),
+        )
+            .into()
     }
 
     fn write(&self, entry: &TTEntry) {
