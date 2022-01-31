@@ -156,7 +156,7 @@ impl<'a> Search<'a> {
             .into_iter()
             .filter(|&mov| self.position.move_is_legal(mov))
             .map(|mov| (mov, 0))
-            .collect::<arrayvec::ArrayVec<[(Move, i64); 256]>>();
+            .collect::<arrayvec::ArrayVec<(Move, i64), 256>>();
 
         if moves.len() == 1 {
             return moves[0].0;

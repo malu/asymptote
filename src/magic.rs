@@ -16,7 +16,8 @@
 */
 use crate::bitboard::*;
 use crate::types::SquareMap;
-use rand::{prelude::*, prng::ChaChaRng};
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaChaRng;
 
 const SHIFT_MASK: u64 = 0xF8_00_00_00_00_00_00_00;
 
