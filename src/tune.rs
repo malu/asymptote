@@ -56,9 +56,9 @@ const TUNE_MATERIAL_ROOK: bool = false;
 const TUNE_MATERIAL_QUEEN: bool = false;
 
 const TUNE_MOBILITY_PAWN: bool = false;
-const TUNE_MOBILITY_KNIGHT: bool = false;
-const TUNE_MOBILITY_BISHOP: bool = false;
-const TUNE_MOBILITY_ROOK: bool = false;
+const TUNE_MOBILITY_KNIGHT: bool = true;
+const TUNE_MOBILITY_BISHOP: bool = true;
+const TUNE_MOBILITY_ROOK: bool = true;
 const TUNE_MOBILITY_QUEEN: bool = false;
 
 const TUNE_CENTER_CONTROL: bool = false;
@@ -66,8 +66,8 @@ const TUNE_CENTER_CONTROL: bool = false;
 const TUNE_PAWNS_DOUBLED: bool = false;
 const TUNE_PAWNS_ISOLATED: bool = false;
 const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
-const TUNE_PAWNS_PASSED: bool = true;
-const TUNE_PAWNS_PASSED_BLOCKED: bool = true;
+const TUNE_PAWNS_PASSED: bool = false;
+const TUNE_PAWNS_PASSED_BLOCKED: bool = false;
 
 const TUNE_KNIGHT_OUTPOST: bool = false;
 

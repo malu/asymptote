@@ -96,25 +96,26 @@ pub const ROOK_SCORE: EScore = S(459, 568);
 pub const QUEEN_SCORE: EScore = S(990, 1000);
 
 pub const PAWN_MOBILITY: EScore = S(9, 6);
+
 #[rustfmt::skip]
 pub const KNIGHT_MOBILITY: [EScore; 9] = [
-    S(-137, -138), S( -58,  -67), S( -18,  -23), S(   8,   14),
-    S(  28,   24), S(  32,   34), S(  43,   39), S(  53,   49),
-    S(  67,   42),
+    S( -66, -126), S(   7,  -33), S(  21,   15), S(  35,   23),
+    S(  56,   27), S(  59,   41), S(  66,   39), S(  63,   49),
+    S(  66,   30),
 ];
 #[rustfmt::skip]
 pub const BISHOP_MOBILITY: [EScore; 14] = [
-    S(-110, -110), S( -68,  -68), S( -23,  -29), S(  -7,  -12),
-    S(   7,   -1), S(  12,    4), S(  18,   12), S(  19,   27),
-    S(  22,   22), S(  25,   25), S(  30,   30), S(  35,   35),
-    S(  40,   40), S(  45,   45),
+    S( -11,  -82), S(   3,  -37), S(  18,   -9), S(  16,    8),
+    S(  19,   19), S(  20,   25), S(  22,   30), S(  21,   40),
+    S(  30,   37), S(  26,   40), S(  25,   41), S(  26,   36),
+    S(  36,   38), S(  43,   43),
 ];
 #[rustfmt::skip]
 pub const ROOK_MOBILITY: [EScore; 15] = [
-    S(-105, -105), S( -65,  -65), S( -22,  -26), S( -17,  -18),
-    S(  -8,   -7), S(  -7,   -1), S(  -2,    4), S(   4,   11),
-    S(  10,   19), S(  20,   20), S(  25,   25), S(  30,   30),
-    S(  35,   35), S(  40,   40), S(  45,   45),
+    S( -36,  -85), S( -18,  -38), S( -10,  -16), S(  -5,   -2),
+    S(  -8,   10), S(  -5,   12), S(   0,   22), S(   6,   23),
+    S(   8,   29), S(   8,   34), S(  15,   36), S(  17,   38),
+    S(  19,   38), S(  33,   35), S(  26,   37),
 ];
 
 #[rustfmt::skip]
@@ -335,7 +336,7 @@ impl Eval {
         let their_pawn_attacks = (their_pawns.left(1) | their_pawns.right(1)).forward(!WHITE, 1);
         for knight in (pos.knights() & us).squares() {
             let b = KNIGHT_ATTACKS[knight];
-            let mobility = b & !their_pawn_attacks;
+            let mobility = b & !their_pawn_attacks & !us;
             score += KNIGHT_MOBILITY[mobility.popcount()];
             self.attacked_by[s][Piece::Knight.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
@@ -348,41 +349,44 @@ impl Eval {
 
         for bishop in (pos.bishops() & us).squares() {
             let b = get_bishop_attacks_from(bishop, pos.all_pieces);
-            score += BISHOP_MOBILITY[b.popcount()];
+            let mobility = b & !us;
+            score += BISHOP_MOBILITY[mobility.popcount()];
             self.attacked_by[s][Piece::Bishop.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
 
             #[cfg(feature = "tune")]
             {
-                self.trace.mobility_bishop[b.popcount()][s] += 1;
+                self.trace.mobility_bishop[mobility.popcount()][s] += 1;
             }
         }
 
         for rook in (pos.rooks() & us).squares() {
             let b = get_rook_attacks_from(rook, pos.all_pieces);
-            score += ROOK_MOBILITY[b.popcount()];
+            let mobility = b & !us;
+            score += ROOK_MOBILITY[mobility.popcount()];
             self.attacked_by[s][Piece::Rook.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
 
             #[cfg(feature = "tune")]
             {
-                self.trace.mobility_rook[b.popcount()][s] += 1;
+                self.trace.mobility_rook[mobility.popcount()][s] += 1;
             }
         }
 
         for queen in (pos.queens() & us).squares() {
             let b = get_bishop_attacks_from(queen, pos.all_pieces)
                 | get_rook_attacks_from(queen, pos.all_pieces);
-            score += QUEEN_MOBILITY[b.popcount()];
+            let mobility = b & !us;
+            score += QUEEN_MOBILITY[mobility.popcount()];
             self.attacked_by[s][Piece::Queen.index()] |= b;
             self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
             self.attacked_by_1[s] |= b;
 
             #[cfg(feature = "tune")]
             {
-                self.trace.mobility_queen[b.popcount()][s] += 1;
+                self.trace.mobility_queen[mobility.popcount()][s] += 1;
             }
         }
 
