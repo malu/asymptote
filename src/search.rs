@@ -607,9 +607,14 @@ impl<'a> Search<'a> {
             previous_move,
         );
 
-        if let Some(excluded_move) = self.stack[ply as usize].exclude_move {
+        let singular = if let Some(excluded_move) = self.stack[ply as usize].exclude_move {
             moves.add_excluded_move(excluded_move);
-        }
+            false
+        } else if let (Some(ttentry), Some(ttmove)) = (ttentry, ttmove) {
+            self.is_singular(ttentry, ttmove, depth, ply)
+        } else {
+            false
+        };
 
         // Futility pruning
         //
@@ -695,6 +700,11 @@ impl<'a> Search<'a> {
 
             let mut extension = 0;
 
+            // Singular move extension
+            if mtype == MoveType::TTMove && singular {
+                extension += INC_PLY;
+            }
+
             if check {
                 // We only extend checks which satify at least one of the
                 // following conditions:
@@ -716,15 +726,6 @@ impl<'a> Search<'a> {
             if let Some(previous_move) = previous_move {
                 if previous_move.to == mov.to {
                     extension += if is_pv { INC_PLY } else { INC_PLY / 2 };
-                }
-            }
-
-            if let (Some(ttentry), Some(ttmove)) = (ttentry, ttmove) {
-                if mtype == MoveType::TTMove
-                    && extension < INC_PLY
-                    && self.is_singular(ttentry, ttmove, depth, ply)
-                {
-                    extension += INC_PLY;
                 }
             }
 
