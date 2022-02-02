@@ -256,14 +256,14 @@ impl Eval {
     pub fn score(&mut self, pos: &Position, pawn_hash: Hash) -> Score {
         let mut score = S(0, 0);
 
-        score += self.pst(pos, true) - self.pst(pos, false);
-        score += self.mobility_for_side(pos, true) - self.mobility_for_side(pos, false);
-        score += self.center_control(true) - self.center_control(false);
-        score += self.knights_for_side(pos, true) - self.knights_for_side(pos, false);
-        score += self.bishops_for_side(pos, true) - self.bishops_for_side(pos, false);
-        score += self.rooks_for_side(pos, true) - self.rooks_for_side(pos, false);
-        score += self.material(true) - self.material(false);
-        score += self.king_safety_for_side(pos, true) - self.king_safety_for_side(pos, false);
+        score += self.pst::<true>(pos) - self.pst::<false>(pos);
+        score += self.mobility_for_side::<true>(pos) - self.mobility_for_side::<false>(pos);
+        score += self.center_control::<true>() - self.center_control::<false>();
+        score += self.knights_for_side::<true>(pos) - self.knights_for_side::<false>(pos);
+        score += self.bishops_for_side::<true>(pos) - self.bishops_for_side::<false>(pos);
+        score += self.rooks_for_side::<true>(pos) - self.rooks_for_side::<false>(pos);
+        score += self.material::<true>() - self.material::<false>();
+        score += self.king_safety_for_side::<true>(pos) - self.king_safety_for_side::<false>(pos);
         score += self.pawns(pos, pawn_hash);
 
         if pos.white_to_move {
@@ -294,28 +294,30 @@ impl Eval {
         }
     }
 
-    fn pst(&mut self, pos: &Position, white: bool) -> EScore {
+    fn pst<const WHITE: bool>(&mut self, pos: &Position) -> EScore {
         #[cfg(feature = "tune")]
         {
-            self.trace_pst(pos, white);
+            self.trace_pst(pos, WHITE);
         }
 
-        self.pst[white as usize]
+        // Just to silence warning about unused pos when tune feature is disabled.
+        let _ = pos;
+        self.pst[WHITE as usize]
     }
 
-    fn mobility_for_side(&mut self, pos: &Position, white: bool) -> EScore {
-        let s = white as usize;
-        let us = pos.us(white);
-        let them = pos.them(white);
-        let rank3 = if white { RANK_3 } else { RANK_6 };
+    fn mobility_for_side<const WHITE: bool>(&mut self, pos: &Position) -> EScore {
+        let s = WHITE as usize;
+        let us = pos.us(WHITE);
+        let them = pos.them(WHITE);
+        let rank3 = if WHITE { RANK_3 } else { RANK_6 };
 
         self.attacked_by[s] = [Bitboard::from(0); 6];
         self.attacked_by_1[s] = Bitboard::from(0);
         self.attacked_by_2[s] = Bitboard::from(0);
 
-        let pawn_stop_squares = (pos.pawns() & us).forward(white, 1);
+        let pawn_stop_squares = (pos.pawns() & us).forward(WHITE, 1);
         let mut pawn_mobility = pawn_stop_squares & !pos.all_pieces;
-        pawn_mobility |= (pawn_mobility & rank3).forward(white, 1) & !pos.all_pieces;
+        pawn_mobility |= (pawn_mobility & rank3).forward(WHITE, 1) & !pos.all_pieces;
         pawn_mobility |= them & (pawn_stop_squares.left(1) | pawn_stop_squares.right(1));
 
         let b = pawn_stop_squares.left(1);
@@ -330,7 +332,7 @@ impl Eval {
 
         let mut score = S(0, 0);
         let their_pawns = pos.pawns() & !us;
-        let their_pawn_attacks = (their_pawns.left(1) | their_pawns.right(1)).forward(!white, 1);
+        let their_pawn_attacks = (their_pawns.left(1) | their_pawns.right(1)).forward(!WHITE, 1);
         for knight in (pos.knights() & us).squares() {
             let b = KNIGHT_ATTACKS[knight];
             let mobility = b & !their_pawn_attacks;
@@ -384,7 +386,7 @@ impl Eval {
             }
         }
 
-        let b = KING_ATTACKS[pos.king_sq(white)];
+        let b = KING_ATTACKS[pos.king_sq(WHITE)];
         self.attacked_by[s][Piece::King.index()] |= b;
         self.attacked_by_2[s] |= self.attacked_by_1[s] & b;
         self.attacked_by_1[s] |= b;
@@ -398,13 +400,13 @@ impl Eval {
         score
     }
 
-    fn material(&mut self, white: bool) -> EScore {
+    fn material<const WHITE: bool>(&mut self) -> EScore {
         let p = Piece::Pawn.index();
         let n = Piece::Knight.index();
         let b = Piece::Bishop.index();
         let r = Piece::Rook.index();
         let q = Piece::Queen.index();
-        let side = white as usize;
+        let side = WHITE as usize;
 
         let mut score = 0;
         score += self.material[side][p] as EScore * PAWN_SCORE;
@@ -438,8 +440,8 @@ impl Eval {
         score
     }
 
-    fn center_control(&mut self, white: bool) -> EScore {
-        let side = white as usize;
+    fn center_control<const WHITE: bool>(&mut self) -> EScore {
+        let side = WHITE as usize;
         let controlled = self.attacked_by_1[side] & !self.attacked_by_1[1 - side]
             | self.attacked_by_2[side] & !self.attacked_by_2[1 - side];
         let controlled_center = CENTER & controlled;
@@ -460,35 +462,38 @@ impl Eval {
             let pawn_hash_entry = &self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
             if pawn_hash_entry.hash == pawn_hash {
                 let mut score = pawn_hash_entry.score;
-                score += self.dynamic_pawns_for_side(pos, true, pawn_hash)
-                    - self.dynamic_pawns_for_side(pos, false, pawn_hash);
+                score += self.dynamic_pawns_for_side::<true>(pos, pawn_hash)
+                    - self.dynamic_pawns_for_side::<false>(pos, pawn_hash);
                 return score;
             }
         }
 
-        let white = self.pawns_for_side(pos, true);
-        let black = self.pawns_for_side(pos, false);
+        let white = self.pawns_for_side::<true>(pos);
+        let black = self.pawns_for_side::<false>(pos);
         let mut score = white.0 - black.0;
 
         let pawn_hash_entry = &mut self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
         pawn_hash_entry.hash = pawn_hash;
         pawn_hash_entry.score = score;
         pawn_hash_entry.details = white.1.combine(&black.1);
-        score += self.dynamic_pawns_for_side(pos, true, pawn_hash)
-            - self.dynamic_pawns_for_side(pos, false, pawn_hash);
+        score += self.dynamic_pawns_for_side::<true>(pos, pawn_hash)
+            - self.dynamic_pawns_for_side::<false>(pos, pawn_hash);
         score
     }
 
-    fn pawns_for_side(&mut self, pos: &Position, white: bool) -> (EScore, PawnHashEntryDetails) {
-        let us = pos.us(white);
-        let them = pos.them(white);
-        let side = white as usize;
+    fn pawns_for_side<const WHITE: bool>(
+        &mut self,
+        pos: &Position,
+    ) -> (EScore, PawnHashEntryDetails) {
+        let us = pos.us(WHITE);
+        let them = pos.them(WHITE);
+        let side = WHITE as usize;
 
         let mut score = S(0, 0);
         let mut details = PawnHashEntryDetails::default();
 
         for pawn in (pos.pawns() & us).squares() {
-            let stop_sq = pawn.forward(white, 1);
+            let stop_sq = pawn.forward(WHITE, 1);
             let corridor_bb = PAWN_CORRIDOR[side][pawn];
             let file = pawn.file() as usize;
             let file_bb = FILES[file];
@@ -510,7 +515,7 @@ impl Eval {
 
             if passed_after_push && !doubled {
                 details.passed_pawns |= pawn;
-                let relative_rank = pawn.relative_rank(white) as usize;
+                let relative_rank = pawn.relative_rank(WHITE) as usize;
 
                 score += PASSED_PAWN_ON_RANK[relative_rank];
                 score += PASSED_PAWN_ON_FILE[file];
@@ -544,35 +549,34 @@ impl Eval {
         (score, details)
     }
 
-    pub fn dynamic_pawns_for_side(
+    pub fn dynamic_pawns_for_side<const WHITE: bool>(
         &mut self,
         pos: &Position,
-        white: bool,
         pawn_hash: Hash,
     ) -> EScore {
-        let us = pos.us(white);
-        let them = pos.them(white);
+        let us = pos.us(WHITE);
+        let them = pos.them(WHITE);
 
         let mut score = S(0, 0);
 
         let pawn_hash_entry = &self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
         let details = pawn_hash_entry.details;
 
-        let blocked_passed_pawns = (details.passed_pawns & us).forward(white, 1) & them;
+        let blocked_passed_pawns = (details.passed_pawns & us).forward(WHITE, 1) & them;
         score += BLOCKED_PASSED_PAWN * blocked_passed_pawns.popcount() as EScore;
         #[cfg(feature = "tune")]
         {
-            self.trace.pawns_passed_blocked[white as usize] +=
+            self.trace.pawns_passed_blocked[WHITE as usize] +=
                 blocked_passed_pawns.popcount() as i8;
         }
 
         score
     }
 
-    pub fn knights_for_side(&mut self, pos: &Position, white: bool) -> EScore {
-        let us = pos.us(white);
-        let them = pos.them(white);
-        let s = white as usize;
+    pub fn knights_for_side<const WHITE: bool>(&mut self, pos: &Position) -> EScore {
+        let us = pos.us(WHITE);
+        let them = pos.them(WHITE);
+        let s = WHITE as usize;
         let mut score = 0;
 
         let attackable_by_pawn = |sq: Square| {
@@ -595,8 +599,8 @@ impl Eval {
         score
     }
 
-    pub fn bishops_for_side(&mut self, pos: &Position, white: bool) -> EScore {
-        let us = pos.us(white);
+    pub fn bishops_for_side<const WHITE: bool>(&mut self, pos: &Position) -> EScore {
+        let us = pos.us(WHITE);
         let mut score = 0;
 
         for bishop in (pos.bishops() & us).squares() {
@@ -605,15 +609,15 @@ impl Eval {
             score += XRAYED_SQUARE * xray.popcount() as EScore;
             #[cfg(feature = "tune")]
             {
-                self.trace.bishops_xray[white as usize] += xray.popcount() as i8;
+                self.trace.bishops_xray[WHITE as usize] += xray.popcount() as i8;
             }
         }
 
         score
     }
 
-    pub fn rooks_for_side(&mut self, pos: &Position, white: bool) -> EScore {
-        let us = pos.us(white);
+    pub fn rooks_for_side<const WHITE: bool>(&mut self, pos: &Position) -> EScore {
+        let us = pos.us(WHITE);
 
         let mut score = 0;
 
@@ -623,13 +627,13 @@ impl Eval {
                 score += ROOK_OPEN_FILE;
                 #[cfg(feature = "tune")]
                 {
-                    self.trace.rooks_open_file[white as usize] += 1;
+                    self.trace.rooks_open_file[WHITE as usize] += 1;
                 }
             } else if (pos.pawns() & us & file_bb).is_empty() {
                 score += ROOK_HALFOPEN_FILE;
                 #[cfg(feature = "tune")]
                 {
-                    self.trace.rooks_halfopen_file[white as usize] += 1;
+                    self.trace.rooks_halfopen_file[WHITE as usize] += 1;
                 }
             }
         }
@@ -637,20 +641,20 @@ impl Eval {
         score
     }
 
-    fn king_safety_for_side(&mut self, pos: &Position, white: bool) -> EScore {
-        let us = pos.us(white);
-        let them = pos.them(white);
-        let side = white as usize;
+    fn king_safety_for_side<const WHITE: bool>(&mut self, pos: &Position) -> EScore {
+        let us = pos.us(WHITE);
+        let them = pos.them(WHITE);
+        let side = WHITE as usize;
 
         let mut index = 0;
 
         let king = pos.kings() & us;
-        let king_sq = pos.king_sq(white);
+        let king_sq = pos.king_sq(WHITE);
         let file = king_sq.file() as usize;
         let king_file = FILES[file];
         let adjacent_files = king.left(1) | king | king.right(1);
-        let front = adjacent_files.forward(white, 1);
-        let distant_front = adjacent_files.forward(white, 2);
+        let front = adjacent_files.forward(WHITE, 1);
+        let distant_front = adjacent_files.forward(WHITE, 2);
 
         let skip_king_safety = self.material[1 - side][Piece::Queen.index()] == 0
             && self.material[1 - side][Piece::Rook.index()] <= 1;
