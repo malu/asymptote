@@ -194,10 +194,6 @@ impl TimeManager {
             return;
         }
 
-        if diff > -75 {
-            self.dynamic.target = cmp::min(self.dynamic.maximum, self.dynamic.target * 5 / 4);
-        }
-
         self.dynamic.target = cmp::min(self.dynamic.maximum, self.dynamic.target * 3 / 2);
     }
 }
