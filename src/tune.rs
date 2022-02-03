@@ -66,8 +66,8 @@ const TUNE_CENTER_CONTROL: bool = false;
 const TUNE_PAWNS_DOUBLED: bool = false;
 const TUNE_PAWNS_ISOLATED: bool = false;
 const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
-const TUNE_PAWNS_PASSED: bool = true;
-const TUNE_PAWNS_PASSED_BLOCKED: bool = true;
+const TUNE_PAWNS_PASSED: bool = false;
+const TUNE_PAWNS_PASSED_BLOCKED: bool = false;
 
 const TUNE_KNIGHT_OUTPOST: bool = false;
 
@@ -83,6 +83,7 @@ const TUNE_KING_CHECK_KNIGHT: bool = false;
 const TUNE_KING_CHECK_BISHOP: bool = false;
 const TUNE_KING_CHECK_ROOK: bool = false;
 const TUNE_KING_CHECK_QUEEN: bool = false;
+const TUNE_KING_CASTLING: bool = true;
 const TUNE_KING_DANGER: bool = false;
 
 const TUNE_PST_PAWN: bool = false;
@@ -132,6 +133,8 @@ pub struct Trace {
     pub king_check_bishop: [i8; 2],
     pub king_check_rook: [i8; 2],
     pub king_check_queen: [i8; 2],
+    pub king_castling_kingside: [i8; 2],
+    pub king_castling_queenside: [i8; 2],
     pub king_danger: [[i8; 2]; 6],
     pub king_danger_attacks: [i8; 2],
 
@@ -272,6 +275,11 @@ impl From<Trace> for CompactTrace {
 
         if TUNE_ROOKS_PAIR {
             linear.push(t.rooks_pair[1] - t.rooks_pair[0]);
+        }
+
+        if TUNE_KING_CASTLING {
+            linear.push(t.king_castling_kingside[1] - t.king_castling_kingside[0]);
+            linear.push(t.king_castling_queenside[1] - t.king_castling_queenside[0]);
         }
 
         if TUNE_PST_PAWN {
@@ -483,6 +491,8 @@ impl Default for Trace {
             king_check_bishop: [0; 2],
             king_check_rook: [0; 2],
             king_check_queen: [0; 2],
+            king_castling_kingside: [0; 2],
+            king_castling_queenside: [0; 2],
             king_danger: [[0; 2]; 6],
             king_danger_attacks: [0; 2],
 
@@ -663,6 +673,13 @@ impl Parameters {
 
         if TUNE_ROOKS_PAIR {
             print_single(self.linear[i], "ROOK_PAIR");
+            i += 1;
+        }
+
+        if TUNE_KING_CASTLING {
+            print_single(self.linear[i], "KING_CASTLE_KINGSIDE");
+            i += 1;
+            print_single(self.linear[i], "KING_CASTLE_QUEENSIDE");
             i += 1;
         }
 
@@ -1011,6 +1028,17 @@ impl Default for Parameters {
 
         if TUNE_ROOKS_PAIR {
             linear.push((mg(ROOK_PAIR) as f32, eg(ROOK_PAIR) as f32));
+        }
+
+        if TUNE_KING_CASTLING {
+            linear.push((
+                mg(KING_CASTLE_KINGSIDE) as f32,
+                eg(KING_CASTLE_KINGSIDE) as f32,
+            ));
+            linear.push((
+                mg(KING_CASTLE_QUEENSIDE) as f32,
+                eg(KING_CASTLE_QUEENSIDE) as f32,
+            ));
         }
 
         if TUNE_PST_PAWN {

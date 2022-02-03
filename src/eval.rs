@@ -173,6 +173,9 @@ pub const KING_CHECK_BISHOP: EScore = S(-15, 0);
 pub const KING_CHECK_ROOK: EScore = S(-52, 0);
 pub const KING_CHECK_QUEEN: EScore = S(-49, 0);
 
+pub const KING_CASTLE_KINGSIDE: EScore = S(19, -5);
+pub const KING_CASTLE_QUEENSIDE: EScore = S(5, -3);
+
 #[rustfmt::skip]
 pub const KING_DANGER: [Score; 6] = [
       -1,  -28,  -13,  -32,
@@ -764,6 +767,26 @@ impl Eval {
             #[cfg(feature = "tune")]
             {
                 self.trace.king_check_queen[side] += 1;
+            }
+        }
+
+        if WHITE && pos.details.castling & CASTLE_WHITE_KSIDE > 0
+            || !WHITE && pos.details.castling & CASTLE_BLACK_KSIDE > 0
+        {
+            score += KING_CASTLE_KINGSIDE;
+            #[cfg(feature = "tune")]
+            {
+                self.trace.king_castling_kingside[side] += 1;
+            }
+        }
+
+        if WHITE && pos.details.castling & CASTLE_WHITE_QSIDE > 0
+            || !WHITE && pos.details.castling & CASTLE_BLACK_QSIDE > 0
+        {
+            score += KING_CASTLE_QUEENSIDE;
+            #[cfg(feature = "tune")]
+            {
+                self.trace.king_castling_queenside[side] += 1;
             }
         }
 
