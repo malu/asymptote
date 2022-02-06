@@ -66,13 +66,14 @@ const TUNE_CENTER_CONTROL: bool = false;
 const TUNE_PAWNS_DOUBLED: bool = false;
 const TUNE_PAWNS_ISOLATED: bool = false;
 const TUNE_PAWNS_OPEN_ISOLATED: bool = false;
-const TUNE_PAWNS_PASSED: bool = true;
-const TUNE_PAWNS_PASSED_BLOCKED: bool = true;
+const TUNE_PAWNS_PASSED: bool = false;
+const TUNE_PAWNS_PASSED_BLOCKED: bool = false;
 
 const TUNE_KNIGHT_OUTPOST: bool = false;
 
 const TUNE_BISHOPS_PAIR: bool = false;
 const TUNE_BISHOPS_XRAY: bool = false;
+const TUNE_BISHOPS_PAWNS_COLOR: bool = true;
 
 const TUNE_ROOKS_OPEN_FILE: bool = false;
 const TUNE_ROOKS_HALFOPEN_FILE: bool = false;
@@ -122,6 +123,7 @@ pub struct Trace {
 
     pub bishops_xray: [i8; 2],
     pub bishops_pair: [i8; 2],
+    pub bishops_pawns_color: [[i8; 2]; 4],
 
     pub rooks_open_file: [i8; 2],
     pub rooks_halfopen_file: [i8; 2],
@@ -260,6 +262,12 @@ impl From<Trace> for CompactTrace {
 
         if TUNE_BISHOPS_XRAY {
             linear.push(t.bishops_xray[1] - t.bishops_xray[0]);
+        }
+
+        if TUNE_BISHOPS_PAWNS_COLOR {
+            for i in 0..4 {
+                linear.push(t.bishops_pawns_color[i][1] - t.bishops_pawns_color[i][0]);
+            }
         }
 
         if TUNE_ROOKS_HALFOPEN_FILE {
@@ -473,6 +481,7 @@ impl Default for Trace {
 
             bishops_xray: [0; 2],
             bishops_pair: [0; 2],
+            bishops_pawns_color: [[0; 2]; 4],
 
             rooks_open_file: [0; 2],
             rooks_halfopen_file: [0; 2],
@@ -649,6 +658,11 @@ impl Parameters {
         if TUNE_BISHOPS_XRAY {
             print_single(self.linear[i], "XRAYED_SQUARE");
             i += 1;
+        }
+
+        if TUNE_BISHOPS_PAWNS_COLOR {
+            print_array(&self.linear[i..i + 4], "BISHOP_PAWNS_ON_COLOR");
+            i += 4;
         }
 
         if TUNE_ROOKS_HALFOPEN_FILE {
@@ -999,6 +1013,12 @@ impl Default for Parameters {
 
         if TUNE_BISHOPS_XRAY {
             linear.push((mg(XRAYED_SQUARE) as f32, eg(XRAYED_SQUARE) as f32));
+        }
+
+        if TUNE_BISHOPS_PAWNS_COLOR {
+            for &weight in BISHOP_PAWNS_ON_COLOR.iter() {
+                linear.push((mg(weight) as f32, eg(weight) as f32));
+            }
         }
 
         if TUNE_ROOKS_HALFOPEN_FILE {
