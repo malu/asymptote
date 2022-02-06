@@ -151,6 +151,10 @@ pub const KNIGHT_OUTPOST: EScore = S(29, -8);
 
 pub const XRAYED_SQUARE: EScore = S(5, 0);
 pub const BISHOP_PAIR: EScore = S(42, 48);
+#[rustfmt::skip]
+pub const BISHOP_PAWNS_ON_COLOR: [EScore; 4] = [
+    S(  -2,   -8), S(   5,    1), S(  -4,    4), S(   2,    7),
+];
 
 pub const ROOK_OPEN_FILE: EScore = S(30, 8);
 pub const ROOK_HALFOPEN_FILE: EScore = S(10, 18);
@@ -601,6 +605,7 @@ impl Eval {
 
     pub fn bishops_for_side<const WHITE: bool>(&mut self, pos: &Position) -> EScore {
         let us = pos.us(WHITE);
+        let them = pos.them(WHITE);
         let mut score = 0;
 
         for bishop in (pos.bishops() & us).squares() {
@@ -610,6 +615,35 @@ impl Eval {
             #[cfg(feature = "tune")]
             {
                 self.trace.bishops_xray[WHITE as usize] += xray.popcount() as i8;
+            }
+
+            let bishop_color_bb = if bishop.is_dark_square() {
+                DARK_SQUARES
+            } else {
+                LIGHT_SQUARES
+            };
+
+            let pawns_bishop_color = [
+                // own pawns on same color square as bishop
+                (pos.pawns() & us & bishop_color_bb).popcount(),
+                // own pawns not on same color square as bishop
+                (pos.pawns() & us & !bishop_color_bb).popcount(),
+                // opponent pawns on same color square as bishop
+                (pos.pawns() & them & bishop_color_bb).popcount(),
+                // opponent pawns not on same color square as bishop
+                (pos.pawns() & them & !bishop_color_bb).popcount(),
+            ];
+
+            for i in 0..4 {
+                score += pawns_bishop_color[i] as EScore * BISHOP_PAWNS_ON_COLOR[i];
+            }
+
+            #[cfg(feature = "tune")]
+            {
+                for i in 0..4 {
+                    self.trace.bishops_pawns_color[i][WHITE as usize] +=
+                        pawns_bishop_color[i] as i8;
+                }
             }
         }
 

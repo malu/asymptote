@@ -224,6 +224,10 @@ impl Square {
             self.flip_rank().rank()
         }
     }
+
+    pub fn is_dark_square(self) -> bool {
+        (self.rank() + self.file()) % 2 == 0
+    }
 }
 
 impl Into<u8> for Square {
@@ -508,6 +512,9 @@ const RIGHT_FILES: [Bitboard; 9] = [
     Bitboard(0xFF_FF_FF_FF_FF_FF_FF_FF),
 ];
 
+pub static DARK_SQUARES: Bitboard = Bitboard(0xAA_55_AA_55_AA_55_AA_55);
+pub static LIGHT_SQUARES: Bitboard = Bitboard(0x55_AA_55_AA_55_AA_55_AA);
+
 pub const PAWN_CORRIDOR: [SquareMap<Bitboard>; 2] = [
     // Black
     SquareMap::from_array([
@@ -678,6 +685,13 @@ mod tests {
             for sq in ALL_SQUARES.squares() {
                 assert!(!(PAWN_CORRIDOR[s][sq] & sq));
             }
+        }
+    }
+
+    #[test]
+    fn dark_squares() {
+        for sq in DARK_SQUARES.squares() {
+            assert!(sq.is_dark_square());
         }
     }
 }
