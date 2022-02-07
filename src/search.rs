@@ -156,7 +156,7 @@ impl<'a> Search<'a> {
             .into_iter()
             .filter(|&mov| self.position.move_is_legal(mov))
             .map(|mov| (mov, 0))
-            .collect::<arrayvec::ArrayVec<(Move, i64), 256>>();
+            .collect::<arrayvec::ArrayVec<(Move, u64), 256>>();
 
         if moves.len() == 1 {
             return moves[0].0;
@@ -246,7 +246,7 @@ impl<'a> Search<'a> {
                     self.time_manager.fail_low(best_score - last_score);
                 }
                 last_score = best_score;
-                moves[1..].sort_by_key(|&(_, subtree_size)| -subtree_size);
+                moves[1..].sort_by_key(|&(_, subtree_size)| std::cmp::Reverse(subtree_size));
             }
 
             self.uci_info(depth, last_score, EXACT_BOUND);
@@ -264,7 +264,7 @@ impl<'a> Search<'a> {
     fn aspiration(
         &mut self,
         last_score: Score,
-        moves: &mut [(Move, i64)],
+        moves: &mut [(Move, u64)],
         depth: Depth,
     ) -> Option<Score> {
         let mut delta = 30;
@@ -294,7 +294,7 @@ impl<'a> Search<'a> {
 
     fn search_root(
         &mut self,
-        moves: &mut [(Move, i64)],
+        moves: &mut [(Move, u64)],
         alpha: Score,
         beta: Score,
         depth: Depth,
@@ -327,7 +327,7 @@ impl<'a> Search<'a> {
                 value = self.search(1, -beta, -alpha, new_depth).map(|v| -v);
             }
 
-            *subtree_size = ((self.visited_nodes - num_nodes_before) / 2) as i64;
+            *subtree_size = self.visited_nodes - num_nodes_before;
 
             self.unmake_move(Some(mov), 0);
 
