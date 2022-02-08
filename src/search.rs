@@ -49,6 +49,7 @@ const STATIC_BETA_MARGIN: Score = 128;
 const QS_FUTILITY_MARGIN: Score = 200;
 const LMP_MAX_DEPTH: Depth = 5 * INC_PLY;
 const LMP_MOVES: [i16; (LMP_MAX_DEPTH / INC_PLY) as usize] = [0, 4, 8, 16, 32];
+const NULLMOVE_PRUNING_DEPTH: Depth = 2 * INC_PLY;
 
 #[derive(Clone)]
 pub struct Search<'a> {
@@ -531,7 +532,12 @@ impl<'a> Search<'a> {
             //
             // Prune nodes that are so good that we could pass without the opponent
             // catching up.
-            if !has_excluded_move && !in_check && self.eval.phase() > 0 && eval >= beta {
+            if !has_excluded_move
+                && !in_check
+                && depth >= NULLMOVE_PRUNING_DEPTH
+                && self.eval.phase() > 0
+                && eval >= beta
+            {
                 let r = INC_PLY + depth / 4 + cmp::min(2 * INC_PLY, (eval - beta) / 2);
                 self.make_move(None, ply);
                 let score = self
