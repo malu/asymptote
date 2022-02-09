@@ -570,7 +570,7 @@ impl<'a> Search<'a> {
         // If a capture or promotion leads to a beta cutoff in a reduced-depth search with increased beta bound, we
         // assume it will also lead to a cutoff in a full-depth search with the original beta bound.
         if !in_check && !is_pv && !has_excluded_move && depth >= 6 * INC_PLY {
-            let mut moves = MovePicker::qsearch(&self.position);
+            let mut moves = MovePicker::probcut(ttmove);
 
             let probcut_beta = beta + 100;
 

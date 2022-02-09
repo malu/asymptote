@@ -58,6 +58,12 @@ const ALPHA_BETA_STAGES: &[Stage] = &[
     Stage::BadCaptures,
 ];
 
+const PROBCUT_STAGES: &[Stage] = &[
+    Stage::TTMove,
+    Stage::GenerateGoodCaptures,
+    Stage::GoodCaptures,
+];
+
 const QUIESCENCE_STAGES: &[Stage] = &[Stage::GenerateGoodCaptures, Stage::GoodCaptures];
 
 const QUIESCENCE_CHECK_STAGES: &[Stage] = &[
@@ -112,6 +118,23 @@ impl<'a> MovePicker<'a> {
             excluded: ShortMoveList::new(),
             stage: 0,
             stages,
+            moves: MoveList::new(),
+            scores: ScoreList::new(),
+            bad_moves: MoveList::new(),
+            bad_scores: ScoreList::new(),
+            index: 0,
+            killers: [None; 2],
+            skip_quiets: false,
+            previous_move: None,
+        }
+    }
+
+    pub fn probcut(ttmove: Option<Move>) -> Self {
+        MovePicker {
+            ttmove,
+            excluded: ShortMoveList::new(),
+            stage: 0,
+            stages: PROBCUT_STAGES,
             moves: MoveList::new(),
             scores: ScoreList::new(),
             bad_moves: MoveList::new(),
