@@ -159,6 +159,10 @@ pub const BISHOP_PAWNS_ON_COLOR: [EScore; 4] = [
 pub const ROOK_OPEN_FILE: EScore = S(30, 8);
 pub const ROOK_HALFOPEN_FILE: EScore = S(10, 18);
 pub const ROOK_PAIR: EScore = S(17, -58);
+#[rustfmt::skip]
+pub const ROOK_FILES: [EScore; 2] = [
+    S(  -6,    1), S(   4,   -1)
+];
 
 #[rustfmt::skip]
 pub const KING_SAFETY: [Score; 30] = [
@@ -654,6 +658,34 @@ impl Eval {
         let us = pos.us(WHITE);
 
         let mut score = 0;
+
+        let (open_files, half_open_files) = if (pos.rooks() & us).at_least_one() {
+            let mut open_files: i8 = 0;
+            let mut half_open_files: i8 = 0;
+            for &bb in FILES.iter() {
+                if (pos.pawns() & bb).is_empty() {
+                    open_files += 1;
+                } else if (pos.pawns() & us & bb).is_empty() {
+                    half_open_files += 1;
+                }
+            }
+
+            (open_files, half_open_files)
+        } else {
+            (0, 0)
+        };
+
+        score += open_files as EScore * ROOK_FILES[0] * (pos.rooks() & us).popcount() as EScore;
+        score +=
+            half_open_files as EScore * ROOK_FILES[1] * (pos.rooks() & us).popcount() as EScore;
+
+        #[cfg(feature = "tune")]
+        {
+            self.trace.rooks_files[0][WHITE as usize] +=
+                open_files * (pos.rooks() & us).popcount() as i8;
+            self.trace.rooks_files[1][WHITE as usize] +=
+                half_open_files * (pos.rooks() & us).popcount() as i8;
+        }
 
         for rook in (pos.rooks() & us).squares() {
             let file_bb = FILES[rook.file() as usize];

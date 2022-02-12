@@ -73,11 +73,12 @@ const TUNE_KNIGHT_OUTPOST: bool = false;
 
 const TUNE_BISHOPS_PAIR: bool = false;
 const TUNE_BISHOPS_XRAY: bool = false;
-const TUNE_BISHOPS_PAWNS_COLOR: bool = true;
+const TUNE_BISHOPS_PAWNS_COLOR: bool = false;
 
 const TUNE_ROOKS_OPEN_FILE: bool = false;
 const TUNE_ROOKS_HALFOPEN_FILE: bool = false;
 const TUNE_ROOKS_PAIR: bool = false;
+const TUNE_ROOKS_FILES: bool = true;
 
 const TUNE_KING_SAFETY: bool = false;
 const TUNE_KING_CHECK_KNIGHT: bool = false;
@@ -128,6 +129,7 @@ pub struct Trace {
     pub rooks_open_file: [i8; 2],
     pub rooks_halfopen_file: [i8; 2],
     pub rooks_pair: [i8; 2],
+    pub rooks_files: [[i8; 2]; 2],
 
     pub king_safety: [[i8; 2]; 30],
     pub king_check_knight: [i8; 2],
@@ -280,6 +282,12 @@ impl From<Trace> for CompactTrace {
 
         if TUNE_ROOKS_PAIR {
             linear.push(t.rooks_pair[1] - t.rooks_pair[0]);
+        }
+
+        if TUNE_ROOKS_FILES {
+            for i in 0..2 {
+                linear.push(t.rooks_files[i][1] - t.rooks_files[i][0]);
+            }
         }
 
         if TUNE_PST_PAWN {
@@ -486,6 +494,7 @@ impl Default for Trace {
             rooks_open_file: [0; 2],
             rooks_halfopen_file: [0; 2],
             rooks_pair: [0; 2],
+            rooks_files: [[0; 2]; 2],
 
             king_safety: [[0; 2]; 30],
             king_check_knight: [0; 2],
@@ -678,6 +687,11 @@ impl Parameters {
         if TUNE_ROOKS_PAIR {
             print_single(self.linear[i], "ROOK_PAIR");
             i += 1;
+        }
+
+        if TUNE_ROOKS_FILES {
+            print_array(&self.linear[i..i + 2], "ROOK_FILES");
+            i += 2;
         }
 
         if TUNE_PST_PAWN {
@@ -1031,6 +1045,12 @@ impl Default for Parameters {
 
         if TUNE_ROOKS_PAIR {
             linear.push((mg(ROOK_PAIR) as f32, eg(ROOK_PAIR) as f32));
+        }
+
+        if TUNE_ROOKS_FILES {
+            for &weight in ROOK_FILES.iter() {
+                linear.push((mg(weight) as f32, eg(weight) as f32));
+            }
         }
 
         if TUNE_PST_PAWN {
