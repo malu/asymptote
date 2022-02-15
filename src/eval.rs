@@ -150,7 +150,8 @@ pub const PASSED_PAWN_ON_FILE: [EScore; 8] = [
     S( -11,   -7), S(  -3,   -7), S( -11,    7), S( -19,   10),
 ];
 
-pub const KNIGHT_OUTPOST: EScore = S(29, -8);
+pub const KNIGHT_OUTPOST: EScore = S(30, -18);
+pub const KNIGHT_DEFENDED_OUTPOST: EScore = S(26, 33);
 
 pub const XRAYED_SQUARE: EScore = S(5, 0);
 pub const BISHOP_PAIR: EScore = S(42, 48);
@@ -673,6 +674,17 @@ impl Eval {
                 #[cfg(feature = "tune")]
                 {
                     self.trace.knight_outposts[s] += 1;
+                }
+            }
+
+            if (KNIGHT_OUTPOSTS[s] & self.attacked_by[s][Piece::Pawn.index()]) & knight
+                && !attackable_by_pawn(knight)
+            {
+                score += KNIGHT_DEFENDED_OUTPOST;
+
+                #[cfg(feature = "tune")]
+                {
+                    self.trace.knight_outposts_defended[s] += 1;
                 }
             }
         }

@@ -71,7 +71,8 @@ const TUNE_PAWNS_PASSED_BLOCKED: bool = false;
 const TUNE_PAWNS_WEAK: bool = false;
 const TUNE_PAWNS_RUNNER: bool = false;
 
-const TUNE_KNIGHT_OUTPOST: bool = false;
+const TUNE_KNIGHT_OUTPOST: bool = true;
+const TUNE_KNIGHT_OUTPOST_DEFENDED: bool = true;
 
 const TUNE_BISHOPS_PAIR: bool = false;
 const TUNE_BISHOPS_XRAY: bool = false;
@@ -124,6 +125,7 @@ pub struct Trace {
     pub pawns_runner: [i8; 2],
 
     pub knight_outposts: [i8; 2],
+    pub knight_outposts_defended: [i8; 2],
 
     pub bishops_xray: [i8; 2],
     pub bishops_pair: [i8; 2],
@@ -266,6 +268,10 @@ impl From<Trace> for CompactTrace {
 
         if TUNE_KNIGHT_OUTPOST {
             linear.push(t.knight_outposts[1] - t.knight_outposts[0]);
+        }
+
+        if TUNE_KNIGHT_OUTPOST_DEFENDED {
+            linear.push(t.knight_outposts_defended[1] - t.knight_outposts_defended[0]);
         }
 
         if TUNE_BISHOPS_PAIR {
@@ -492,6 +498,7 @@ impl Default for Trace {
             pawns_runner: [0; 2],
 
             knight_outposts: [0; 2],
+            knight_outposts_defended: [0; 2],
 
             bishops_xray: [0; 2],
             bishops_pair: [0; 2],
@@ -671,6 +678,11 @@ impl Parameters {
 
         if TUNE_KNIGHT_OUTPOST {
             print_single(self.linear[i], "KNIGHT_OUTPOST");
+            i += 1;
+        }
+
+        if TUNE_KNIGHT_OUTPOST_DEFENDED {
+            print_single(self.linear[i], "KNIGHT_DEFENDED_OUTPOST");
             i += 1;
         }
 
@@ -1037,6 +1049,13 @@ impl Default for Parameters {
 
         if TUNE_KNIGHT_OUTPOST {
             linear.push((mg(KNIGHT_OUTPOST) as f32, eg(KNIGHT_OUTPOST) as f32));
+        }
+
+        if TUNE_KNIGHT_OUTPOST_DEFENDED {
+            linear.push((
+                mg(KNIGHT_DEFENDED_OUTPOST) as f32,
+                eg(KNIGHT_DEFENDED_OUTPOST) as f32,
+            ));
         }
 
         if TUNE_BISHOPS_PAIR {
