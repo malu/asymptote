@@ -746,6 +746,8 @@ impl Parameters {
             i += 64;
         }
 
+        assert_eq!(i, self.linear.len());
+
         if TUNE_KING_SAFETY {
             print_array_mg(&self.king_safety, "KING_SAFETY");
         }

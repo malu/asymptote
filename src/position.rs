@@ -74,6 +74,12 @@ pub struct IrreversibleDetails {
     /// All pieces currently checking the king.
     pub checkers: Bitboard,
 
+    pub orthogonal_pinners: Bitboard,
+    pub diagonal_pinners: Bitboard,
+
+    /// Any white pieces in pinned[0] indicate possible discovered checks and vice-versa.
+    pub pinned: [Bitboard; 2],
+
     /// Number of moves of both players since the last capture or pawn moves. Used for checking for
     /// a draw by the 50 moves rule (draw if halfmove = 100 and side to move has at least one legal
     /// move).
@@ -583,6 +589,7 @@ impl Position {
         self.pieces[0] = self.all_pieces & !self.color;
 
         self.update_checkers();
+        self.update_pins();
     }
 
     /// Undoes a previously made move (by `self.make_move(mov)`).
@@ -810,6 +817,44 @@ impl Position {
             get_rook_attacks_from(king, self.all_pieces) & them & (self.rooks() | self.queens());
     }
 
+    fn update_pins(&mut self) {
+        self.details.orthogonal_pinners = Bitboard::default();
+        self.details.diagonal_pinners = Bitboard::default();
+        self.details.pinned = [Bitboard::default(); 2];
+
+        self.update_pins_for_side::<true>();
+        self.update_pins_for_side::<false>();
+    }
+
+    fn update_pins_for_side<const WHITE: bool>(&mut self) {
+        let king = self.king_sq(WHITE);
+        let them = self.them(WHITE);
+
+        let potential_diag_pinned = get_bishop_attacks_from(king, self.all_pieces);
+        let diag_pinners = get_bishop_attacks_from(king, self.all_pieces & !potential_diag_pinned)
+            & (self.bishops() | self.queens())
+            & them;
+        let diag_pinned = diag_pinners
+            .squares()
+            .map(|pinner| get_bishop_attacks_from(pinner, self.all_pieces) & potential_diag_pinned)
+            .fold(Bitboard::default(), |left, right| left | right);
+
+        self.details.diagonal_pinners |= diag_pinners;
+        self.details.pinned[WHITE as usize] |= diag_pinned;
+
+        let potential_orth_pinned = get_rook_attacks_from(king, self.all_pieces);
+        let orth_pinners = get_rook_attacks_from(king, self.all_pieces & !potential_orth_pinned)
+            & (self.rooks() | self.queens())
+            & them;
+        let orth_pinned = orth_pinners
+            .squares()
+            .map(|pinner| get_rook_attacks_from(pinner, self.all_pieces) & potential_orth_pinned)
+            .fold(Bitboard::default(), |left, right| left | right);
+
+        self.details.orthogonal_pinners |= orth_pinners;
+        self.details.pinned[WHITE as usize] |= orth_pinned;
+    }
+
     /// Prints the board state.
     pub fn print(&self, pre: &str) {
         println!("{}     a b c d e f g h", pre);
@@ -915,6 +960,9 @@ impl<'a> From<&'a str> for Position {
             pieces: [Bitboard::from(0x0); 2],
             details: IrreversibleDetails {
                 checkers: Bitboard::from(0),
+                pinned: [Bitboard::from(0); 2],
+                orthogonal_pinners: Bitboard::from(0),
+                diagonal_pinners: Bitboard::from(0),
                 en_passant: 255,
                 castling: CASTLE_WHITE_KSIDE
                     | CASTLE_WHITE_QSIDE
@@ -1104,6 +1152,7 @@ impl<'a> From<&'a str> for Position {
         pos.king_sq[1] = (pos.kings() & pos.white_pieces()).squares().next().unwrap();
 
         pos.update_checkers();
+        pos.update_pins();
 
         pos
     }
@@ -1152,6 +1201,9 @@ pub const STARTING_POSITION: Position = Position {
     pieces: [STARTING_BLACK, STARTING_COLOR],
     details: IrreversibleDetails {
         checkers: Bitboard(0),
+        pinned: [Bitboard(0); 2],
+        orthogonal_pinners: Bitboard(0),
+        diagonal_pinners: Bitboard(0),
         en_passant: 255,
         castling: CASTLE_WHITE_KSIDE | CASTLE_WHITE_QSIDE | CASTLE_BLACK_KSIDE | CASTLE_BLACK_QSIDE,
         halfmove: 0,
