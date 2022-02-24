@@ -18,29 +18,40 @@ use crate::movegen::*;
 use crate::search::*;
 use crate::types::SquareMap;
 
+const DECAY: i32 = 512;
+
 #[derive(Clone, Default)]
 pub struct History {
-    piece_to: [[SquareMap<i64>; 6]; 2],
+    piece_to: [SquareMap<SquareMap<i16>>; 2],
     pub last_best_reply: [[SquareMap<Option<Move>>; 6]; 2],
 }
 
 impl History {
-    pub fn get_score(&self, white: bool, mov: Move) -> i64 {
-        self.piece_to[white as usize][mov.piece.index()][mov.to]
+    pub fn get_score(&self, white: bool, mov: Move) -> i16 {
+        self.piece_to[white as usize][mov.from][mov.to]
+    }
+
+    fn change_score(&mut self, white: bool, depth: Depth, mov: Move) {
+        // keep the sign of depth, but square the absolute value
+        let change = depth * depth.abs();
+        let change = change.clamp(-400, 400);
+
+        let entry = &mut self.piece_to[white as usize][mov.from][mov.to];
+        let decay = *entry as i32 * change.abs() as i32 / DECAY;
+        *entry += 32 * change - decay as i16;
     }
 
     pub fn increase_score(&mut self, white: bool, mov: Move, depth: Depth) {
-        let d = i64::from(depth / INC_PLY);
-
-        self.piece_to[white as usize][mov.piece.index()][mov.to] += d * d;
+        let d = depth / INC_PLY;
+        self.change_score(white, d, mov);
     }
 
     pub fn decrease_score(&mut self, white: bool, moves: &[Option<Move>], depth: Depth) {
-        let d = i64::from(depth / INC_PLY);
+        let d = depth / INC_PLY;
 
         for mov in moves {
             let mov = mov.unwrap();
-            self.piece_to[white as usize][mov.piece.index()][mov.to] -= d * d;
+            self.change_score(white, -d, mov);
         }
     }
 }

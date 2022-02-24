@@ -267,8 +267,11 @@ impl<'a> MovePicker<'a> {
 
                 MoveGenerator::from(position).quiet_moves(&mut self.moves);
                 let wtm = position.white_to_move;
-                self.scores
-                    .extend(self.moves.iter().map(|&mov| history.get_score(wtm, mov)));
+                self.scores.extend(
+                    self.moves
+                        .iter()
+                        .map(|&mov| history.get_score(wtm, mov) as i64),
+                );
                 self.index = 0;
                 self.stage += 1;
                 self.next(position, history)
