@@ -137,6 +137,7 @@ pub const OPEN_ISOLATED_PAWN: EScore = S(-27, -11);
 pub const BLOCKED_PASSED_PAWN: EScore = S(5, -56);
 pub const WEAK_PAWN: EScore = S(-3, -9);
 pub const PAWN_RUNNER: EScore = S(-16, 56);
+pub const THREATENED_PINNED_MINOR: EScore = S(27, 43);
 
 #[rustfmt::skip]
 pub const PASSED_PAWN_ON_RANK: [EScore; 8] = [
@@ -601,8 +602,16 @@ impl Eval {
         let us = pos.us(WHITE);
         let them = pos.them(WHITE);
         let side = WHITE as usize;
+        let rank3 = if WHITE { RANK_3 } else { RANK_6 };
 
         let mut score = S(0, 0);
+
+        let pawn_threats = {
+            let mut bb = pos.pawns() & us;
+            bb |= bb.forward(WHITE, 1) & !pos.all_pieces;
+            bb |= (bb & rank3).forward(WHITE, 1) & !pos.all_pieces;
+            bb.left(1) | bb.right(1)
+        };
 
         let pawn_hash_entry = &self.pawn_table[pawn_hash as usize % PAWN_TABLE_NUM_ENTRIES];
         let details = pawn_hash_entry.details;
@@ -650,6 +659,16 @@ impl Eval {
                     self.trace.pawns_runner[side] += 1;
                 }
             }
+        }
+
+        let their_pinned_minors =
+            pos.details.pinned[1 - side] & them & (pos.bishops() | pos.knights());
+        let threatened_pinned_minors = pawn_threats & their_pinned_minors;
+        score += THREATENED_PINNED_MINOR * threatened_pinned_minors.popcount() as EScore;
+        #[cfg(feature = "tune")]
+        {
+            self.trace.pawns_threatened_pinned_minors[WHITE as usize] +=
+                threatened_pinned_minors.popcount() as i8;
         }
 
         score

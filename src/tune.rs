@@ -70,9 +70,10 @@ const TUNE_PAWNS_PASSED: bool = false;
 const TUNE_PAWNS_PASSED_BLOCKED: bool = false;
 const TUNE_PAWNS_WEAK: bool = false;
 const TUNE_PAWNS_RUNNER: bool = false;
+const TUNE_THREATENED_PINNED_MINOR: bool = true;
 
-const TUNE_KNIGHT_OUTPOST: bool = true;
-const TUNE_KNIGHT_OUTPOST_DEFENDED: bool = true;
+const TUNE_KNIGHT_OUTPOST: bool = false;
+const TUNE_KNIGHT_OUTPOST_DEFENDED: bool = false;
 
 const TUNE_BISHOPS_PAIR: bool = false;
 const TUNE_BISHOPS_XRAY: bool = false;
@@ -123,6 +124,7 @@ pub struct Trace {
     pub pawns_isolated: [i8; 2],
     pub pawns_weak: [i8; 2],
     pub pawns_runner: [i8; 2],
+    pub pawns_threatened_pinned_minors: [i8; 2],
 
     pub knight_outposts: [i8; 2],
     pub knight_outposts_defended: [i8; 2],
@@ -264,6 +266,10 @@ impl From<Trace> for CompactTrace {
 
         if TUNE_PAWNS_RUNNER {
             linear.push(t.pawns_runner[1] - t.pawns_runner[0]);
+        }
+
+        if TUNE_THREATENED_PINNED_MINOR {
+            linear.push(t.pawns_threatened_pinned_minors[1] - t.pawns_threatened_pinned_minors[0]);
         }
 
         if TUNE_KNIGHT_OUTPOST {
@@ -496,6 +502,7 @@ impl Default for Trace {
             pawns_isolated: [0; 2],
             pawns_weak: [0; 2],
             pawns_runner: [0; 2],
+            pawns_threatened_pinned_minors: [0; 2],
 
             knight_outposts: [0; 2],
             knight_outposts_defended: [0; 2],
@@ -673,6 +680,11 @@ impl Parameters {
 
         if TUNE_PAWNS_RUNNER {
             print_single(self.linear[i], "PAWN_RUNNER");
+            i += 1;
+        }
+
+        if TUNE_THREATENED_PINNED_MINOR {
+            print_single(self.linear[i], "THREATENED_PINNED_MINOR");
             i += 1;
         }
 
@@ -1047,6 +1059,13 @@ impl Default for Parameters {
 
         if TUNE_PAWNS_RUNNER {
             linear.push((mg(PAWN_RUNNER) as f32, eg(PAWN_RUNNER) as f32));
+        }
+
+        if TUNE_THREATENED_PINNED_MINOR {
+            linear.push((
+                mg(THREATENED_PINNED_MINOR) as f32,
+                eg(THREATENED_PINNED_MINOR) as f32,
+            ));
         }
 
         if TUNE_KNIGHT_OUTPOST {
