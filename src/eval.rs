@@ -1046,6 +1046,30 @@ impl Eval {
         material
     }
 
+    pub fn best_possible_move_score(&self, pos: &Position) -> Score {
+        let white = pos.white_to_move;
+        let us = pos.us(white);
+        let side = white as usize;
+        let rank7 = if white { RANK_7 } else { RANK_2 };
+        let capture = Piece::all()
+            .iter()
+            .zip(self.material[1 - side])
+            .rev()
+            .find(|(_piece, count)| *count > 0)
+            .map(|(piece, _count)| piece)
+            .unwrap_or(&Piece::Pawn)
+            .clone();
+
+        let mut score = 0;
+        score += capture.see_value();
+
+        if (pos.pawns() & us & rank7).at_least_one() {
+            score += Piece::Queen.see_value() - Piece::Pawn.see_value();
+        }
+
+        score
+    }
+
     #[cfg(feature = "tune")]
     fn trace_pst(&mut self, pos: &Position, white: bool) {
         let us = pos.us(white);

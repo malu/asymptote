@@ -46,6 +46,7 @@ const SEE_PRUNING_MARGIN_CAPTURE: Score = -25;
 const SEE_PRUNING_MARGIN_QUIET: Score = -100;
 const STATIC_BETA_DEPTH: Depth = 5 * INC_PLY;
 const STATIC_BETA_MARGIN: Score = 128;
+const QS_FUTILITY_NODE_MARGIN: Score = 100;
 const QS_FUTILITY_MARGIN: Score = 200;
 const LMP_MAX_DEPTH: Depth = 5 * INC_PLY;
 const LMP_MOVES: [i16; (LMP_MAX_DEPTH / INC_PLY) as usize] = [0, 4, 8, 16, 32];
@@ -939,6 +940,12 @@ impl<'a> Search<'a> {
 
             if alpha < e {
                 alpha = e;
+            }
+
+            if e + QS_FUTILITY_NODE_MARGIN + self.eval.best_possible_move_score(&self.position)
+                < alpha
+            {
+                return Some(e);
             }
 
             Some(e)
