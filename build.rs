@@ -1,6 +1,7 @@
 fn main() {
     #[cfg(feature = "fathom")]
     {
+        println!("cargo:rerun-if-changed=fathom");
         cc::Build::new()
             .include("fathom/src")
             .file("fathom/src/tbprobe.c")
