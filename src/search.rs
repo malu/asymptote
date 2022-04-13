@@ -29,6 +29,7 @@ use crate::repetitions::Repetitions;
 use crate::search_controller::PersistentOptions;
 use crate::time::*;
 use crate::tt::*;
+use crate::types::SquareMap;
 
 pub type Ply = i16;
 pub type Depth = i16;
@@ -58,6 +59,7 @@ pub struct Search<'a> {
     // Required for (efficient) search
     stack: [PlyDetails; MAX_PLY as usize],
     history: History,
+    last_best_reply: [[SquareMap<Option<Move>>; 6]; 2],
     eval: Eval,
     hasher: Hasher,
     tt: &'a TT,
@@ -121,6 +123,7 @@ impl<'a> Search<'a> {
 
             stack: [PlyDetails::default(); MAX_PLY as usize],
             history: History::default(),
+            last_best_reply: Default::default(),
             eval: Eval::from(&position),
             hasher,
             tt,
@@ -574,7 +577,9 @@ impl<'a> Search<'a> {
 
             let probcut_beta = beta + 100;
 
-            while let Some((_, mov)) = moves.next(&self.position, &self.history) {
+            while let Some((_, mov)) =
+                moves.next(&self.position, &self.history, &self.last_best_reply)
+            {
                 if !self.position.move_is_legal(mov) {
                     continue;
                 }
@@ -627,7 +632,9 @@ impl<'a> Search<'a> {
         let mut best_move = None;
         let mut num_moves_searched = 0;
         let mut num_quiet_moves_searched = 0;
-        while let Some((mtype, mov)) = moves.next(&self.position, &self.history) {
+        while let Some((mtype, mov)) =
+            moves.next(&self.position, &self.history, &self.last_best_reply)
+        {
             if !self.position.move_is_legal(mov) {
                 continue;
             }
@@ -970,7 +977,9 @@ impl<'a> Search<'a> {
         let mut best_score = -MATE_SCORE;
 
         let mut num_moves_searched = 0;
-        while let Some((_mtype, mov)) = moves.next(&self.position, &self.history) {
+        while let Some((_mtype, mov)) =
+            moves.next(&self.position, &self.history, &self.last_best_reply)
+        {
             if !self.position.move_is_legal(mov) {
                 continue;
             }
@@ -1088,7 +1097,8 @@ impl<'a> Search<'a> {
 
         let mut moves = MovePicker::new(None, [None; 2], None);
 
-        while let Some((_, mov)) = moves.next(&self.position, &self.history) {
+        while let Some((_, mov)) = moves.next(&self.position, &self.history, &self.last_best_reply)
+        {
             if self.position.move_is_legal(mov) {
                 return false;
             }
@@ -1184,10 +1194,10 @@ impl<'a> Search<'a> {
 
         if let Some(previous_move) = self.stack[ply as usize - 1].current_move {
             if previous_move.is_quiet() {
-                self.history.last_best_reply[self.position.white_to_move as usize]
+                self.last_best_reply[self.position.white_to_move as usize]
                     [previous_move.piece.index()][previous_move.to] = Some(mov);
             } else {
-                self.history.last_best_reply[self.position.white_to_move as usize]
+                self.last_best_reply[self.position.white_to_move as usize]
                     [previous_move.piece.index()][previous_move.to] = None;
             }
         }

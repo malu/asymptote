@@ -23,7 +23,6 @@ const DECAY: i32 = 512;
 #[derive(Clone, Default)]
 pub struct History {
     piece_to: [SquareMap<SquareMap<i16>>; 2],
-    pub last_best_reply: [[SquareMap<Option<Move>>; 6]; 2],
 }
 
 impl History {

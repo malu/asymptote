@@ -17,6 +17,7 @@
 use crate::history::*;
 use crate::movegen::*;
 use crate::position::*;
+use crate::types::SquareMap;
 
 pub struct MovePicker<'a> {
     ttmove: Option<Move>,
@@ -165,7 +166,12 @@ impl<'a> MovePicker<'a> {
         Some(best_move)
     }
 
-    pub fn next(&mut self, position: &Position, history: &History) -> Option<(MoveType, Move)> {
+    pub fn next(
+        &mut self,
+        position: &Position,
+        history: &History,
+        last_best_reply: &[[SquareMap<Option<Move>>; 6]; 2],
+    ) -> Option<(MoveType, Move)> {
         if self.stage >= self.stages.len() {
             return None;
         }
@@ -177,7 +183,7 @@ impl<'a> MovePicker<'a> {
                     self.excluded.push(mov);
                     return Some((MoveType::TTMove, mov));
                 }
-                self.next(position, history)
+                self.next(position, history, last_best_reply)
             }
             Stage::GenerateGoodCaptures => {
                 self.moves.clear();
@@ -193,24 +199,24 @@ impl<'a> MovePicker<'a> {
                 );
                 self.index = 0;
                 self.stage += 1;
-                self.next(position, history)
+                self.next(position, history, last_best_reply)
             }
             Stage::GoodCaptures => {
                 if let Some(mov) = self.get_move() {
                     if self.excluded.contains(&mov) {
-                        self.next(position, history)
+                        self.next(position, history, last_best_reply)
                     } else {
                         Some((MoveType::GoodCapture, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next(position, history)
+                    self.next(position, history, last_best_reply)
                 }
             }
             Stage::GenerateKillers => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next(position, history);
+                    return self.next(position, history, last_best_reply);
                 }
 
                 self.moves.clear();
@@ -225,7 +231,7 @@ impl<'a> MovePicker<'a> {
                 if let Some(prev_move) = self.previous_move {
                     if prev_move.is_quiet() {
                         self.moves.extend(
-                            history.last_best_reply[position.white_to_move as usize]
+                            last_best_reply[position.white_to_move as usize]
                                 [prev_move.piece.index()][prev_move.to]
                                 .iter()
                                 .filter(|&&m| position.move_is_pseudo_legal(m))
@@ -236,30 +242,30 @@ impl<'a> MovePicker<'a> {
                 self.scores.extend(self.moves.iter().map(|_| 0));
                 self.index = 0;
                 self.stage += 1;
-                self.next(position, history)
+                self.next(position, history, last_best_reply)
             }
             Stage::Killers => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next(position, history);
+                    return self.next(position, history, last_best_reply);
                 }
 
                 if let Some(mov) = self.get_move() {
                     if self.excluded.contains(&mov) {
-                        self.next(position, history)
+                        self.next(position, history, last_best_reply)
                     } else {
                         self.excluded.push(mov);
                         Some((MoveType::Killer, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next(position, history)
+                    self.next(position, history, last_best_reply)
                 }
             }
             Stage::GenerateQuietMoves => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next(position, history);
+                    return self.next(position, history, last_best_reply);
                 }
 
                 self.moves.clear();
@@ -274,40 +280,40 @@ impl<'a> MovePicker<'a> {
                 );
                 self.index = 0;
                 self.stage += 1;
-                self.next(position, history)
+                self.next(position, history, last_best_reply)
             }
             Stage::QuietMoves => {
                 if self.skip_quiets {
                     self.stage += 1;
-                    return self.next(position, history);
+                    return self.next(position, history, last_best_reply);
                 }
 
                 if let Some(mov) = self.get_move() {
                     if self.excluded.contains(&mov) {
-                        self.next(position, history)
+                        self.next(position, history, last_best_reply)
                     } else {
                         Some((MoveType::Quiet, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next(position, history)
+                    self.next(position, history, last_best_reply)
                 }
             }
             Stage::GenerateBadCaptures => {
                 self.index = 0;
                 self.stage += 1;
-                self.next(position, history)
+                self.next(position, history, last_best_reply)
             }
             Stage::BadCaptures => {
                 if let Some(mov) = self.get_bad_move() {
                     if self.excluded.contains(&mov) {
-                        self.next(position, history)
+                        self.next(position, history, last_best_reply)
                     } else {
                         Some((MoveType::BadCapture, mov))
                     }
                 } else {
                     self.stage += 1;
-                    self.next(position, history)
+                    self.next(position, history, last_best_reply)
                 }
             }
         }
