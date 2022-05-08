@@ -361,6 +361,10 @@ impl<'a> Search<'a> {
                     if value > alpha && self.time_manager.elapsed_millis() > 1000 {
                         self.uci_info(depth, alpha, EXACT_BOUND);
                     }
+
+                    if i == 0 && value < alpha {
+                        break;
+                    }
                 }
             }
         }
