@@ -1298,8 +1298,8 @@ impl<'a> Search<'a> {
         current_ply.irreversible_details = self.position.details;
         current_ply.current_move = mov;
 
-        if ply + 2 < MAX_PLY {
-            self.stack[2 + ply as usize].killers_moves = [None; 2];
+        if let Some(grandchild) = self.stack.get_mut(2 + ply as usize) {
+            grandchild.killers_moves = [None; 2];
         }
 
         if let Some(mov) = mov {
@@ -1316,9 +1316,10 @@ impl<'a> Search<'a> {
         }
         self.repetitions.push_position(self.hasher.get_hash());
 
-        let next_ply = &mut self.stack[1 + ply as usize];
-        next_ply.hash = self.hasher.get_hash();
-        next_ply.pawn_hash = self.hasher.get_pawn_hash();
+        if let Some(next_ply) = self.stack.get_mut(1 + ply as usize) {
+            next_ply.hash = self.hasher.get_hash();
+            next_ply.pawn_hash = self.hasher.get_pawn_hash();
+        }
     }
 
     fn unmake_move(&mut self, mov: Option<Move>, ply: Ply) {
