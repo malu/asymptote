@@ -497,6 +497,7 @@ impl Eval {
         let them = pos.them(WHITE);
         let side = WHITE as usize;
         let our_pawns = pos.pawns() & us;
+        let their_king = pos.king_sq[1 - side];
 
         let mut score = S(0, 0);
         let mut details = PawnHashEntryDetails::default();
@@ -560,6 +561,39 @@ impl Eval {
                     self.trace.pawns_passed[relative_rank][side] += 1;
                     self.trace.pawns_passed_file[file][side] += 1;
                 }
+
+                let (mut normalized_pawn_rank, normalized_king_rank) = if WHITE {
+                    (pawn.rank(), their_king.rank())
+                } else {
+                    (pawn.flip_rank().rank(), their_king.flip_rank().rank())
+                };
+
+                if normalized_pawn_rank == 1 {
+                    // Advance pawns on starting rank once to handle double step.
+                    normalized_pawn_rank += 1;
+                }
+
+                let to_move_bonus = if pos.white_to_move == WHITE { 1 } else { 0 };
+
+                let file_diff = if pawn.file() != their_king.file() {
+                    pawn.file().abs_diff(their_king.file()) - 1
+                } else {
+                    0
+                };
+
+                let remaining_pawn_moves = 7 - normalized_pawn_rank - to_move_bonus;
+                let remaining_king_moves =
+                    cmp::max(6 - cmp::min(normalized_king_rank, 6), file_diff);
+
+                let runner = remaining_pawn_moves < remaining_king_moves;
+
+                if runner {
+                    score += PAWN_RUNNER;
+                    #[cfg(feature = "tune")]
+                    {
+                        self.trace.pawns_runner[side] += 1;
+                    }
+                }
             }
 
             if isolated {
@@ -600,7 +634,6 @@ impl Eval {
     ) -> EScore {
         let us = pos.us(WHITE);
         let them = pos.them(WHITE);
-        let side = WHITE as usize;
 
         let mut score = S(0, 0);
 
@@ -613,43 +646,6 @@ impl Eval {
         {
             self.trace.pawns_passed_blocked[WHITE as usize] +=
                 blocked_passed_pawns.popcount() as i8;
-        }
-
-        let their_king = pos.king_sq[1 - side];
-        for pawn in (details.passed_pawns & us).squares() {
-            let (mut normalized_pawn_rank, normalized_king_rank) = if WHITE {
-                (pawn.rank(), their_king.rank())
-            } else {
-                (pawn.flip_rank().rank(), their_king.flip_rank().rank())
-            };
-
-            if normalized_pawn_rank == 1 {
-                // Advance pawns on starting rank once to handle double step.
-                normalized_pawn_rank += 1;
-            }
-
-            let to_move_bonus = if pos.white_to_move == WHITE { 1 } else { 0 };
-
-            let file_diff = if pawn.file() > their_king.file() {
-                pawn.file() - their_king.file() - 1
-            } else if pawn.file() < their_king.file() {
-                their_king.file() - pawn.file() - 1
-            } else {
-                0
-            };
-
-            let remaining_pawn_moves = 7 - normalized_pawn_rank - to_move_bonus;
-            let remaining_king_moves = cmp::max(6 - cmp::min(normalized_king_rank, 6), file_diff);
-
-            let runner = remaining_pawn_moves < remaining_king_moves;
-
-            if runner {
-                score += PAWN_RUNNER;
-                #[cfg(feature = "tune")]
-                {
-                    self.trace.pawns_runner[side] += 1;
-                }
-            }
         }
 
         score

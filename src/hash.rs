@@ -128,6 +128,7 @@ impl Hasher {
         self.hash = 0;
         if pos.white_to_move {
             self.hash ^= self.white_to_move;
+            self.pawn_hash ^= self.white_to_move;
         }
 
         if pos.details.en_passant != 255 {
@@ -143,6 +144,10 @@ impl Hasher {
         for sq in pos.pawns().squares() {
             self.hash ^= self.hashes[Piece::Pawn.index()][sq];
             self.pawn_hash ^= self.hashes[Piece::Pawn.index()][sq];
+        }
+
+        for sq in (pos.white_pieces() & pos.pawns()).squares() {
+            self.pawn_hash ^= self.color[sq];
         }
 
         for sq in pos.knights().squares() {
@@ -163,6 +168,11 @@ impl Hasher {
 
         for sq in pos.kings().squares() {
             self.hash ^= self.hashes[Piece::King.index()][sq];
+            self.pawn_hash ^= self.hashes[Piece::King.index()][sq];
+        }
+
+        for sq in (pos.white_pieces() & pos.kings()).squares() {
+            self.pawn_hash ^= self.color[sq];
         }
     }
 
@@ -211,6 +221,15 @@ impl Hasher {
                 if pos.white_to_move {
                     self.pawn_hash ^= self.color[mov.to];
                 }
+            }
+        }
+
+        if mov.piece == Piece::King {
+            self.pawn_hash ^= self.hashes[Piece::King.index()][mov.from];
+            self.pawn_hash ^= self.hashes[Piece::King.index()][mov.to];
+            if pos.white_to_move {
+                self.pawn_hash ^= self.color[mov.from];
+                self.pawn_hash ^= self.color[mov.to];
             }
         }
 
@@ -289,10 +308,12 @@ impl Hasher {
 
         self.hash ^= self.castle[castling as usize];
         self.hash ^= self.white_to_move;
+        self.pawn_hash ^= self.white_to_move;
     }
 
     pub fn make_nullmove(&mut self, pos: &Position) {
         self.hash ^= self.white_to_move;
+        self.pawn_hash ^= self.white_to_move;
         if pos.details.en_passant != 255 {
             self.hash ^= self.en_passant[pos.details.en_passant as usize];
         }
