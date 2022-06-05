@@ -14,12 +14,10 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaChaRng;
-
 use crate::bitboard::*;
 use crate::movegen::*;
 use crate::position::*;
+use crate::rand::Xoshiro;
 use crate::types::SquareMap;
 
 pub type Hash = u64;
@@ -39,41 +37,12 @@ pub struct Hasher {
 
 impl Hasher {
     pub fn new() -> Self {
-        let mut seed = [0; 32];
-        seed[0] = 1;
-        seed[1] = 1;
-        seed[2] = 2;
-        seed[3] = 3;
-        seed[4] = 5;
-        seed[5] = 8;
-        seed[6] = 13;
-        seed[7] = 21;
-        seed[8] = 34;
-        seed[9] = 55;
-        seed[10] = 89;
-        seed[11] = 144;
-        seed[12] = 233;
-        seed[13] = 1;
-        seed[14] = 2;
-        seed[15] = 4;
-        seed[16] = 8;
-        seed[17] = 16;
-        seed[18] = 32;
-        seed[19] = 64;
-        seed[20] = 128;
-        seed[21] = 1;
-        seed[22] = 2;
-        seed[23] = 6;
-        seed[24] = 24;
-        seed[25] = 120;
-        seed[26] = 2;
-        seed[27] = 3;
-        seed[28] = 5;
-        seed[29] = 7;
-        seed[30] = 11;
-        seed[31] = 13;
-
-        let mut rng = ChaChaRng::from_seed(seed);
+        let mut rng = Xoshiro::new([
+            0x1123581321345589,
+            0x2357111317192329,
+            0x1248163265128256,
+            0x0123456789ABCDEF,
+        ]);
         let mut hasher = Hasher {
             color: SquareMap::default(),
             hashes: [SquareMap::default(); 6],

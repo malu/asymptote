@@ -8,8 +8,6 @@ edition = "2018"
 [dependencies]
 arrayvec = "0.7"
 crossbeam-utils = "0.8"
-rand = "0.8"
-rand_chacha = "0.3"
 libc = { version = "0.2", optional = true }
 
 [build-dependencies]

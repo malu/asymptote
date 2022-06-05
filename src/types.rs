@@ -17,6 +17,7 @@
 use std::mem;
 
 use crate::bitboard::Square;
+use crate::rand::{Fill, Xoshiro};
 
 pub struct SquareMap<T> {
     data: [T; 64],
@@ -38,12 +39,12 @@ impl<T: Clone> Clone for SquareMap<T> {
     }
 }
 
-impl<T> rand::Fill for SquareMap<T>
+impl<T> Fill for SquareMap<T>
 where
-    [T]: rand::Fill,
+    T: Fill,
 {
-    fn try_fill<R: rand::Rng + ?Sized>(&mut self, rng: &mut R) -> Result<(), rand::Error> {
-        self.data.try_fill(rng)
+    fn fill(&mut self, rng: &mut Xoshiro) {
+        self.data.fill(rng)
     }
 }
 
