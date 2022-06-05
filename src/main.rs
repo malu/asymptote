@@ -34,6 +34,7 @@ mod magic;
 mod movegen;
 mod movepick;
 pub mod position;
+mod rand;
 mod repetitions;
 mod search;
 mod search_controller;

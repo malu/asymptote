@@ -15,9 +15,8 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use crate::bitboard::*;
+use crate::rand::Xoshiro;
 use crate::types::SquareMap;
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaChaRng;
 
 const SHIFT_MASK: u64 = 0xF8_00_00_00_00_00_00_00;
 
@@ -68,12 +67,12 @@ impl Magic {
 fn initialize_bishop_attacks(offset: usize) -> usize {
     let border = FILE_A | FILE_H | RANK_1 | RANK_8;
 
-    let mut seed = [0; 32];
-    seed[0] = 1;
-    for i in 1..32 {
-        seed[i] = (((i * i) + seed[i - 1] as usize) % 256) as u8;
-    }
-    let mut rng = ChaChaRng::from_seed(seed);
+    let mut rng = Xoshiro::new([
+        0x1123581321345589,
+        0x2357111317192329,
+        0x1248163265128256,
+        0x0123456789ABCDEF,
+    ]);
 
     let mut offset = offset;
 
@@ -101,7 +100,7 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
 
         // search for magics
         let mut magic = Magic {
-            magic: sparse_random(&mut rng) & !SHIFT_MASK | shift.wrapping_shl(56),
+            magic: rng.gen_sparse::<3>() & !SHIFT_MASK | shift.wrapping_shl(56),
             mask,
             offset: offset as u32,
         };
@@ -119,7 +118,7 @@ fn initialize_bishop_attacks(offset: usize) -> usize {
                 let magic_table_entry = unsafe { MAGIC_TABLE[index] };
                 if magic_table_entry != reference[i] && last_used[index - offset] == tries {
                     // retry
-                    magic.magic = sparse_random(&mut rng) & !SHIFT_MASK | shift.wrapping_shl(56);
+                    magic.magic = rng.gen_sparse::<3>() & !SHIFT_MASK | shift.wrapping_shl(56);
                     tries += 1;
                     continue 'search_magic;
                 }
@@ -191,12 +190,12 @@ fn initialize_rook_attacks(offset: usize) -> usize {
     let border_files = FILE_A | FILE_H;
     let border_ranks = RANK_1 | RANK_8;
 
-    let mut seed = [0; 32];
-    seed[0] = 3;
-    for i in 1..32 {
-        seed[i] = (((i * i) + seed[i - 1] as usize) % 256) as u8;
-    }
-    let mut rng = ChaChaRng::from_seed(seed);
+    let mut rng = Xoshiro::new([
+        0x1123581321345589,
+        0x2357111317192329,
+        0x1248163265128256,
+        0x0123456789ABCDEF,
+    ]);
 
     let mut offset = offset;
 
@@ -226,7 +225,7 @@ fn initialize_rook_attacks(offset: usize) -> usize {
 
         // search for magics
         let mut magic = Magic {
-            magic: sparse_random(&mut rng) & !SHIFT_MASK | shift.wrapping_shl(56),
+            magic: rng.gen_sparse::<3>() & !SHIFT_MASK | shift.wrapping_shl(56),
             mask,
             offset: offset as u32,
         };
@@ -244,7 +243,7 @@ fn initialize_rook_attacks(offset: usize) -> usize {
                 let magic_table_entry = unsafe { MAGIC_TABLE[index] };
                 if magic_table_entry != reference[i] && last_used[index - offset] == tries {
                     // retry
-                    magic.magic = sparse_random(&mut rng) & !SHIFT_MASK | shift.wrapping_shl(56);
+                    magic.magic = rng.gen_sparse::<3>() & !SHIFT_MASK | shift.wrapping_shl(56);
                     tries += 1;
                     continue 'search_magic;
                 }
@@ -310,8 +309,4 @@ fn rook_from(from: Square, blockers: Bitboard) -> Bitboard {
         | reachable_south.backward(true, 1)
         | reachable_west.left(1)
         | reachable_east.right(1)
-}
-
-fn sparse_random(rng: &mut ChaChaRng) -> u64 {
-    rng.gen::<u64>() & rng.gen::<u64>() & rng.gen::<u64>()
 }
