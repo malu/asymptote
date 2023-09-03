@@ -302,6 +302,7 @@ impl<'a> Search<'a> {
         beta: Score,
         depth: Depth,
     ) -> Option<(Score, usize)> {
+        let in_check = self.position.in_check();
         let mut alpha = alpha;
         let mut best_score = -Score::max_value();
         let mut best_move_index = 0;
@@ -315,15 +316,44 @@ impl<'a> Search<'a> {
             // legality here.
             self.make_move(Some(mov), 0);
 
-            let mut new_depth = depth - INC_PLY;
-            if self.position.in_check() {
-                new_depth += INC_PLY;
+            let mut extension = 0;
+            let mut reduction = 0;
+
+            let check = self.position.in_check();
+
+            if check {
+                extension = INC_PLY;
             }
+
+            if depth >= LMR_DEPTH && mov.is_quite() && best_score > -MATE_SCORE + MAX_PLY {
+                let d = (depth / INC_PLY) as usize;
+                reduction += self.lmr[cmp::min(d, 63)][cmp::min(i, 63)];
+
+                reduction -= 2 * INC_PLY;
+
+                if check {
+                    reduction -= INC_PLY;
+                }
+
+                if in_check {
+                    reduction -= INC_PLY;
+                }
+            };
+
+            extension = cmp::min(extension, INC_PLY);
+            let new_depth = depth - INC_PLY + extension;
+            reduction = cmp::max(0, cmp::min(reduction, new_depth - INC_PLY));
 
             let num_nodes_before = self.visited_nodes;
             let mut value = Some(Score::max_value());
             if i > 0 {
-                value = self.search(1, -alpha - 1, -alpha, new_depth).map(|v| -v);
+                value = self
+                    .search(1, -alpha - 1, -alpha, new_depth - reduction)
+                    .map(|v| -v);
+
+                if Some(alpha) < value && reduction > 0 {
+                    value = self.search(1, -alpha - 1, -alpha, new_depth).map(|v| -v);
+                }
             }
 
             if Some(alpha) < value {

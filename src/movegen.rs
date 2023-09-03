@@ -98,6 +98,12 @@ pub struct Move {
     pub en_passant: bool,
 }
 
+impl Move {
+    pub fn is_quite(self) -> bool {
+        self.captured.is_none() && self.promoted.is_none()
+    }
+}
+
 pub struct MoveGenerator<'p> {
     pub position: &'p Position,
 }
